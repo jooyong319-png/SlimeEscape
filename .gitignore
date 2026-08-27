@@ -1,0 +1,28 @@
+# Unity
+game/Library/
+game/Temp/
+game/Obj/
+game/Build/
+game/Builds/
+game/Logs/
+game/UserSettings/
+game/MemoryCaptures/
+game/Recordings/
+*.csproj
+*.unityproj
+*.sln
+*.user
+*.pidb
+*.booproj
+*.svd
+*.pdb
+*.mdb
+*.opendb
+*.VC.db
+.vs/
+.vscode/
+# 도구 로그
+tools/unity-*.log
+# OS
+.DS_Store
+Thumbs.db
