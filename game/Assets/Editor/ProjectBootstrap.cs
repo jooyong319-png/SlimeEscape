@@ -31,8 +31,9 @@ namespace SlimeEscape.EditorTools
             cam.backgroundColor = new Color32(0x0f, 0x16, 0x14, 0xff);
             camGo.transform.position = new Vector3(0, 0, -10);
 
+            // rev.4 — 뱀 구조. 옛 GameController(직사각형 몸 + 중력)는 씬에 안 올린다.
             var game = new GameObject("Game");
-            game.AddComponent<GameController>();
+            game.AddComponent<SnakeController>();
 
             if (!Directory.Exists(SceneDir)) Directory.CreateDirectory(SceneDir);
             EditorSceneManager.SaveScene(scene, ScenePath);

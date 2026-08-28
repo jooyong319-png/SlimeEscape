@@ -1,0 +1,585 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SlimeEscape 설계 연구</title>
+<style>
+:root{
+  --bg:#0f1614; --panel:#17211d; --panel2:#1c2723;
+  --ink:#e3ebe6; --ink2:#a5b5ae; --ink3:#71827b;
+  --line:#2a3830; --line2:#223029;
+  --mint:#8dceb0; --mint-pale:#b8ebd3; --mint-deep:#4e8a6b;
+  --warn:#e8735a; --gold:#e0b356;
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{
+  margin:0; background:var(--bg); color:var(--ink);
+  font-family:"Pretendard",-apple-system,BlinkMacSystemFont,"Segoe UI","Malgun Gothic","맑은 고딕",sans-serif;
+  font-size:16px; line-height:1.75; -webkit-font-smoothing:antialiased;
+}
+.wrap{max-width:900px; margin:0 auto; padding:56px 24px 100px}
+
+/* 머리 */
+header{border-bottom:1px solid var(--line); padding-bottom:32px; margin-bottom:8px}
+.eyebrow{font-size:12px; letter-spacing:.18em; color:var(--mint); text-transform:uppercase; margin-bottom:14px}
+h1{font-size:clamp(30px,5vw,44px); line-height:1.15; margin:0 0 14px; letter-spacing:-.02em}
+h1 small{display:block; font-size:15px; font-weight:400; color:var(--ink3); letter-spacing:0; margin-top:10px}
+.lede{color:var(--ink2); max-width:64ch; margin:0}
+.lede b{color:var(--ink)}
+
+/* 구조 */
+section{padding:44px 0; border-bottom:1px solid var(--line2)}
+h2{font-size:26px; margin:0 0 6px; letter-spacing:-.01em; scroll-margin-top:20px}
+h2 .num{color:var(--mint-deep); font-variant-numeric:tabular-nums; margin-right:12px}
+h3{font-size:18px; margin:32px 0 10px; color:var(--mint-pale)}
+h4{font-size:15px; margin:22px 0 6px; color:var(--ink)}
+p{margin:0 0 14px; max-width:70ch}
+ul,ol{margin:0 0 14px; padding-left:22px; max-width:70ch}
+li{margin:6px 0}
+b{color:#fff}
+em{font-style:normal; color:var(--mint-pale)}
+a{color:var(--mint)}
+code{font-family:ui-monospace,Consolas,monospace; font-size:.9em; background:var(--panel2); padding:1px 6px; border-radius:3px; color:var(--mint-pale)}
+
+/* 목차 */
+nav.toc{background:var(--panel); border:1px solid var(--line); border-radius:6px; padding:20px 24px; margin:28px 0 0}
+nav.toc ol{margin:0; padding-left:20px; columns:2; column-gap:32px}
+nav.toc a{text-decoration:none}
+nav.toc a:hover{text-decoration:underline}
+@media(max-width:640px){nav.toc ol{columns:1}}
+
+/* 강조 박스 */
+.key{background:linear-gradient(180deg,rgba(141,206,176,.09),rgba(141,206,176,.03));
+  border-left:3px solid var(--mint); padding:16px 20px; margin:20px 0; border-radius:0 5px 5px 0}
+.key .k{font-size:12px; letter-spacing:.14em; color:var(--mint); text-transform:uppercase; display:block; margin-bottom:6px}
+.warn{background:rgba(232,115,90,.08); border-left:3px solid var(--warn); padding:16px 20px; margin:20px 0; border-radius:0 5px 5px 0}
+.warn .k{font-size:12px; letter-spacing:.14em; color:var(--warn); text-transform:uppercase; display:block; margin-bottom:6px}
+.quote{border-left:2px solid var(--line); padding-left:18px; color:var(--ink2); font-style:italic; margin:18px 0}
+
+/* 표 */
+.tw{overflow-x:auto; margin:18px 0}
+table{border-collapse:collapse; width:100%; font-size:14.5px; min-width:520px}
+th,td{border-bottom:1px solid var(--line2); padding:10px 12px; text-align:left; vertical-align:top}
+th{color:var(--ink3); font-weight:600; font-size:12.5px; letter-spacing:.06em; text-transform:uppercase; border-bottom-color:var(--line)}
+td.num,th.num{font-variant-numeric:tabular-nums; text-align:right}
+tr.hi td{background:rgba(141,206,176,.06)}
+.ok{color:var(--mint)} .no{color:var(--warn)} .mid{color:var(--gold)}
+
+/* 시안 */
+figure{margin:26px 0; background:var(--panel); border:1px solid var(--line); border-radius:6px; padding:22px}
+figure svg{display:block; width:100%; height:auto}
+figcaption{margin-top:14px; font-size:13.5px; color:var(--ink3); line-height:1.6}
+figcaption b{color:var(--ink2)}
+
+/* 카드 */
+.cards{display:grid; grid-template-columns:repeat(auto-fit,minmax(240px,1fr)); gap:14px; margin:18px 0}
+.card{background:var(--panel); border:1px solid var(--line); border-radius:6px; padding:16px 18px}
+.card h4{margin:0 0 6px; color:var(--mint-pale)}
+.card p{font-size:14px; color:var(--ink2); margin:0}
+
+footer{padding-top:40px; color:var(--ink3); font-size:13.5px}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <div class="eyebrow">설계 연구 · 7회차 종합</div>
+  <h1>SlimeEscape 설계 연구
+    <small>몸을 늘려 공간을 채우는 격자 퍼즐 · 2026-08-28 · 7회차에 걸쳐 정리</small>
+  </h1>
+  <p class="lede">
+    아이디어 1번(<b>몸을 늘려서 공간을 채운다</b>)만 놓고, 경쟁작·세계관·구성·튜토리얼·요소·난이도를
+    한 회차에 하나씩 조사하고 정리한 것이다. <b>구현은 하지 않았다.</b>
+    각 회차의 원본은 <code>docs/design-study/</code> 에 있다.
+  </p>
+
+  <nav class="toc">
+    <ol>
+      <li><a href="#s0">한 장 요약</a></li>
+      <li><a href="#s1">경쟁작</a></li>
+      <li><a href="#s2">세계관</a></li>
+      <li><a href="#s3">게임 구성</a></li>
+      <li><a href="#s4">첫 화면·튜토리얼</a></li>
+      <li><a href="#s5">요소 로드맵</a></li>
+      <li><a href="#s6">난이도·판 수</a></li>
+      <li><a href="#s7">브리프에 반영할 것</a></li>
+      <li><a href="#s8">재봐야 아는 것</a></li>
+    </ol>
+  </nav>
+</header>
+
+<!-- ============ 요약 ============ -->
+<section id="s0">
+  <h2><span class="num">0</span>한 장 요약</h2>
+
+  <div class="key">
+    <span class="k">결론</span>
+    <b>유적을 내려가며, 문에 파인 홈을 제 몸으로 정확히 채워 여는 퍼즐.</b>
+    조각을 먹으면 길어진다. 죽지 않는다 — 막힐 뿐이고 언제든 되돌린다.
+    <b>21방 · 약 2시간 · 요소 셋.</b>
+  </div>
+
+  <div class="tw"><table>
+    <tr><th>항목</th><th>결정</th><th>근거</th></tr>
+    <tr class="hi"><td><b>무엇으로 길어지나</b></td><td class="ok"><b>먹으면 길어진다 (1b)</b></td><td>1a는 Snake Coil과 정면 충돌 · 조각 개수가 목표 길이를 알려준다</td></tr>
+    <tr><td>세계관</td><td>기계 유적 · <b>몸이 곧 열쇠</b></td><td>채우는 이유가 규칙 그 자체 · Snake Coil의 "따뜻한 숲"과 정반대</td></tr>
+    <tr><td>구성</td><td><b>갈라지는 유적</b> (일직선 + 갈래)</td><td>막힘을 세계관 안에서 푼다 · 메뉴가 없다</td></tr>
+    <tr><td>첫 화면</td><td>제목이 <b>첫 방 위에 겹쳐</b> 뜬다</td><td>첫 걸음이 곧 시작 버튼 — "버튼이 아니라 몸이다"</td></tr>
+    <tr><td>튜토리얼</td><td>판으로 · <b>되돌리기는 막히는 순간에</b></td><td>막힌 그때가 유일하게 배울 준비가 된 때</td></tr>
+    <tr><td>요소</td><td><b>셋</b> — 끝나는 자리 · 머리 바꾸기 · 머리 떼기</td><td>21방 ÷ 요소당 3방 = 셋. 자리가 셋뿐이다</td></tr>
+    <tr><td>판 수 · 시간</td><td><b>21방 · 약 120분</b></td><td>판당 평균 6~7분이 목표</td></tr>
+  </table></div>
+
+  <div class="warn">
+    <span class="k">가장 큰 위험</span>
+    <b>판이 충분히 어렵지 않을 위험.</b>
+    솔버는 정답만 검증하지 <em>"오답이 얼마나 그럴듯한가"</em>는 못 잰다.
+    판당 3~4분짜리가 나오면 21방으로도 <b>1시간</b>밖에 안 된다.
+    → <b>판 5개를 만들어 사람 3명에게 풀려 실제 시간을 재면 계획 전체가 검증된다.</b>
+  </div>
+</section>
+
+<!-- ============ 1 경쟁작 ============ -->
+<section id="s1">
+  <h2><span class="num">1</span>경쟁작 — 이 장르는 이미 넓다</h2>
+
+  <h3>🔴 1a와 같은 게임이 두 달 전에 나왔다</h3>
+  <div class="tw"><table>
+    <tr><th>게임</th><th>규칙</th><th class="num">판</th><th class="num">가격</th><th>평가</th></tr>
+    <tr class="hi"><td><b>Snake Coil</b><br><span style="color:var(--ink3)">2026-06-19</span></td>
+      <td><b>한 걸음마다 자란다 + 모든 칸 채우기</b><br><span style="color:var(--ink3)">"no timer, no danger"</span></td>
+      <td class="num">수백</td><td class="num">₩2,250</td><td class="no">리뷰 0개</td></tr>
+    <tr><td><b>One Line</b><br><span style="color:var(--ink3)">2021-12-15</span></td>
+      <td>한붓그리기로 판 전체 채우기<br><span style="color:var(--ink3)">"여러 메커닉이 도입된다"</span></td>
+      <td class="num">50</td><td class="num">₩2,300</td><td class="ok">66개 · 96% 긍정</td></tr>
+    <tr><td><b>Snakebird</b><br><span style="color:var(--ink3)">2015</span></td>
+      <td>중력 + 뱀 · 열매 먹고 출구로</td>
+      <td class="num">53</td><td class="num">—</td><td class="ok">10~13시간</td></tr>
+  </table></div>
+
+  <p>
+    <b>Snake Coil이 우리 1a와 규칙까지 같다.</b> <em>"위험 없음"</em>까지 우리 <em>"죽는 게 없다"</em>와 겹친다.
+    판을 수백 개 만들고도 <b>리뷰가 0개</b>다 — 그렇게 만들어도 안 팔린다는 뜻이기도 하다.
+  </p>
+
+  <div class="key">
+    <span class="k">여기서 나온 결정</span>
+    <b>1b(먹으면 길어진다)로 간다.</b> 덜 붐빈다.
+    그리고 <b>차별점을 규칙에서 찾을 수 없다</b> — 채우기도, 잠금/열쇠도, 후진도, 세그먼트 분리도
+    이미 다 있다. <b>남는 자리는 표현·톤·이야기다.</b>
+  </div>
+
+  <h3>Snakebird는 판 53개로 10~13시간</h3>
+  <p>판 하나에 <b>11~15분</b>. 이 숫자가 우리 계획 전체를 바꿨다 —
+    2시간은 <b>쉬운 판 50개</b>가 아니라 <b>어려운 판 10~20개</b>로 채우는 게 맞다.
+    판 50개를 손으로 만드는 건 이 프로젝트가 죽는 방식이다.</p>
+
+  <h3>사장님 두 아이디어는 이미 장르에 있다</h3>
+  <div class="cards">
+    <div class="card"><h4>머리 바꾸기</h4><p>SnakePace · Vertebrae의 <b>후진</b> 계열</p></div>
+    <div class="card"><h4>머리 떼기</h4><p>Puddle Knights의 <b>세그먼트 제거</b> · "분리/연결"</p></div>
+    <div class="card"><h4>칸 채우기</h4><p>Shy Snake · FillerSnake(+잠금/열쇠) · Dotsnake</p></div>
+  </div>
+  <p>나쁜 소식이 아니다. <b>남이 해봤다 = 성립하는 메커닉이다.</b>
+    그리고 장르 서베이의 결론이 우리 계획과 같다 —
+    <em>"기본 뱀 움직임에 단 하나의 새로운 제약을 추가해 깊이를 만드는 것."</em></p>
+</section>
+
+<!-- ============ 2 세계관 ============ -->
+<section id="s2">
+  <h2><span class="num">2</span>세계관 — 몸이 곧 열쇠다</h2>
+
+  <p>브리프가 <b>스토리·컷신·대사를 금지</b>하고 있다. 그래서 만든 건 줄거리가 아니라
+    <b>세계관과 톤</b> — 말 한마디 없이 판의 생김새·색·소리로만 전해지는 것이다.
+    (Snakebird도 Baba도 대사가 없다. 장르 표준이다)</p>
+
+  <div class="key">
+    <span class="k">채택 · 안 A</span>
+    <b>문마다 빈 홈이 파여 있다. 그 홈에 몸이 정확히 들어맞아야 문이 열린다.</b><br>
+    바닥에 흩어진 <b>열쇠 조각</b>을 먹으면 그만큼 자란다.
+  </div>
+
+  <figure>
+    <svg viewBox="0 0 720 300" role="img" aria-label="판 화면 시안">
+      <rect width="720" height="300" fill="#0f1614"/>
+      <!-- 격자 -->
+      <g stroke="#2a3830" stroke-width="1">
+        <path d="M60 40 H660 M60 76 H660 M60 112 H660 M60 148 H660 M60 184 H660 M60 220 H660 M60 256 H660"/>
+        <path d="M60 40 V256 M96 40 V256 M132 40 V256 M168 40 V256 M204 40 V256 M240 40 V256 M276 40 V256 M312 40 V256 M348 40 V256 M384 40 V256 M420 40 V256 M456 40 V256 M492 40 V256 M528 40 V256 M564 40 V256 M600 40 V256 M636 40 V256 M660 40 V256"/>
+      </g>
+      <!-- 벽 -->
+      <g fill="#25322c">
+        <rect x="60" y="40" width="600" height="36"/>
+        <rect x="60" y="220" width="600" height="36"/>
+        <rect x="60" y="40" width="36" height="216"/>
+        <rect x="240" y="76" width="72" height="72"/>
+      </g>
+      <!-- 목표 홈 (음각) -->
+      <g>
+        <rect x="456" y="148" width="144" height="72" fill="#1b2b24" stroke="#8dceb0" stroke-width="2" stroke-dasharray="5 4"/>
+        <text x="528" y="192" fill="#4e8a6b" font-size="12" text-anchor="middle" font-family="sans-serif">채워야 할 홈</text>
+      </g>
+      <!-- 심 (끝나는 자리) -->
+      <circle cx="582" cy="166" r="6" fill="#e0b356"/>
+      <!-- 슬라임 -->
+      <g fill="#8dceb0">
+        <rect x="134" y="186" width="32" height="32" rx="3"/>
+        <rect x="170" y="186" width="32" height="32" rx="3"/>
+      </g>
+      <rect x="98" y="186" width="32" height="32" rx="3" fill="#b8ebd3"/>
+      <!-- 조각 -->
+      <g fill="#f3b04a">
+        <circle cx="348" cy="202" r="7"/><circle cx="420" cy="202" r="7"/>
+        <circle cx="348" cy="130" r="7"/>
+      </g>
+      <!-- 문 + 새겨진 홈 -->
+      <rect x="636" y="76" width="24" height="144" fill="#1c2723" stroke="#8dceb0" stroke-width="1.5"/>
+      <g fill="#8dceb0" opacity=".55">
+        <rect x="641" y="120" width="6" height="6"/><rect x="647" y="120" width="6" height="6"/>
+        <rect x="653" y="120" width="6" height="6"/><rect x="641" y="126" width="6" height="6"/>
+        <rect x="647" y="126" width="6" height="6"/><rect x="653" y="126" width="6" height="6"/>
+      </g>
+      <text x="648" y="270" fill="#71827b" font-size="11" text-anchor="middle" font-family="sans-serif">문</text>
+    </svg>
+    <figcaption>
+      <b>판 화면 시안.</b> 밝은 칸이 머리, 그 뒤가 몸.
+      노란 점은 <b>열쇠 조각</b>(먹으면 +1). 점선 구역이 <b>채워야 할 홈</b>,
+      그 안의 금색 점이 <b>심</b>(머리가 마지막에 있어야 할 자리).
+      오른쪽 문에 <b>목표 모양이 새겨져</b> 있다 — 판을 세지 않고 한눈에 본다.
+    </figcaption>
+  </figure>
+
+  <h3>왜 이 안인가</h3>
+  <ol>
+    <li><b>채우기의 이유가 규칙 그 자체다.</b> <em>"왜 딱 맞아야 하지?"</em>가 안 생긴다 — 열쇠니까</li>
+    <li><b>먹이 = 열쇠 조각</b> → 조각 개수가 곧 필요한 길이. 판을 보자마자 할 일을 안다</li>
+    <li>Snake Coil(따뜻한 숲)과 <b>정면으로 반대 톤</b>(조용한 기계 유적)</li>
+  </ol>
+
+  <h3>탈락한 안</h3>
+  <div class="cards">
+    <div class="card"><h4>B · 물 — 새는 곳을 막는다</h4><p>물을 마셔 불어난다. <span class="ok">클리어 때 <b>물소리가 멎는</b> 연출은 빌려 쓴다</span> — 채우기는 끝이 밋밋한데 소리로 알리면 확실하다</p></div>
+    <div class="card"><h4>C · 자리 — 맞는 자리를 찾는다</h4><p>감정적으로 제일 좋았는데 <span class="no">Snake Coil과 톤이 겹쳐서 탈락</span></p></div>
+    <div class="card"><h4>D · 자국 — 지나간 자리가 그림이 된다</h4><p><span class="no">1a 전용.</span> 1b와 안 맞아 탈락</p></div>
+  </div>
+</section>
+
+<!-- ============ 3 구성 ============ -->
+<section id="s3">
+  <h2><span class="num">3</span>게임 구성 — 갈라지는 유적</h2>
+
+  <p>이 회차의 진짜 질문은 <b>"막히면 어떻게 하나"</b>였다.
+    어려운 판 10~20개면 반드시 막히고, 거기서 끄면 게임이 끝난다.</p>
+
+  <figure>
+    <svg viewBox="0 0 720 220" role="img" aria-label="갈라지는 유적 구조도">
+      <rect width="720" height="220" fill="#0f1614"/>
+      <g stroke="#4e8a6b" stroke-width="2" fill="none">
+        <path d="M70 110 H150"/><path d="M190 110 H270"/>
+        <path d="M310 110 C340 110 340 60 370 60"/>
+        <path d="M310 110 C340 110 340 160 370 160"/>
+        <path d="M410 60 H470"/><path d="M410 160 H470"/>
+        <path d="M510 60 C540 60 540 110 570 110"/>
+        <path d="M510 160 C540 160 540 110 570 110"/>
+        <path d="M610 110 H670"/>
+      </g>
+      <g font-family="sans-serif" font-size="13" text-anchor="middle">
+        <circle cx="50" cy="110" r="20" fill="#17211d" stroke="#8dceb0" stroke-width="2"/><text x="50" y="115" fill="#e3ebe6">1</text>
+        <circle cx="170" cy="110" r="20" fill="#17211d" stroke="#8dceb0" stroke-width="2"/><text x="170" y="115" fill="#e3ebe6">2</text>
+        <circle cx="290" cy="110" r="20" fill="#17211d" stroke="#8dceb0" stroke-width="2"/><text x="290" y="115" fill="#e3ebe6">3</text>
+        <circle cx="390" cy="60" r="20" fill="#1c2723" stroke="#4e8a6b" stroke-width="2"/><text x="390" y="65" fill="#a5b5ae">4a</text>
+        <circle cx="390" cy="160" r="20" fill="#1c2723" stroke="#4e8a6b" stroke-width="2"/><text x="390" y="165" fill="#a5b5ae">4b</text>
+        <circle cx="490" cy="60" r="20" fill="#1c2723" stroke="#4e8a6b" stroke-width="2"/><text x="490" y="65" fill="#a5b5ae">5a</text>
+        <circle cx="490" cy="160" r="20" fill="#1c2723" stroke="#4e8a6b" stroke-width="2"/><text x="490" y="165" fill="#a5b5ae">5b</text>
+        <circle cx="590" cy="110" r="20" fill="#17211d" stroke="#8dceb0" stroke-width="2"/><text x="590" y="115" fill="#e3ebe6">6</text>
+        <circle cx="690" cy="110" r="20" fill="#17211d" stroke="#8dceb0" stroke-width="2"/><text x="690" y="115" fill="#e3ebe6">7</text>
+      </g>
+      <text x="440" y="30" fill="#8dceb0" font-size="12" text-anchor="middle" font-family="sans-serif">쉬운 길</text>
+      <text x="440" y="200" fill="#e0b356" font-size="12" text-anchor="middle" font-family="sans-serif">어려운 길</text>
+    </svg>
+    <figcaption>
+      <b>갈라지는 유적.</b> 기본은 일직선인데 몇 방마다 <b>문이 둘</b> 열리고, 서너 방 뒤 다시 합쳐진다.
+      막히면 되돌아가 다른 문으로 간다 — <b>메뉴를 열 필요가 없다.</b>
+      합류점 덕에 순서 통제도 유지된다(어느 길로 와도 같은 걸 배우고 온다).
+      한쪽을 쉽게 만들면 <b>사람이 알아서 자기 수준을 고른다.</b>
+    </figcaption>
+  </figure>
+
+  <div class="tw"><table>
+    <tr><th>안</th><th>막힘 대응</th><th>3초 시작</th><th>비용</th><th>세계관</th></tr>
+    <tr><td>A 일직선</td><td class="no">막히면 게임 끝</td><td class="ok">최고</td><td class="ok">최저</td><td class="ok">좋음</td></tr>
+    <tr><td>B 목록 선택</td><td class="ok">해결</td><td class="mid">보통</td><td class="ok">낮음</td><td class="no">죽는다</td></tr>
+    <tr><td>C 마리오식 월드맵</td><td class="ok">해결</td><td class="no">느림</td><td class="no">비쌈</td><td class="mid">보통</td></tr>
+    <tr class="hi"><td><b>D 갈라지는 유적</b></td><td class="ok"><b>해결</b></td><td class="ok"><b>최고</b></td><td class="mid">중간</td><td class="ok"><b>좋음</b></td></tr>
+  </table></div>
+
+  <p><b>대가:</b> 판이 갈래만큼 더 필요하다. 다만 막힌 사람을 잃는 것보다 판 몇 개 만드는 게 싸다.
+    마리오는 판이 90개라 지도가 필요했다 — <b>우리는 화면 한 장에 다 들어간다.</b></p>
+</section>
+
+<!-- ============ 4 첫 화면 ============ -->
+<section id="s4">
+  <h2><span class="num">4</span>첫 화면 · 튜토리얼</h2>
+
+  <figure>
+    <svg viewBox="0 0 720 300" role="img" aria-label="첫 화면 시안">
+      <rect width="720" height="300" fill="#0f1614"/>
+      <g stroke="#22302a" stroke-width="1">
+        <path d="M120 90 H600 M120 126 H600 M120 162 H600 M120 198 H600 M120 234 H600"/>
+        <path d="M120 90 V234 M156 90 V234 M192 90 V234 M228 90 V234 M264 90 V234 M300 90 V234 M336 90 V234 M372 90 V234 M408 90 V234 M444 90 V234 M480 90 V234 M516 90 V234 M552 90 V234 M600 90 V234"/>
+      </g>
+      <g fill="#1f2b26">
+        <rect x="120" y="90" width="480" height="36"/><rect x="120" y="198" width="480" height="36"/>
+      </g>
+      <rect x="160" y="162" width="30" height="30" rx="3" fill="#b8ebd3"/>
+      <rect x="480" y="126" width="102" height="66" fill="#16241e" stroke="#3d5c4d" stroke-width="1.5" stroke-dasharray="4 4"/>
+      <text x="360" y="62" fill="#e3ebe6" font-size="34" letter-spacing="7" text-anchor="middle" font-family="sans-serif" font-weight="700">SLIME ESCAPE</text>
+      <g fill="#6f8078" font-size="19" text-anchor="middle" font-family="sans-serif">
+        <text x="330" y="278">←</text><text x="352" y="278">↑</text><text x="374" y="278">↓</text><text x="396" y="278">→</text>
+      </g>
+    </svg>
+    <figcaption>
+      <b>첫 화면 시안.</b> 1번 방이 <b>이미 화면에 있고</b> 그 위에 제목이 떠 있다.
+      <b>첫 걸음을 떼면 제목과 화살표가 스르륵 사라진다.</b>
+      → <em>"움직이면 시작"</em>이 첫 3초에 게임 성격을 알려준다 — <b>버튼이 아니라 몸이다.</b>
+    </figcaption>
+  </figure>
+
+  <h3>가르칠 게 일곱인데 진짜 문제는 둘</h3>
+  <div class="tw"><table>
+    <tr><th>가르칠 것</th><th>스스로 아나</th><th>모르면</th></tr>
+    <tr><td>이동 · 몸이 따라옴 · 먹으면 길어짐 · 몸에 막힘</td><td class="ok">알아서 배운다</td><td>—</td></tr>
+    <tr><td><b>닿는 게 아니라 딱 맞아야 한다</b></td><td class="mid">안 보인다</td><td>목표를 모른다</td></tr>
+    <tr class="hi"><td>🔴 <b>되돌리기 (Z)</b></td><td class="no"><b>절대 모른다</b></td><td class="no"><b>막히면 게임을 끈다</b></td></tr>
+  </table></div>
+
+  <div class="key">
+    <span class="k">핵심</span>
+    <b>되돌리기는 "막히는 순간"에 처음 뜬다.</b>
+    처음부터 띄우면 안 읽고, 안 띄우면 막혔을 때 끈다.
+    <b>막힌 그 순간이 유일하게 배울 준비가 된 때다.</b>
+    그리고 <b>4번 방을 일부러 처음 막히게</b> 설계해 안전한 곳에서 배우게 한다.
+  </div>
+
+  <h3>"정확히 채우기"는 셋을 겹쳐 보여준다</h3>
+  <div class="cards">
+    <div class="card"><h4>① 바닥의 음각</h4><p>어디를 채우는지 + 한 칸씩 빛이 차서 <b>몇 칸 남았는지</b></p></div>
+    <div class="card"><h4>② 문에 새겨진 홈</h4><p>어떤 모양인지 <b>한눈에</b> (= 사장님의 "오른쪽에 정답")</p></div>
+    <div class="card"><h4>③ 조각 개수</h4><p>세면 <b>필요한 길이</b>를 안다</p></div>
+  </div>
+</section>
+
+<!-- ============ 5 요소 ============ -->
+<section id="s5">
+  <h2><span class="num">5</span>요소 로드맵 — 자리는 셋뿐이다</h2>
+
+  <div class="key">
+    <span class="k">계산이 먼저였다</span>
+    <code>21방 − 기본학습 5방 = 16방</code> ÷ <code>요소당 3방(도입1+활용2)</code> ≈ <b>3~4개</b>.<br>
+    <b>넷은 빡빡하고 둘은 심심하다.</b> → 고르는 게 아니라 <b>떨어뜨리는</b> 작업이었다.
+  </div>
+
+  <figure>
+    <svg viewBox="0 0 720 170" role="img" aria-label="요소 셋">
+      <rect width="720" height="170" fill="#0f1614"/>
+      <!-- 심 -->
+      <g><rect x="60" y="30" width="80" height="80" fill="#1b2b24" stroke="#8dceb0" stroke-width="2" stroke-dasharray="5 4"/>
+        <circle cx="100" cy="70" r="11" fill="#e0b356"/>
+        <text x="100" y="140" fill="#e3ebe6" font-size="14" text-anchor="middle" font-family="sans-serif">① 끝나는 자리</text>
+        <text x="100" y="158" fill="#71827b" font-size="11.5" text-anchor="middle" font-family="sans-serif">머리가 여기서 끝나야</text></g>
+      <!-- 소용돌이 -->
+      <g><rect x="320" y="30" width="80" height="80" fill="#1b2b24" stroke="#4e8a6b" stroke-width="2"/>
+        <path d="M360 46 a24 24 0 1 1 -17 41 a15 15 0 1 1 17 -26 a7 7 0 1 1 -7 12"
+              fill="none" stroke="#8dceb0" stroke-width="3" stroke-linecap="round"/>
+        <text x="360" y="140" fill="#e3ebe6" font-size="14" text-anchor="middle" font-family="sans-serif">② 머리 바꾸기</text>
+        <text x="360" y="158" fill="#71827b" font-size="11.5" text-anchor="middle" font-family="sans-serif">밟으면 앞뒤가 뒤바뀐다</text></g>
+      <!-- 끊어진 고리 -->
+      <g><rect x="580" y="30" width="80" height="80" fill="#1b2b24" stroke="#4e8a6b" stroke-width="2"/>
+        <path d="M604 70 a16 16 0 0 1 16 -16" fill="none" stroke="#8dceb0" stroke-width="3" stroke-linecap="round"/>
+        <path d="M604 70 a16 16 0 0 0 16 16" fill="none" stroke="#8dceb0" stroke-width="3" stroke-linecap="round"/>
+        <path d="M636 70 a16 16 0 0 0 -16 -16" fill="none" stroke="#8dceb0" stroke-width="3" stroke-linecap="round"/>
+        <path d="M636 70 a16 16 0 0 1 -16 16" fill="none" stroke="#8dceb0" stroke-width="3" stroke-linecap="round"/>
+        <line x1="620" y1="44" x2="620" y2="96" stroke="#e8735a" stroke-width="2.5" stroke-dasharray="4 4"/>
+        <text x="620" y="140" fill="#e3ebe6" font-size="14" text-anchor="middle" font-family="sans-serif">③ 머리 떼기</text>
+        <text x="620" y="158" fill="#71827b" font-size="11.5" text-anchor="middle" font-family="sans-serif">몸은 남고 머리가 새로</text></g>
+    </svg>
+    <figcaption><b>채택한 요소 셋.</b> 유적 바닥에 새겨진 무늬로 표현한다 — 글자가 없다.</figcaption>
+  </figure>
+
+  <h3>각 요소를 고른 이유</h3>
+  <div class="cards">
+    <div class="card"><h4>① 끝나는 자리</h4>
+      <p><b>판 크기를 안 키우고 어려워진다.</b> 풀이가 여럿에서 하나로 줄어
+        <b>최단해 유일성 문제도 같이 해결된다.</b> 세계관으로는 자물쇠의 <b>심</b>.</p></div>
+    <div class="card"><h4>② 머리 바꾸기</h4>
+      <p>경로를 <b>양쪽 끝에서</b> 늘릴 수 있게 된다. 🔴 발동은 <b>판에 놓인 칸을 밟아서</b> —
+        <em>"아무 때나 버튼"</em>은 요소가 아니라 <b>편의</b>라 퍼즐을 못 만든다.</p></div>
+    <div class="card"><h4>③ 머리 떼기</h4>
+      <p>남은 몸은 <b>채워진 채 벽처럼 남는다.</b> 채우기 게임의 근본 제약(한붓그리기)을 푼다 —
+        <b>갈라진 방을 채울 수 있게 된다.</b> 판당 <b>한 번만.</b></p></div>
+  </div>
+
+  <h3>뺀 것과 이유 <span style="color:var(--ink3);font-size:14px">— 나중에 흔들리지 않으려고</span></h3>
+  <div class="tw"><table>
+    <tr><th>뺀 것</th><th>이유</th></tr>
+    <tr><td>포털 · 여러 마리</td><td class="no"><b>머리 떼기와 같은 문제를 푼다</b> (분리된 구역) — 중복</td></tr>
+    <tr><td>색 맞추기</td><td>깊이는 제일 큰데 <b>말 없이 못 가르친다</b></td></tr>
+    <tr><td>미는 블록</td><td>비싸다. 지형이 바뀌면 목표 모양도 흔들린다</td></tr>
+    <tr><td>부서지는 바닥</td><td class="no"><b>채우기 목표와 모순</b> — 채워야 하는데 칸이 사라진다</td></tr>
+    <tr><td>큰 조각 (+2)</td><td class="mid">얕아서 밀림 — <b>예비 1순위</b></td></tr>
+  </table></div>
+</section>
+
+<!-- ============ 6 난이도 ============ -->
+<section id="s6">
+  <h2><span class="num">6</span>난이도 곡선 · 판 수</h2>
+
+  <div class="warn">
+    <span class="k">5회차에서 내가 틀렸다</span>
+    <em>"19방이면 3~5시간, 2시간 목표보다 길다"</em>고 적었는데 —
+    사장님 말씀은 <b>"최소 2시간 이상"</b>이었다. 2시간은 최대가 아니라 <b>최소</b>다.<br>
+    → <b>진짜 위험은 반대쪽: 판이 안 어려워서 2시간이 안 나오는 것.</b>
+  </div>
+
+  <figure>
+    <svg viewBox="0 0 720 260" role="img" aria-label="난이도 곡선">
+      <rect width="720" height="260" fill="#0f1614"/>
+      <g stroke="#22302a" stroke-width="1">
+        <path d="M50 200 H690"/><path d="M50 155 H690"/><path d="M50 110 H690"/><path d="M50 65 H690"/>
+      </g>
+      <g fill="#71827b" font-size="10" font-family="sans-serif">
+        <text x="34" y="204">0</text><text x="30" y="159">5</text><text x="26" y="114">10</text><text x="26" y="69">15</text>
+        <text x="14" y="40" font-size="11">분</text>
+      </g>
+      <!-- 막대: 21방 목표 시간 (분) -->
+      <g fill="#4e8a6b">
+        <rect x="56"  y="195" width="22" height="5"/>
+        <rect x="86"  y="191" width="22" height="9"/>
+        <rect x="116" y="182" width="22" height="18"/>
+        <rect x="146" y="182" width="22" height="18"/>
+        <rect x="176" y="191" width="22" height="9"/>
+      </g>
+      <g fill="#8dceb0">
+        <rect x="206" y="182" width="22" height="18"/>
+        <rect x="236" y="155" width="22" height="45"/>
+        <rect x="266" y="164" width="22" height="36"/>
+        <rect x="296" y="173" width="22" height="27"/>
+        <rect x="326" y="146" width="22" height="54"/>
+        <rect x="356" y="128" width="22" height="72"/>
+      </g>
+      <rect x="386" y="101" width="22" height="99" fill="#e0b356"/>
+      <g fill="#8dceb0">
+        <rect x="416" y="164" width="22" height="36"/>
+        <rect x="446" y="164" width="22" height="36"/>
+        <rect x="476" y="128" width="22" height="72"/>
+        <rect x="506" y="101" width="22" height="99"/>
+        <rect x="536" y="173" width="22" height="27"/>
+      </g>
+      <g fill="#e8735a">
+        <rect x="566" y="56" width="22" height="144"/>
+        <rect x="596" y="20" width="22" height="180"/>
+      </g>
+      <rect x="626" y="173" width="22" height="27" fill="#4e8a6b"/>
+      <g fill="#71827b" font-size="10" font-family="sans-serif" text-anchor="middle">
+        <text x="67" y="216">1</text><text x="157" y="216">4</text><text x="247" y="216">7</text>
+        <text x="397" y="216">12</text><text x="487" y="216">15</text><text x="607" y="216">18</text><text x="637" y="216">21</text>
+      </g>
+      <g font-size="11" font-family="sans-serif" fill="#a5b5ae">
+        <text x="67" y="238">학습</text>
+        <text x="230" y="238">① 도입·활용</text>
+        <text x="380" y="238">중간 시험</text>
+        <text x="500" y="238">③ 도입·활용</text>
+        <text x="600" y="252" fill="#e8735a">마지막 난관</text>
+      </g>
+    </svg>
+    <figcaption>
+      <b>톱니 곡선 · 21방 · 합계 약 120분.</b>
+      도입판은 쉽게, 활용판은 어렵게, 갈래에서 숨 돌리기.
+      금색이 <b>12방 중간 시험</b>(①+②), 붉은 둘이 <b>17·18방 마지막 난관</b>(셋 다).
+      마지막 21방은 일부러 쉽게 — 유적 밖으로 나가는 마무리.
+    </figcaption>
+  </figure>
+
+  <h3>🔴 솔버는 난이도를 못 잰다</h3>
+  <p>최단 수·유일성·상태 수는 알아도 <b>"사람이 몇 분 걸리는가"</b>는 모른다.
+    그건 <b>틀린 길이 얼마나 그럴듯한가</b>로 정해진다.</p>
+
+  <div class="key">
+    <span class="k">판을 7분짜리로 만드는 법</span>
+    <b>"그럴듯한 오답 심기"다.</b>
+    <em>"딱 봐도 저 길인데"</em> 하고 갔더니 두 칸 남기고 막히는 것 —
+    그때 사람이 처음부터 다시 생각한다. <b>그게 5분을 만든다.</b><br><br>
+    판을 키우면 시간은 늘지만 <b>지루하게</b> 는다. 그건 노동이지 퍼즐이 아니다.<br>
+    <b>솔버는 정답만 검증한다. 오답의 매력도는 사람이 만들어야 한다.</b>
+  </div>
+
+  <h4>솔버에 추가할 지표</h4>
+  <p><b>막다른 상태 비율</b> = <code>더 못 움직이는 상태 / 도달 가능한 전체 상태</code>.
+    낮으면 <em>"아무렇게나 가도 대충 풀리는 판"</em>이고 그런 판은 3분짜리다.
+    지금 안 재고 있는데 <b>만드는 비용이 거의 0이다</b>(이미 전체 상태를 훑고 있으니).</p>
+</section>
+
+<!-- ============ 7 반영 ============ -->
+<section id="s7">
+  <h2><span class="num">7</span>브리프에 반영할 것</h2>
+
+  <div class="tw"><table>
+    <tr><th>어디</th><th>무엇을</th></tr>
+    <tr class="hi"><td><b>§2 게임 방식</b> (지금 🟡 미정)</td>
+      <td><b>확정으로 바꾼다</b> — 표시된 칸을 몸으로 정확히 채우기 · <b>1b(먹으면 길어진다)</b></td></tr>
+    <tr><td><b>§4 MVP</b></td><td>판 <b>21개</b> · 목표 <b>120분</b> · 판당 평균 6~7분</td></tr>
+    <tr class="hi"><td><b>§6 안 할 것 목록</b></td>
+      <td>🔴 <b>다시 써야 한다.</b> 지금 목록이 <em>"열쇠·문"</em>과 <em>"월드맵"</em>을 뭉뚱그려 금지해서
+        <b>좋은 아이디어까지 막는다.</b> 구분을 넣을 것:<br>
+        <b>금지하는 건 규칙을 늘리는 아이템이지, 규칙을 설명하는 그림이 아니다.</b></td></tr>
+    <tr><td>§5 위험한 가정</td><td><b>"판이 충분히 어려운가"</b>로 바꾼다 (전에는 "결정이 생기는가"였다)</td></tr>
+    <tr><td>새 항목</td><td>솔버 지표에 <b>막다른 상태 비율</b> 추가</td></tr>
+  </table></div>
+
+  <h3>다음에 할 일 (순서대로)</h3>
+  <ol>
+    <li>브리프 §2·§4·§6 갱신</li>
+    <li><b>판 5개</b>를 만들고 솔버로 검증 <span style="color:var(--ink3)">— 1·2·6·9번 방 + 12번 중간시험</span></li>
+    <li>🔴 <b>사람 3명에게 풀려 실제 시간을 잰다</b> — 이게 계획 전체를 검증한다</li>
+    <li>평균이 목표의 절반이면 <b>계획을 다시 짠다</b>. 그 전에는 판을 더 안 만든다</li>
+  </ol>
+</section>
+
+<!-- ============ 8 재봐야 아는 것 ============ -->
+<section id="s8">
+  <h2><span class="num">8</span>재봐야 아는 것 <span style="color:var(--ink3);font-size:15px">— 추측으로 정하지 않은 것들</span></h2>
+
+  <div class="tw"><table>
+    <tr><th>무엇</th><th>어떻게 확인하나</th><th>급한가</th></tr>
+    <tr class="hi"><td><b>판이 실제로 몇 분짜리인가</b></td><td>판 5개 만들어 사람 3명에게</td><td class="no">제일 급함</td></tr>
+    <tr class="hi"><td><code>← ↑ ↓ →</code> 기호 하나로 조작이 전달되나</td><td>첫 화면을 사람에게 보여준다</td><td class="no">치명적</td></tr>
+    <tr><td>차가운 유적 + 귀여운 슬라임이 어울리나</td><td>그려봐야 안다</td><td class="mid">중간</td></tr>
+    <tr><td>갈래가 실제로 막힘을 풀어주나</td><td>사람이 막혀봐야 안다</td><td class="mid">중간</td></tr>
+    <tr><td>머리 바꾸기가 화면에서 헷갈리지 않나</td><td>움직여 봐야 안다</td><td class="mid">중간</td></tr>
+    <tr><td>머리 떼기의 솔버 검증 비용</td><td>판을 만들어 돌려봐야</td><td>나중</td></tr>
+    <tr><td>요소 셋으로 21방이 안 심심한가</td><td>만들어 봐야</td><td>나중</td></tr>
+    <tr><td>"막다른 상태 비율"이 실제 난이도와 상관있나</td><td>사람 풀이 시간과 대조</td><td>나중</td></tr>
+    <tr><td>Snake Coil 리뷰 0개가 안 팔려서인가</td><td>몇 달 더 두고 본다</td><td>나중</td></tr>
+  </table></div>
+
+  <div class="warn">
+    <span class="k">이 문서의 한계</span>
+    여기 있는 건 <b>전부 책상에서 나온 것</b>이다. 조사한 사실(출처 있음)과 내 판단은 구분해 적었지만,
+    <b>판이 재밌는지는 한 판도 만들어보지 않았다.</b>
+    이 계획의 가치는 <b>무엇을 먼저 확인해야 하는지를 좁혀 놓은 것</b>까지다.
+  </div>
+</section>
+
+<footer>
+  SlimeEscape 설계 연구 · 2026-08-28 · 7회차 종합<br>
+  회차별 원본: <code>docs/design-study/01-경쟁작.md</code> ~ <code>06-난이도.md</code> ·
+  진행 파일 <code>00-과제.md</code><br>
+  구현은 하지 않았다. 확정된 것은 움직임뿐이다(<code>docs/project-brief.md</code> §1).
+</footer>
+
+</div>
+</body>
+</html>

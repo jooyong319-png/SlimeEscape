@@ -19,16 +19,17 @@
   function parse(def) {
     const g = def.grid.map(r => r.split(''));
     const h = g.length, w = g[0].length;
-    let start = null;
+    let start = null, core = -1;
     const foods = [], target = [];
     for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
       const c = g[y][x];
       if (c === 'S') { start = y * w + x; g[y][x] = '.'; }
       else if (c === '+') { foods.push(y * w + x); g[y][x] = '.'; }
       else if (c === '=') { target.push(y * w + x); g[y][x] = '.'; }
+      else if (c === '*') { target.push(y * w + x); core = y * w + x; g[y][x] = '.'; }
     }
     return {
-      ...def, g, w, h, start, foods, target,
+      ...def, g, w, h, start, foods, target, core,
       foodIdx: new Map(foods.map((c, i) => [c, i])),
       targetSet: new Set(target),
     };
@@ -36,8 +37,34 @@
 
   const isWall = (L, cell) => L.g[(cell / L.w) | 0][cell % L.w] === '#';
 
+  /// 🔬 중력 실험 (L.gravity 가 켜져 있을 때만)
+  /// 몸의 어느 칸이든 바로 아래가 벽이면 버틴다. 자기 몸은 지지대가 못 된다 —
+  /// 뱀은 통째로 떨어진다(Snakebird와 같다).
+  function supported(L, body) {
+    for (const c of body) {
+      const below = c + L.w;
+      if (below >= L.w * L.h || isWall(L, below)) return true;
+    }
+    return false;
+  }
+
+  /// 지지될 때까지 떨어뜨린다. 떨어질 데가 없으면(판 밖) null = 그 걸음은 불가.
+  function settle(L, body) {
+    if (!L.gravity) return body;
+    for (let guard = 0; guard < 64; guard++) {
+      if (supported(L, body)) return body;
+      const next = body.map(c => c + L.w);
+      for (const c of next) if (c >= L.w * L.h) return null;
+      body = next;
+    }
+    return null;
+  }
+
   /// 상태: { body: [머리, ..., 꼬리], fm }
-  const startState = L => ({ body: [L.start], fm: 0 });
+  const startState = L => {
+    const b = settle(L, [L.start]);
+    return { body: b || [L.start], fm: 0 };
+  };
 
   function step(L, st, di) {
     const [dx, dy] = DIRS[di];
@@ -54,8 +81,10 @@
     const blocked = grows ? st.body.length : st.body.length - 1;
     for (let i = 0; i < blocked; i++) if (st.body[i] === nh) return null;
 
-    const body = [nh, ...st.body];
+    let body = [nh, ...st.body];
     if (!grows) body.pop();
+    body = settle(L, body);                    // 🔬 중력 (꺼져 있으면 그대로)
+    if (!body) return null;
     return { body, fm: grows ? (st.fm | (1 << fi)) : st.fm };
   }
 
@@ -63,6 +92,7 @@
   function isWin(L, st) {
     if (st.body.length !== L.target.length) return false;
     for (const c of st.body) if (!L.targetSet.has(c)) return false;
+    if (L.core >= 0 && st.body[0] !== L.core) return false;   // 머리가 심에 있어야 한다
     return true;
   }
 
@@ -137,6 +167,7 @@
         else if (body.has(c)) r += 'o';
         else if (L.g[y][x] === '#') r += '#';
         else if (fi !== undefined && !(st.fm & (1 << fi))) r += '+';
+        else if (c === L.core) r += '*';
         else if (L.targetSet.has(c)) r += '=';
         else r += '·';
       }
@@ -145,5 +176,5 @@
     return rows;
   }
 
-  root.SlimeEngine3 = { parse, startState, step, isWin, keyOf, solve, trace, render, DIRS };
+  root.SlimeEngine3 = { parse, startState, step, isWin, keyOf, solve, trace, render, settle, supported, DIRS };
 })(typeof module !== 'undefined' && module.exports ? module.exports : window);
