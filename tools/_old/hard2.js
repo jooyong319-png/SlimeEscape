@@ -1,6 +1,6 @@
 // 🔬 무엇이 이 게임을 어렵게 만드는가 — 가설 검증
 //   가설: "몸이 짧고 방이 넓어서" 쉽다. 몸이 길어지고 방이 좁아지면 어려워질 것이다.
-const E3 = require('./engine3.js').SlimeEngine3;
+const E3 = require('./engine.js').SlimeEngine;
 
 function analyze(def, cap = 900000) {
   const L = E3.parse(def);

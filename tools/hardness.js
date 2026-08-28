@@ -3,7 +3,7 @@
 // 막다른 상태(더 못 움직임)는 이 게임에서 거의 안 생긴다(빈 방이라 어디로든 갈 수 있으니).
 // 진짜 실패는 **"움직일 순 있는데 이미 틀렸다"**이고, 그건 승리 도달 가능성을 거꾸로 계산해야 안다.
 // (설계 연구 4회차에서 예고했던 것)
-const E3 = require('./engine3.js').SlimeEngine3;
+const E3 = require('./engine.js').SlimeEngine;
 
 function analyze(def) {
   const L = E3.parse(def);

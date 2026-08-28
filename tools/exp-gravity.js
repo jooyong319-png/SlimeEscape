@@ -4,7 +4,7 @@
 //
 //   node tools/exp-gravity.js          비교표
 //   node tools/exp-gravity.js <번호> <g|n>   그 판을 그림으로 재생 (g=중력 켬)
-const E3 = require('./engine3.js').SlimeEngine3;
+const E3 = require('./engine.js').SlimeEngine;
 
 function analyze(def, cap = 700000) {
   const L = E3.parse(def);

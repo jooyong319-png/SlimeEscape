@@ -1,7 +1,7 @@
 // 중력 켜고도 풀리는 20x12 판 찾기.
 // 🔴 중력이 있으면 위로 k칸 오르려면 몸 길이가 k+1 이상이어야 한다 (꼬리가 바닥을 짚어야 하니).
 //    그래서 목표를 너무 높이 두면 못 간다.
-const E3 = require('./engine3.js').SlimeEngine3;
+const E3 = require('./engine.js').SlimeEngine;
 
 const CANDS = [
   { name: 'H1 · 목표가 낮은 선반 위 (2칸)', grid: [
