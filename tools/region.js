@@ -24,7 +24,7 @@ const rnd = () => {
 const ri = n => Math.floor(rnd() * n);
 const pick = a => a[ri(a.length)];
 
-const RW = 11, RH = 7;        // 방 안쪽
+const RW = 11, RH = 9;        // 방 안쪽 — 🔴 위쪽에 선반을 둘 만큼 높다
 const WALL = 1;
 const COLS = 3;               // 아래층 방 셋
 const H = RH + 2 * WALL;
@@ -103,6 +103,10 @@ function placeDoor(x0, y0, n, mark) {
     const set = new Set(p.map(([y, x]) => y + ',' + x));
     const stacked = p.every(([y, x]) => ground(y, x) || set.has((y + 1) + ',' + x));
     if (!stacked) continue;
+    // 🔴 닿을 수 있는 높이여야 한다. 문을 채울 때 길이는 정확히 n이고,
+    //    위로 k칸 오르려면 길이 k+1이므로 **바닥에서 n-1칸 위까지**만 된다.
+    //    (08-30: 선반 위에 붙어 검사는 통과했는데 그 선반을 못 올라가는 판이 나왔다)
+    if (p.some(([y]) => y < floorY - (n - 1))) continue;
     p.forEach(([y, x], k) => { g[y][x] = k === p.length - 1 ? mark[1] : mark[0]; });
     // 조각 n-1개 — 같은 방 바닥에
     let need = n - 1;
@@ -116,8 +120,32 @@ function placeDoor(x0, y0, n, mark) {
   return false;
 }
 
+/// 정해진 줄(ly)에 가로로 n칸 문을 놓는다. 조각은 그 방 바닥에.
+function placeDoorOn(xa, xb, ly, n, mark) {
+  for (let x = xa; x + n - 1 <= xb; x++) {
+    let free = true;
+    for (let i = 0; i < n; i++) if (g[ly][x + i] !== '.') { free = false; break; }
+    if (!free) continue;
+    for (let i = 0; i < n; i++) g[ly][x + i] = (i === n - 1) ? mark[1] : mark[0];
+    let need = n - 1;
+    for (let b = 0; b < 600 && need; b++) {
+      const y = LOW + ri(RH), xx = bx(1) + ri(RW);
+      if (g[y][xx] !== '.' || !ground(y, xx)) continue;
+      g[y][xx] = '+'; need--;
+    }
+    return need === 0;
+  }
+  return false;
+}
+
 let ok = placeDoor(bx(0), LOW, 3, ['=', '*']);      // 문1 — 왼쪽 방
-ok = placeDoor(bx(2), LOW, 4, ['-', '%']) && ok;   // 문2 — 오른쪽 방(문벽 뒤)
+// 🔴 문2 — 가운데 방의 **높은 선반** 위. 조각은 같은 방 바닥에 있으니
+//    길어진 채로 올라가야 한다. 오르는 건 길이가 필요하고 내려오는 건 공짜다.
+{
+  const x0 = bx(1), ly = floorY - 3;              // 바닥에서 3칸 위 = 길이 4로 오른다
+  for (let x = x0 + 2; x < x0 + 8; x++) g[ly + 1][x] = '#';   // 선반
+  ok = placeDoorOn(x0 + 2, x0 + 7, ly, 4, ['-', '%']) && ok;
+}
 
 // 시작 — 가운데 방 (좌우로 다 갈 수 있게)
 {
