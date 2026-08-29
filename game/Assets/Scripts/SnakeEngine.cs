@@ -30,7 +30,21 @@ namespace SlimeEscape
             public int Start;
             public List<int> Foods = new List<int>();
 
-            /// 🔴 몸으로 정확히 채워야 할 칸. 남아도 모자라도 안 된다.
+            /// <summary>
+            /// 🔴 문 하나 = 채워야 할 칸 묶음 + 심(머리가 끝날 자리).
+            /// 방에 문이 여럿일 수 있다. 규칙 문장은 그대로다 —
+            /// "표시된 칸을 몸으로 정확히 채우면 문이 열린다". 달라지는 건 **어느 문이**뿐.
+            /// 🔴 길이 = 목표 칸 수인데 조각은 한 벌뿐이라 **문마다 칸 수가 같아야 한다.**
+            /// </summary>
+            public sealed class Door
+            {
+                public List<int> Cells = new List<int>();
+                public HashSet<int> Set = new HashSet<int>();
+                public int Core = -1;
+            }
+            public List<Door> Doors = new List<Door>();
+
+            /// 🔴 몸으로 정확히 채워야 할 칸 (첫째 문). 문이 하나뿐인 판을 위해 남겨둔 이름.
             public List<int> Target = new List<int>();
             public HashSet<int> TargetSet = new HashSet<int>();
 
@@ -68,6 +82,8 @@ namespace SlimeEscape
         {
             var L = new Level { Id = id, H = grid.Length, W = grid[0].Length, Start = -1, Gravity = gravity };
             L.Wall = new bool[L.W * L.H];
+            var d0 = new Level.Door();     // = *
+            var d1 = new Level.Door();     // - %
             for (int y = 0; y < L.H; y++)
             {
                 if (grid[y].Length != L.W)
@@ -80,14 +96,25 @@ namespace SlimeEscape
                         case '#': L.Wall[c] = true; break;
                         case 'S': L.Start = c; break;
                         case '+': L.Foods.Add(c); break;
-                        case '=': L.Target.Add(c); break;
-                        case '*': L.Target.Add(c); L.Core = c; break;
+                        case '=': d0.Cells.Add(c); break;
+                        case '*': d0.Cells.Add(c); d0.Core = c; break;
+                        case '-': d1.Cells.Add(c); break;
+                        case '%': d1.Cells.Add(c); d1.Core = c; break;
                     }
                 }
             }
             if (L.Start < 0) throw new System.ArgumentException($"{id}: S가 없다");
             if (L.Foods.Count > MaxFoods) throw new System.ArgumentException($"{id}: 조각이 {MaxFoods}개를 넘는다");
 
+            foreach (var d in new[] { d0, d1 })
+                if (d.Cells.Count > 0) { d.Set = new HashSet<int>(d.Cells); L.Doors.Add(d); }
+            // 🔴 문마다 칸 수가 같아야 한다 — 길이는 하나뿐인데 문마다 다르면 둘 다 못 채운다
+            for (int i = 1; i < L.Doors.Count; i++)
+                if (L.Doors[i].Cells.Count != L.Doors[0].Cells.Count)
+                    throw new System.ArgumentException(
+                        $"{id}: 문마다 칸 수가 다르다 ({L.Doors[0].Cells.Count} vs {L.Doors[i].Cells.Count})");
+
+            if (L.Doors.Count > 0) { L.Target = L.Doors[0].Cells; L.Core = L.Doors[0].Core; }
             L.TargetSet = new HashSet<int>(L.Target);
             // 🔴 길이가 안 맞으면 애초에 못 푸는 판이다. 판을 만들 때 바로 알아야 한다.
             if (!L.LengthAddsUp)
@@ -145,14 +172,23 @@ namespace SlimeEscape
 
         /// 🔴 클리어 — 몸이 목표 칸을 **정확히** 덮고, 심이 있으면 **머리가 거기** 있어야 한다.
         ///    남아도 안 되고 모자라도 안 된다.
-        public static bool IsWin(Level L, State st)
+        /// <summary>어느 문이 열렸나. 안 열렸으면 -1.</summary>
+        public static int WonDoor(Level L, State st)
         {
-            if (L.Target.Count == 0) return false;
-            if (st.Body.Count != L.Target.Count) return false;
-            foreach (int c in st.Body) if (!L.TargetSet.Contains(c)) return false;
-            if (L.Core >= 0 && st.Head != L.Core) return false;
-            return true;
+            for (int i = 0; i < L.Doors.Count; i++)
+            {
+                var d = L.Doors[i];
+                if (st.Body.Count != d.Cells.Count) continue;
+                bool all = true;
+                foreach (int c in st.Body) if (!d.Set.Contains(c)) { all = false; break; }
+                if (!all) continue;
+                if (d.Core >= 0 && st.Head != d.Core) continue;
+                return i;
+            }
+            return -1;
         }
+
+        public static bool IsWin(Level L, State st) => WonDoor(L, st) >= 0;
 
         /// 목표 중 지금 몸이 덮고 있는 칸 수 (화면에 "몇 칸 남았는지" 보여주려고)
         public static int Filled(Level L, State st)

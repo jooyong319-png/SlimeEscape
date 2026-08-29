@@ -17,6 +17,10 @@ namespace SlimeEscape
         public string sol;    // 정답 수순 ↑↓←→ — stamp.js가 박는다
         public float lost;    // "이미 진 상태" 비율(%) — 낮으면 실수해도 회복된다 = 쉽다
         public int wander;    // 🔴 진 뒤에도 더 돌아다닐 수 있는 걸음 수 — 채택 기준(14 이하)
+        public int best1, best2;     // 문마다 최단 걸음
+        public string sol1, sol2;    // 문마다 정답 수순
+        /// 🔴 그 문으로 나가면 가는 방. 비어 있으면 거기서 끝난다.
+        public string next1, next2;
         public string[] grid;
     }
 

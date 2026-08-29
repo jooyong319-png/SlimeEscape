@@ -20,19 +20,35 @@
     const g = def.grid.map(r => r.split(''));
     const h = g.length, w = g[0].length;
     let start = null, core = -1;
-    const foods = [], target = [], zone = [];
+    const foods = [], zone = [];
+    // 🔴 문이 여러 개다. 기호 쌍마다 하나씩 — 첫 문 '=' '*', 둘째 문 '-' '%'.
+    //    doors[i] = { cells: [...], core: n }
+    const doors = [{ cells: [], core: -1 }, { cells: [], core: -1 }];
     for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
       const c = g[y][x];
       if (c === 'S') { start = y * w + x; g[y][x] = '.'; }
       else if (c === '+') { foods.push(y * w + x); g[y][x] = '.'; }
-      else if (c === '=') { target.push(y * w + x); g[y][x] = '.'; }
-      else if (c === '*') { target.push(y * w + x); core = y * w + x; g[y][x] = '.'; }
+      else if (c === '=') { doors[0].cells.push(y * w + x); g[y][x] = '.'; }
+      else if (c === '*') { doors[0].cells.push(y * w + x); doors[0].core = y * w + x; g[y][x] = '.'; }
+      else if (c === '-') { doors[1].cells.push(y * w + x); g[y][x] = '.'; }
+      else if (c === '%') { doors[1].cells.push(y * w + x); doors[1].core = y * w + x; g[y][x] = '.'; }
       else if (c === '~') { zone.push(y * w + x); g[y][x] = '.'; }   // 🔬 무중력 구역
     }
+    const open = doors.filter(d => d.cells.length);
+    // 🔴 문마다 칸 수가 같아야 한다 — 길이 = 목표 칸 수인데 조각 개수는 하나뿐이다.
+    for (const d of open)
+      if (d.cells.length !== open[0].cells.length)
+        throw new Error((def.id || '판') + ': 문마다 칸 수가 다르다 (' +
+          open.map(x => x.cells.length).join(' vs ') + ') — 길이가 하나뿐이라 둘 다 못 채운다');
+    for (const d of open) d.set = new Set(d.cells);
+
     return {
-      ...def, g, w, h, start, foods, target, core,
+      ...def, g, w, h, start, foods, doors: open,
+      // 아래 셋은 예전 이름 — 문이 하나뿐인 판을 위해 남겨둔다
+      target: open.length ? open[0].cells : [],
+      core: open.length ? open[0].core : -1,
       foodIdx: new Map(foods.map((c, i) => [c, i])),
-      targetSet: new Set(target),
+      targetSet: open.length ? open[0].set : new Set(),
       zoneSet: new Set(zone),
     };
   }
@@ -104,13 +120,21 @@
     return { body: r.body, fm: r.fm, pg: r.pg };
   }
 
-  /// 몸이 목표 칸을 '정확히' 덮었는가 (남아도 모자라도 안 된다)
-  function isWin(L, st) {
-    if (st.body.length !== L.target.length) return false;
-    for (const c of st.body) if (!L.targetSet.has(c)) return false;
-    if (L.core >= 0 && st.body[0] !== L.core) return false;   // 머리가 심에 있어야 한다
-    return true;
+  /// 어느 문이 열렸나. 안 열렸으면 -1.
+  /// 몸이 그 문의 칸을 '정확히' 덮고(남아도 모자라도 안 된다) 머리가 심에 있어야 한다.
+  function wonDoor(L, st) {
+    for (let i = 0; i < L.doors.length; i++) {
+      const d = L.doors[i];
+      if (st.body.length !== d.cells.length) continue;
+      let all = true;
+      for (const c of st.body) if (!d.set.has(c)) { all = false; break; }
+      if (!all) continue;
+      if (d.core >= 0 && st.body[0] !== d.core) continue;
+      return i;
+    }
+    return -1;
   }
+  const isWin = (L, st) => wonDoor(L, st) >= 0;
 
   const keyOf = st => st.body.join(',') + '|' + st.fm + '|' + (st.pg || 0);
 
@@ -183,6 +207,8 @@
         else if (body.has(c)) r += 'o';
         else if (L.g[y][x] === '#') r += '#';
         else if (L.zoneSet.has(y * L.w + x)) r += '~';
+        else if (L.doors[1] && L.doors[1].set.has(y * L.w + x))
+          r += (y * L.w + x) === L.doors[1].core ? '%' : '-';
         else if (fi !== undefined && !(st.fm & (1 << fi))) r += '+';
         else if (c === L.core) r += '*';
         else if (L.targetSet.has(c)) r += '=';
@@ -193,5 +219,5 @@
     return rows;
   }
 
-  root.SlimeEngine = { parse, startState, step, isWin, keyOf, solve, trace, render, settle, supported, DIRS };
+  root.SlimeEngine = { parse, startState, step, isWin, wonDoor, keyOf, solve, trace, render, settle, supported, DIRS };
 })(typeof module !== 'undefined' && module.exports ? module.exports : window);

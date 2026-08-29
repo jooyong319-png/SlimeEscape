@@ -33,6 +33,13 @@ namespace SlimeEscape
         static readonly Color CoreCol   = new Color32(0xf0, 0xc0, 0x5a, 0xff);  // 심
         static readonly Color CoreRing  = new Color32(0x8a, 0x66, 0x22, 0xff);
 
+        // 🔴 둘째 문은 색을 달리한다. 같은 민트로 두면 두 문이 한 덩어리로 보인다.
+        static readonly Color Hole2Edge = new Color32(0x7f, 0x9c, 0xd8, 0xff);   // 테두리(푸른빛)
+        static readonly Color Hole2Fill = new Color32(0x33, 0x44, 0x66, 0xff);
+        /// 문 번호 -> 테두리 색
+        Color EdgeOf(int door) => door == 0 ? HoleEdge : Hole2Edge;
+        Color FillOf(int door) => door == 0 ? HoleFill : Hole2Fill;
+
         // ---- 손맛 수치 (게임 안에서 K로 조절) ----
         [System.Serializable]
         public class Knobs
@@ -65,6 +72,7 @@ namespace SlimeEscape
         readonly Dictionary<int, SpriteRenderer> _holeEdges = new Dictionary<int, SpriteRenderer>();
         /// 이웃한 목표 칸의 속을 이어 붙이는 조각. (칸 두 개, 그림 하나)
         readonly List<(int a, int b, SpriteRenderer sr)> _bridges = new List<(int, int, SpriteRenderer)>();
+        readonly Dictionary<int, int> _doorOf = new Dictionary<int, int>();   // 칸 -> 문 번호
         const float SlotInner = 0.82f;   // 홈 속의 크기. 나머지가 테두리로 보인다
         bool _won;
         float _wonAt;
@@ -112,6 +120,10 @@ namespace SlimeEscape
         //    재생 중에는 기록을 안 남긴다 — 검증 데이터가 더러워지면 안 된다.
         bool _replay;
         bool _allDone;   // 마지막 판까지 깼다 — 결과 화면
+
+        // 🔴 어느 문으로 나갔느냐가 다음 방을 정한다. 지도 화면이 필요 없는 갈래다.
+        int _wonBy = -1;
+        readonly List<string> _trail = new List<string>();   // 지나온 방
 
         // ---- 안내 화면 ----
         // 🔴 친구 검증에서 나온 첫 마디가 "설명도 없이 하라고만 나온다"였다 (2026-08-29).
@@ -170,9 +182,20 @@ namespace SlimeEscape
 
         SnakeLevelJson Def => _set.levels[_index];
 
+        int IndexOf(string id)
+        {
+            if (string.IsNullOrEmpty(id)) return -1;
+            for (int i = 0; i < _set.levels.Length; i++) if (_set.levels[i].id == id) return i;
+            Debug.LogWarning("[길] 모르는 방: " + id);
+            return -1;
+        }
+
         void Load(int i)
         {
             _index = Mathf.Clamp(i, 0, _set.levels.Length - 1);
+            _wonBy = -1;
+            if (_trail.Count == 0 || _trail[_trail.Count - 1] != _set.levels[_index].id)
+                _trail.Add(_set.levels[_index].id);
             _L = SnakeLevels.ToLevel(Def, _gravity);
             BuildBoard();
 
@@ -279,12 +302,17 @@ namespace SlimeEscape
             //    실제로 사람이 61초 동안 못 읽었다 (2026-08-29 검증).
             //    그래서 민트를 칸 가득 깔아 서로 붙게 하고, 어두운 속만 안쪽에 둔다.
             //    이웃한 칸 사이는 속끼리 다리로 이어 붙여 테두리가 안 끼게 한다.
-            foreach (int c in _L.Target)
+            _doorOf.Clear();
+            for (int di = 0; di < _L.Doors.Count; di++)
+                foreach (int c in _L.Doors[di].Cells) _doorOf[c] = di;
+
+            foreach (var kvDoor in _doorOf)
             {
+                int c = kvDoor.Key;
                 var edge = NewSprite("HoleEdge", -1);
                 edge.transform.position = CellPos(c);
                 edge.transform.localScale = new Vector3(1f, 1f, 1);   // 칸 가득 — 이웃과 붙는다
-                edge.color = HoleEdge;
+                edge.color = EdgeOf(kvDoor.Value);
 
                 var inner = NewSprite("HoleInner", 0);
                 inner.transform.position = CellPos(c);
@@ -296,13 +324,15 @@ namespace SlimeEscape
             }
 
             // 속끼리 잇는 다리 — 오른쪽·아래 이웃만 보면 중복 없이 다 이어진다
-            foreach (int c in _L.Target)
+            // 🔴 다리는 **같은 문끼리만** 잇는다. 다른 문끼리 이으면 한 덩어리로 보인다.
+            foreach (var kvDoor in _doorOf)
             {
+                int c = kvDoor.Key, mine = kvDoor.Value;
                 int x = _L.X(c), y = _L.Y(c);
-                if (x + 1 < _L.W && _L.TargetSet.Contains(c + 1))
+                if (x + 1 < _L.W && _doorOf.TryGetValue(c + 1, out var r) && r == mine)
                     AddBridge(c, c + 1, new Vector3(1f - SlotInner, SlotInner, 1),
                               new Vector2(0.5f, 0f));
-                if (y + 1 < _L.H && _L.TargetSet.Contains(c + _L.W))
+                if (y + 1 < _L.H && _doorOf.TryGetValue(c + _L.W, out var d) && d == mine)
                     AddBridge(c, c + _L.W, new Vector3(SlotInner, 1f - SlotInner, 1),
                               new Vector2(0f, -0.5f));
             }
@@ -310,15 +340,19 @@ namespace SlimeEscape
             // 심 — 머리가 마지막에 있어야 할 자리
             if (_L.Core >= 0)
             {
-                var ring = NewSprite("CoreRing", 1);
-                ring.transform.position = CellPos(_L.Core);
-                ring.transform.localScale = Vector3.one * 0.52f;
-                ring.color = CoreRing;
+                foreach (var dd in _L.Doors)
+                {
+                    if (dd.Core < 0) continue;
+                    var ring = NewSprite("CoreRing", 1);
+                    ring.transform.position = CellPos(dd.Core);
+                    ring.transform.localScale = Vector3.one * 0.52f;
+                    ring.color = CoreRing;
 
-                var core = NewSprite("Core", 2);
-                core.transform.position = CellPos(_L.Core);
-                core.transform.localScale = Vector3.one * 0.30f;
-                core.color = CoreCol;
+                    var core = NewSprite("Core", 2);
+                    core.transform.position = CellPos(dd.Core);
+                    core.transform.localScale = Vector3.one * 0.30f;
+                    core.color = CoreCol;
+                }
             }
 
             for (int x = 1; x < _L.W; x++) GridLine(x, true);
@@ -399,15 +433,20 @@ namespace SlimeEscape
             foreach (var kv in _holes)
             {
                 bool covered = body.Contains(kv.Key);
-                kv.Value.color = covered ? HoleFill : HoleCol;
+                int door = _doorOf.TryGetValue(kv.Key, out var dn) ? dn : 0;
+                kv.Value.color = covered ? FillOf(door) : HoleCol;
                 if (_holeEdges.TryGetValue(kv.Key, out var e))
-                    e.color = covered
-                        ? new Color(HoleEdge.r, HoleEdge.g, HoleEdge.b, 0.30f)
-                        : HoleEdge;
+                {
+                    var ec = EdgeOf(door);
+                    e.color = covered ? new Color(ec.r, ec.g, ec.b, 0.30f) : ec;
+                }
             }
             // 다리는 양쪽이 다 덮였을 때만 같이 물든다 — 안 그러면 끊겨 보인다
             foreach (var br in _bridges)
-                br.sr.color = (body.Contains(br.a) && body.Contains(br.b)) ? HoleFill : HoleCol;
+            {
+                int door = _doorOf.TryGetValue(br.a, out var dn) ? dn : 0;
+                br.sr.color = (body.Contains(br.a) && body.Contains(br.b)) ? FillOf(door) : HoleCol;
+            }
         }
 
         // ---------------- 입력 ----------------
@@ -448,13 +487,15 @@ namespace SlimeEscape
             // 열렸으면 잠깐 두고 다음 방으로 — 손이 멈추지 않게
             if (_won && Time.time > _wonAt + NextLevelDelay)
             {
-                if (_index < _set.levels.Length - 1) { Load(_index + 1); return; }
-                if (!_allDone) { EndRun(); _allDone = true; }   // 마지막 판 — 여기서 끝난다
+                string want = _wonBy == 1 ? Def.next2 : Def.next1;
+                int to = IndexOf(want);
+                if (to >= 0) { Load(to); return; }
+                if (!_allDone) { EndRun(); _allDone = true; }   // 길이 끝났다
             }
 
             if (Input.GetKeyDown(KeyCode.R))
             {
-                if (_allDone) { _allDone = false; Load(0); return; }
+                if (_allDone) { _allDone = false; _trail.Clear(); Load(0); return; }
                 if (_run != null) _run.restart++;
                 Restart(); return;
             }
@@ -485,8 +526,10 @@ namespace SlimeEscape
             if (_run != null) _run.moves++;
             _undo.Push(_st);
             _st = ns;
-            if (SnakeEngine.IsWin(_L, _st))
+            int door = SnakeEngine.WonDoor(_L, _st);
+            if (door >= 0)
             {
+                _wonBy = door;
                 _won = true; _wonAt = Time.time;
                 _cleared.Add(Def.id);
                 SaveProgress();
@@ -772,6 +815,7 @@ namespace SlimeEscape
                 GUILayout.BeginArea(new Rect(box.x + 16, box.y + 12, box.width - 32, box.height - 24));
                 GUILayout.Label(SnakeLog.Table());
                 GUILayout.Label(SnakeLog.Summary());
+                GUILayout.Label("지나온 길: " + string.Join(" › ", _trail));
                 GUILayout.EndArea();
                 GUI.Label(new Rect(0, h - 56, w, 22),
                     "재미있었는지 · 어디서 막혔는지 · 그만두고 싶었는지 한 줄만 적어주시면 큰 도움이 됩니다", _sMid);
@@ -787,9 +831,16 @@ namespace SlimeEscape
             for (int i = 0; i < need; i++) dots += (i < filled ? "●" : "○") + " ";
             GUI.Label(new Rect(0, 42, w, 22), dots, _sMid);
 
+            // 🔴 지도 대신 **지나온 길**을 보여준다. 어디서 갈렸는지가 남는다.
+            if (_trail.Count > 1)
+                GUI.Label(new Rect(0, 66, w, 20),
+                    string.Join(" › ", _trail.GetRange(Mathf.Max(0, _trail.Count - 6), Mathf.Min(6, _trail.Count))),
+                    _sSmall);
+
             if (_won)
             {
-                GUI.Label(new Rect(0, h - 40, w, 24), "문이 열렸다", _sMid);
+                string via = _wonBy == 1 ? "푸른 문이 열렸다" : "민트 문이 열렸다";
+                GUI.Label(new Rect(0, h - 40, w, 24), via, _sMid);
             }
             else
             {
