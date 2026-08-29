@@ -45,7 +45,11 @@ namespace SlimeEscape
         static readonly Color GateCol  = new Color32(0x4a, 0x3f, 0x2e, 0xff);
         static readonly Color GateEdge = new Color32(0x8a, 0x74, 0x4a, 0xff);
         /// 🔴 두고 온 몸 — 자물쇠에 남아 굳은 것. 밟고 지나갈 수 있다.
-        static readonly Color SpentCol = new Color32(0x4d, 0x5a, 0x54, 0xff);
+        /// 🔴 두고 온 몸 — 자물쇠에 남아 굳은 것. **딛고 설 수 있다**(2026-08-30).
+        //     그래서 홈 색이 아니라 **벽(Rock)과 같은 계열**로 그린다.
+        //     디딜 수 있는 것은 디딜 수 있는 것처럼 보여야 한다.
+        static readonly Color SpentCol = new Color32(0x3a, 0x4a, 0x43, 0xff);   // 굳은 몸
+        static readonly Color SpentTop = new Color32(0x66, 0x7d, 0x72, 0xff);   // 윗면 — 여기 설 수 있다
 
         readonly Dictionary<int, SpriteRenderer> _gateViews = new Dictionary<int, SpriteRenderer>();
         readonly Dictionary<int, int> _gateOf = new Dictionary<int, int>();   // 칸 -> 문 번호
@@ -95,6 +99,8 @@ namespace SlimeEscape
         /// 이웃한 목표 칸의 속을 이어 붙이는 조각. (칸 두 개, 그림 하나)
         readonly List<(int a, int b, SpriteRenderer sr)> _bridges = new List<(int, int, SpriteRenderer)>();
         readonly Dictionary<int, int> _doorOf = new Dictionary<int, int>();   // 칸 -> 문 번호
+        /// 굳은 몸의 윗면. 문이 열린 뒤에만 보인다.
+        readonly Dictionary<int, SpriteRenderer> _spentTop = new Dictionary<int, SpriteRenderer>();
         const float SlotInner = 0.82f;   // 홈 속의 크기. 나머지가 테두리로 보인다
         bool _won;
         float _wonAt;
@@ -407,6 +413,15 @@ namespace SlimeEscape
 
                 _holes[c] = inner;
                 _holeEdges[c] = edge;
+
+                // 🔴 굳은 몸의 윗면 — 평소엔 숨어 있다가 문이 열리면 나타난다.
+                //    벽의 윗면과 같은 신호라, 여기 설 수 있다는 게 바로 읽힌다.
+                var top = NewSprite("SpentTop", 1);
+                top.transform.position = CellPos(c) + new Vector2(0f, 0.42f);
+                top.transform.localScale = new Vector3(1f, 0.16f, 1);
+                top.color = SpentTop;
+                top.enabled = false;
+                _spentTop[c] = top;
             }
 
             // 속끼리 잇는 다리 — 오른쪽·아래 이웃만 보면 중복 없이 다 이어진다
@@ -550,10 +565,19 @@ namespace SlimeEscape
                 // 🔴 이미 연 문은 몸을 두고 온 자리다 — 굳은 색으로 남긴다
                 bool spent = (_st.Dm & (1 << door)) != 0;
                 kv.Value.color = spent ? SpentCol : covered ? FillOf(door) : HoleCol;
+
+                // 윗면은 **덩어리의 맨 위 칸**에만 켠다. 속에까지 그리면 줄무늬가 된다.
+                if (_spentTop.TryGetValue(kv.Key, out var topSr))
+                {
+                    bool above = _doorOf.TryGetValue(kv.Key - _L.W, out var upDoor)
+                                 && (_st.Dm & (1 << upDoor)) != 0;
+                    topSr.enabled = spent && !above;
+                }
                 if (_holeEdges.TryGetValue(kv.Key, out var e))
                 {
                     var ec = EdgeOf(door);
-                    e.color = spent ? new Color(SpentCol.r, SpentCol.g, SpentCol.b, 0.55f)
+                    // 🔴 굳으면 테두리도 같은 돌색이 된다 — 홈이 아니라 **지형**이 된 것이다
+                    e.color = spent ? SpentCol
                         : covered ? new Color(ec.r, ec.g, ec.b, 0.30f) : ec;
                 }
             }
