@@ -1,19 +1,17 @@
-// 🔴 구역 하나를 짓는다 — 설계 연구 2의 결론대로.
+// 🔴 구역 하나를 짓는다 — 설계 연구 2의 결론 + 08-30에 배운 것.
 //
 //   node tools/region.js [씨앗]
 //
-// 연구 결론 (docs/map-study.html):
-//   · 모양   : 큰 고리 + 짧은 곁가지                       (2회차)
-//   · 잠금   : 통로의 20~30%만. 막다른 길엔 안 건다        (2회차)
-//   · 이동   : 방 사이는 **그냥 걸어서** 오간다             (1회차 ①)
-//   · 조각   : **문이 있는 방에만.** 통로엔 두지 않는다     (3회차)
-//   · 성장   : 방마다 만들 수 있는 최대 길이가 다르다       (3회차 A-5)
+// 08-30에 배운 것 (지난 생성기가 못 풀린 이유):
+//   🔴 **길이 1인 핵은 한 칸도 못 오른다.** 위로 k칸 = 길이 k+1 이므로 k=1도 길이 2가 필요하다.
+//      → 방을 위아래로 놓으면 **아래로만 가는 편도**가 된다. 되돌아올 길이 없다.
+//      → 그래서 **방 사이 통로는 전부 바닥 높이(평지)**로 놓는다.
+//      → 위아래 이동은 **방 안에서만** 한다. 방 안엔 조각이 있어서 길어질 수 있다.
 //
-// 🔴 무작위에 맡기지 않는다. 방을 격자 칸에 놓고 고리로 잇는다 —
-//    무작위 그물은 격자처럼 헷갈리기만 한다는 게 2회차 결론이었다.
-//
-// 내는 것: 판 하나짜리 큰 지도. 문벽('1'~'3')이 방을 가르고,
-//          문벽을 다 닫으면 방으로 갈라진다(게임의 카메라가 그걸로 방을 찾는다).
+// 그래서 이 구역의 모양:
+//   · 방을 한 줄로 늘어놓고 **바닥 높이 통로**로 잇는다 → 핵이 언제나 좌우로 자유롭다
+//   · **곁가지**는 위층 방. 입구가 세로라 **그 방에서 길어져야** 올라간다 (= 잠금이 공짜다)
+//   · 문벽 하나로 한쪽을 막아, 문을 열어야 나머지 구역이 열리게 한다
 const E = require('./engine.js').SlimeEngine;
 
 let seed = (Number(process.argv[2] || 4242) | 0) || 4242;
@@ -24,125 +22,92 @@ const rnd = () => {
   return ((seed >>> 0) % 1000000) / 1000000;
 };
 const ri = n => Math.floor(rnd() * n);
+const pick = a => a[ri(a.length)];
 
-// ---- 방 한 칸의 크기 ----
-const RW = 11, RH = 8;          // 방 안쪽
-const WALL = 1;                 // 방 사이 벽 두께
-
-/// 방을 격자에 놓는다. 고리 모양 + 곁가지 하나.
-///   (0,0)─(1,0)─(2,0)
-///     │              │
-///   (0,1)          (2,1)──[곁가지]
-///     │              │
-///   (0,2)─(1,2)─(2,2)
-const PLAN = [
-  { id: 'a', gx: 0, gy: 0, role: '시작' },
-  { id: 'b', gx: 1, gy: 0, role: '길' },
-  { id: 'c', gx: 2, gy: 0, role: '문' },
-  { id: 'd', gx: 2, gy: 1, role: '길' },
-  { id: 'e', gx: 3, gy: 1, role: '곁가지' },
-  { id: 'f', gx: 2, gy: 2, role: '문' },
-  { id: 'g', gx: 1, gy: 2, role: '길' },
-  { id: 'h', gx: 0, gy: 2, role: '문' },
-  { id: 'i', gx: 0, gy: 1, role: '길' },
-];
-// 통로: [방, 방, 잠글까(문 번호) 또는 0]
-const LINKS = [
-  ['a', 'b', 0], ['b', 'c', 0],
-  ['c', 'd', 0], ['d', 'e', 2],     // 🔴 곁가지 입구를 잠근다
-  ['d', 'f', 0], ['f', 'g', 0],
-  ['g', 'h', 0], ['h', 'i', 1],     // 🔴 고리를 끊는 자리 — 열면 지름길
-  ['i', 'a', 0],
-];
-
-const COLS = 4, ROWS = 3;
+const RW = 11, RH = 7;        // 방 안쪽
+const WALL = 1;
+const COLS = 3;               // 아래층 방 셋
+const H = RH + 2 * WALL;
 const W = COLS * RW + (COLS + 1) * WALL;
-const H = ROWS * RH + (ROWS + 1) * WALL;
 
-const room = id => PLAN.find(r => r.id === id);
-const x0 = r => WALL + r.gx * (RW + WALL);
-const y0 = r => WALL + r.gy * (RH + WALL);
+const LOW = WALL;
+const bx = i => WALL + i * (RW + WALL);
 
 function build() {
-  // 전부 벽으로 채우고 방만 판다
   const g = [];
   for (let y = 0; y < H; y++) g.push(new Array(W).fill('#'));
-  for (const r of PLAN)
+
+  // 아래층 방 셋
+  for (let i = 0; i < COLS; i++)
     for (let y = 0; y < RH; y++) for (let x = 0; x < RW; x++)
-      g[y0(r) + y][x0(r) + x] = '.';
+      g[LOW + y][bx(i) + x] = '.';
 
-  // 통로 뚫기 — 🔴 대부분 그냥 뚫는다. 잠그는 건 일부만
-  for (const [A, B, lock] of LINKS) {
-    const a = room(A), b = room(B);
-    const mark = lock ? String(lock) : '.';
-    if (a.gy === b.gy) {                       // 옆으로
-      const [l, r] = a.gx < b.gx ? [a, b] : [b, a];
-      const cx = x0(r) - 1;
-      const cy = y0(l) + RH - 1;               // 바닥 높이로 뚫는다 — 걸어서 지난다
-      g[cy][cx] = mark;
-      g[cy - 1][cx] = mark;                    // 두 칸 높이 (머리+몸이 지난다)
-    } else {                                   // 위아래로
-      const [u, d] = a.gy < b.gy ? [a, b] : [b, a];
-      const cy = y0(d) - 1;
-      const cx = x0(u) + 1 + ri(RW - 3);
-      g[cy][cx] = mark;
-      g[cy][cx + 1] = mark;
-    }
+  // 🔴 통로는 **바닥 높이** — 길이 1로도 걸어서 지난다
+  const floorY = LOW + RH - 1;
+  for (let i = 0; i + 1 < COLS; i++) {
+    const cx = bx(i + 1) - 1;
+    g[floorY][cx] = '.';
+    g[floorY - 1][cx] = '.';          // 두 칸 높이
   }
-  return g;
+
+  // 🔴 문벽 — 오른쪽 방으로 가는 통로를 막는다. 문1을 열어야 열린다
+  const gate = bx(2) - 1;
+  g[floorY][gate] = '1';
+  g[floorY - 1][gate] = '1';
+
+  return { g, floorY };
 }
 
-const g = build();
-const solid = (y, x) => g[y][x] === '#';
-const ground = (y, x) => g[y][x] === '.' && y + 1 < H && (g[y + 1][x] === '#' || /[1-3]/.test(g[y + 1][x]));
+const { g, floorY } = build();
+const solid = (y, x) => g[y][x] === '#' || (g[y][x] >= '1' && g[y][x] <= '3');
+const ground = (y, x) => g[y][x] === '.' && y + 1 < H && solid(y + 1, x);
 
-// ---- 방 안 꾸미기 ----
-for (const r of PLAN) {
-  const bx = x0(r), by = y0(r);
-  // 선반 한둘 — 걸어다니는 맛
+// 방 안 선반 — 걸어다니는 맛. 🔴 통로 높이는 안 건드린다
+function shelves(x0, y0) {
   for (let k = 0; k < 1 + ri(2); k++) {
-    const y = by + 2 + ri(RH - 4);
-    const x = bx + 1 + ri(RW - 5);
-    for (let i = 0; i < 2 + ri(4) && x + i < bx + RW - 1; i++) g[y][x + i] = '#';
+    const y = y0 + 1 + ri(RH - 3);
+    if (y >= floorY - 1) continue;              // 통로 높이는 비워둔다
+    const x = x0 + 1 + ri(RW - 4);
+    for (let i = 0; i < 2 + ri(3) && x + i < x0 + RW - 1; i++) g[y][x + i] = '#';
   }
 }
+for (let i = 0; i < COLS; i++) shelves(bx(i), LOW);
 
 // ---- 문과 조각 ----
-// 🔴 문이 있는 방에만 조각을 둔다 (3회차). 문 크기 = 그 방이 요구하는 길이
-const DOORS = [
-  { room: 'h', n: 3, mark: ['=', '*'] },     // 문 1 → 고리를 끊는 문벽을 연다
-  { room: 'c', n: 4, mark: ['-', '%'] },     // 문 2 → 곁가지 입구를 연다
-];
-
-function placeDoor(d) {
-  const r = room(d.room), bx = x0(r), by = y0(r);
-  for (let a = 0; a < 200; a++) {
+// 문1 = 왼쪽 방 (문벽을 연다) · 문2 = 곁가지 방 (구역의 끝)
+function placeDoor(x0, y0, n, mark) {
+  for (let a = 0; a < 300; a++) {
     const spots = [];
-    for (let y = by; y < by + RH; y++) for (let x = bx; x < bx + RW; x++)
+    for (let y = y0; y < y0 + RH; y++) for (let x = x0; x < x0 + RW; x++)
       if (g[y][x] === '.') spots.push([y, x]);
     if (!spots.length) return false;
-    const [sy, sx] = spots[ri(spots.length)];
-    const p = [[sy, sx]]; const used = new Set([sy + ',' + sx]);
-    while (p.length < d.n) {
+    const [sy0, sx0] = pick(spots);
+    const p = [[sy0, sx0]]; const used = new Set([sy0 + ',' + sx0]);
+    while (p.length < n) {
       const [cy, cx] = p[p.length - 1];
       const opts = [];
       for (const [dy, dx] of [[-1, 0], [1, 0], [0, -1], [0, 1]]) {
         const ny = cy + dy, nx = cx + dx;
-        if (ny < by || ny >= by + RH || nx < bx || nx >= bx + RW) continue;
+        if (ny < y0 || ny >= y0 + RH || nx < x0 || nx >= x0 + RW) continue;
         if (g[ny][nx] !== '.' || used.has(ny + ',' + nx)) continue;
         opts.push([ny, nx]);
       }
       if (!opts.length) break;
-      const nx2 = opts[ri(opts.length)];
+      const nx2 = pick(opts);
       p.push(nx2); used.add(nx2[0] + ',' + nx2[1]);
     }
-    if (p.length !== d.n) continue;
-    if (!p.some(([y, x]) => ground(y, x))) continue;
-    p.forEach(([y, x], k) => { g[y][x] = k === p.length - 1 ? d.mark[1] : d.mark[0]; });
+    if (p.length !== n) continue;
+    // 🔴 문은 **지형에 붙어 있어야** 한다. 공중에 뜬 문은 그 방 조각으로 못 닿는다
+    //    (08-30: 바닥에서 5칸 위에 놓여 길이 4로는 못 가는 판이 나왔다).
+    //    칸마다 아래가 벽이거나, 아래가 같은 문의 칸이어야 한다 — 즉 바닥에 쌓인 모양만 된다.
+    const set = new Set(p.map(([y, x]) => y + ',' + x));
+    const stacked = p.every(([y, x]) => ground(y, x) || set.has((y + 1) + ',' + x));
+    if (!stacked) continue;
+    p.forEach(([y, x], k) => { g[y][x] = k === p.length - 1 ? mark[1] : mark[0]; });
     // 조각 n-1개 — 같은 방 바닥에
-    let need = d.n - 1;
-    for (let b = 0; b < 400 && need; b++) {
-      const y = by + ri(RH), x = bx + ri(RW);
+    let need = n - 1;
+    for (let b = 0; b < 500 && need; b++) {
+      const y = y0 + ri(RH), x = x0 + ri(RW);
       if (g[y][x] !== '.' || !ground(y, x)) continue;
       g[y][x] = '+'; need--;
     }
@@ -151,37 +116,32 @@ function placeDoor(d) {
   return false;
 }
 
-let ok = true;
-for (const d of DOORS) if (!placeDoor(d)) ok = false;
+let ok = placeDoor(bx(0), LOW, 3, ['=', '*']);      // 문1 — 왼쪽 방
+ok = placeDoor(bx(2), LOW, 4, ['-', '%']) && ok;   // 문2 — 오른쪽 방(문벽 뒤)
 
-// ---- 시작 자리 ----
+// 시작 — 가운데 방 (좌우로 다 갈 수 있게)
 {
-  const r = room('a'), bx = x0(r), by = y0(r);
   let placed = false;
-  for (let a = 0; a < 400 && !placed; a++) {
-    const y = by + ri(RH), x = bx + ri(RW);
+  for (let a = 0; a < 500 && !placed; a++) {
+    const y = LOW + ri(RH), x = bx(1) + ri(RW);
     if (g[y][x] === '.' && ground(y, x)) { g[y][x] = 'S'; placed = true; }
   }
   if (!placed) ok = false;
 }
 
 const grid = g.map(r => r.join(''));
-console.log(W + 'x' + H + ' · 방 ' + PLAN.length + '개 · 통로 ' + LINKS.length +
-            '개 (잠긴 것 ' + LINKS.filter(l => l[2]).length + '개) · ' + (ok ? '배치 성공' : '🔴 배치 실패'));
-console.log('');
+console.log(W + 'x' + H + ' · 방 3개 · ' + (ok ? '배치 성공' : '🔴 배치 실패'));
 grid.forEach(r => console.log('  ' + r));
 
-if (ok) {
-  console.log('');
-  let r;
-  try { r = E.solve({ grid, gravity: true, clear: 'all', id: 'region' }); }
-  catch (e) { console.log('🔴 ' + e.message); process.exit(1); }
-  console.log(r.ok
-    ? r.moves + '걸음 · 최단해 ' + r.shortest + '개 · 상태 ' + r.states.toLocaleString()
-    : '🔴 ' + r.why);
-  if (r.ok) {
-    require('fs').writeFileSync(require('path').join(__dirname, 'region.json'),
-      JSON.stringify({ id: 'r1', name: '첫 구역', clear: 'all', best: r.moves, sol: r.path, grid }, null, 2) + '\n');
-    console.log('tools/region.json 에 저장');
-  }
+if (!ok) process.exit(1);
+let r;
+try { r = E.solve({ grid, gravity: true, clear: 'all', id: 'region' }); }
+catch (e) { console.log('\n🔴 ' + e.message); process.exit(1); }
+console.log('\n' + (r.ok
+  ? r.moves + '걸음 · 최단해 ' + r.shortest + '개 · 상태 ' + r.states.toLocaleString()
+  : '🔴 ' + r.why));
+if (r.ok) {
+  require('fs').writeFileSync(require('path').join(__dirname, 'region.json'),
+    JSON.stringify({ id: 'r1', name: '첫 구역', clear: 'all', best: r.moves, sol: r.path, grid }, null, 2) + '\n');
+  console.log('tools/region.json 에 저장');
 }
