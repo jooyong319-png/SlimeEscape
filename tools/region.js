@@ -26,7 +26,11 @@ const pick = a => a[ri(a.length)];
 
 const RW = 11, RH = 9;        // 방 안쪽 — 🔴 위쪽에 선반을 둘 만큼 높다
 const WALL = 1;
-const COLS = 3;               // 아래층 방 셋
+// 구역마다 달라지게 — 방 개수와 문 크기를 밖에서 준다
+const COLS = Number(process.env.COLS || 3);
+const D1 = Number(process.env.D1 || 3);      // 문1 칸 수 (왼쪽 방)
+const D2 = Number(process.env.D2 || 4);      // 문2 칸 수 (선반 위)
+const LEDGE = Number(process.env.LEDGE || 1); // 선반 문을 놓을 방 번호
 const H = RH + 2 * WALL;
 const W = COLS * RW + (COLS + 1) * WALL;
 
@@ -51,7 +55,7 @@ function build() {
   }
 
   // 🔴 문벽 — 오른쪽 방으로 가는 통로를 막는다. 문1을 열어야 열린다
-  const gate = bx(2) - 1;
+  const gate = bx(COLS - 1) - 1;
   g[floorY][gate] = '1';
   g[floorY - 1][gate] = '1';
 
@@ -129,7 +133,7 @@ function placeDoorOn(xa, xb, ly, n, mark) {
     for (let i = 0; i < n; i++) g[ly][x + i] = (i === n - 1) ? mark[1] : mark[0];
     let need = n - 1;
     for (let b = 0; b < 600 && need; b++) {
-      const y = LOW + ri(RH), xx = bx(1) + ri(RW);
+      const y = LOW + ri(RH), xx = bx(LEDGE) + ri(RW);
       if (g[y][xx] !== '.' || !ground(y, xx)) continue;
       g[y][xx] = '+'; need--;
     }
@@ -138,13 +142,14 @@ function placeDoorOn(xa, xb, ly, n, mark) {
   return false;
 }
 
-let ok = placeDoor(bx(0), LOW, 3, ['=', '*']);      // 문1 — 왼쪽 방
+let ok = placeDoor(bx(0), LOW, D1, ['=', '*']);      // 문1 — 왼쪽 방
 // 🔴 문2 — 가운데 방의 **높은 선반** 위. 조각은 같은 방 바닥에 있으니
 //    길어진 채로 올라가야 한다. 오르는 건 길이가 필요하고 내려오는 건 공짜다.
 {
-  const x0 = bx(1), ly = floorY - 3;              // 바닥에서 3칸 위 = 길이 4로 오른다
-  for (let x = x0 + 2; x < x0 + 8; x++) g[ly + 1][x] = '#';   // 선반
-  ok = placeDoorOn(x0 + 2, x0 + 7, ly, 4, ['-', '%']) && ok;
+  const x0 = bx(LEDGE), ly = floorY - (D2 - 1);              // 바닥에서 3칸 위 = 길이 4로 오른다
+  // 🔴 장식 선반이 이미 이 자리를 덮었을 수 있다 — 문 자리를 먼저 비운다
+  for (let x = x0 + 2; x < x0 + 8; x++) { g[ly][x] = '.'; g[ly + 1][x] = '#'; }   // 선반
+  ok = placeDoorOn(x0 + 2, x0 + 7, ly, D2, ['-', '%']) && ok;
 }
 
 // 시작 — 가운데 방 (좌우로 다 갈 수 있게)
@@ -158,7 +163,7 @@ let ok = placeDoor(bx(0), LOW, 3, ['=', '*']);      // 문1 — 왼쪽 방
 }
 
 const grid = g.map(r => r.join(''));
-console.log(W + 'x' + H + ' · 방 3개 · ' + (ok ? '배치 성공' : '🔴 배치 실패'));
+console.log(W + 'x' + H + ' · 방 ' + COLS + '개 · ' + (ok ? '배치 성공' : '🔴 배치 실패'));
 grid.forEach(r => console.log('  ' + r));
 
 if (!ok) process.exit(1);
