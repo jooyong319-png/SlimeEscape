@@ -165,11 +165,14 @@ namespace SlimeEscape
 
             foreach (var d in new[] { d0, d1 })
                 if (d.Cells.Count > 0) { d.Set = new HashSet<int>(d.Cells); L.Doors.Add(d); }
-            // 🔴 문마다 칸 수가 같아야 한다 — 길이는 하나뿐인데 문마다 다르면 둘 다 못 채운다
-            for (int i = 1; i < L.Doors.Count; i++)
-                if (L.Doors[i].Cells.Count != L.Doors[0].Cells.Count)
-                    throw new System.ArgumentException(
-                        $"{id}: 문마다 칸 수가 다르다 ({L.Doors[0].Cells.Count} vs {L.Doors[i].Cells.Count})");
+            // 🔴 문마다 칸 수 제약은 Clear에 달렸다 (JS engine.js와 같아야 한다).
+            //    "any" — 아무 문이나 하나 채우고 끝난다. 길이는 한 번뿐이니 칸 수가 같아야 한다
+            //    "all" — 문을 차례로 채운다. 채울 때마다 몸을 두고 다시 먹으므로 **달라도 된다**
+            if (L.Clear == "any")
+                for (int i = 1; i < L.Doors.Count; i++)
+                    if (L.Doors[i].Cells.Count != L.Doors[0].Cells.Count)
+                        throw new System.ArgumentException(
+                            $"{id}: 문마다 칸 수가 다르다 ({L.Doors[0].Cells.Count} vs {L.Doors[i].Cells.Count}) — 아무 문이나 여는 판은 길이가 하나뿐이다");
 
             L.AllDoors = (1 << L.Doors.Count) - 1;
             if (L.Doors.Count > 0) { L.Target = L.Doors[0].Cells; L.Core = L.Doors[0].Core; }
