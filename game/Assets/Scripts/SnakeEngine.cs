@@ -91,6 +91,18 @@ namespace SlimeEscape
             }
             public bool LengthAddsUp => Doors.Count == 0 || Foods.Count == FoodsNeeded;
 
+            /// <summary>
+            /// 🔴 이미 연 문의 칸인가 — 굳은 몸이 박혀 있다.
+            /// 지나갈 수는 있지만 **딛고 설 수도 있다** (2026-08-30).
+            /// 문을 열면 그 자리가 영구히 지형이 된다 — 내가 세계를 조각한다.
+            /// </summary>
+            public bool IsSpent(int cell, int dm)
+            {
+                for (int i = 0; i < Doors.Count; i++)
+                    if ((dm & (1 << i)) != 0 && Doors[i].Set.Contains(cell)) return true;
+                return false;
+            }
+
             /// 🔴 지금 이 칸이 막혀 있나 — 문벽은 짝이 되는 문을 열면 사라진다.
             public bool IsBlocked(int cell, int dm)
             {
@@ -176,6 +188,7 @@ namespace SlimeEscape
             {
                 int below = c + L.W;
                 if (below >= L.W * L.H || L.IsBlocked(below, dm)) return true;
+                if (L.IsSpent(below, dm)) return true;    // 🔴 두고 온 몸은 디딤돌이다
             }
             return false;
         }

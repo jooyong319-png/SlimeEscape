@@ -67,6 +67,13 @@
   const isWall = (L, cell) => L.g[(cell / L.w) | 0][cell % L.w] === '#';
 
   /// 🔴 지금 이 칸이 막혀 있나 — 문벽은 짝이 되는 문을 열면 사라진다.
+  /// 🔴 이미 연 문의 칸인가 — 굳은 몸이 박혀 있다
+  function spent(L, cell, dm) {
+    for (let i = 0; i < L.doors.length; i++)
+      if ((dm & (1 << i)) && L.doors[i].set.has(cell)) return true;
+    return false;
+  }
+
   function isBlocked(L, cell, dm) {
     if (isWall(L, cell)) return true;
     if (!L.hasGates) return false;
@@ -85,6 +92,10 @@
       if (L.zoneSet.has(c)) return true;
       const below = c + L.w;
       if (below >= L.w * L.h || isBlocked(L, below, dm)) return true;
+      // 🔴 두고 온 몸은 **디딤돌**이다 (2026-08-30).
+      //    이미 연 문의 칸에는 굳은 몸이 박혀 있다. 지나갈 수는 있지만 **딛고 설 수도 있다.**
+      //    이게 없으면 문을 연 뒤 길이 1이 된 핵은 한 칸도 못 올라 갇힌다.
+      if (spent(L, below, dm)) return true;
     }
     return false;
   }
