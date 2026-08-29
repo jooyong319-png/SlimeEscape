@@ -1,0 +1,313 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>SlimeEscape — 맵 설계 연구</title>
+<style>
+  :root{
+    --bg:#0f1614; --panel:#151f1c; --line:#26332e;
+    --ink:#dfe9e4; --dim:#8fa39a; --faint:#5f736b;
+    --mint:#7cc09f; --gold:#f0c05a; --red:#e2705f; --blue:#7f9cd8;
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0; background:var(--bg); color:var(--ink);
+    font:16px/1.75 "Malgun Gothic","맑은 고딕",system-ui,sans-serif;
+    -webkit-font-smoothing:antialiased;
+  }
+  .wrap{max-width:920px;margin:0 auto;padding:0 24px 120px}
+
+  header{padding:72px 0 40px;border-bottom:1px solid var(--line);margin-bottom:8px}
+  h1{margin:0 0 10px;font-size:34px;letter-spacing:-.4px}
+  .sub{color:var(--dim);font-size:15px}
+  .sub b{color:var(--mint);font-weight:600}
+
+  nav{position:sticky;top:0;background:rgba(15,22,20,.94);backdrop-filter:blur(8px);
+      border-bottom:1px solid var(--line);margin:0 -24px 44px;padding:12px 24px;z-index:5}
+  nav a{color:var(--dim);text-decoration:none;font-size:13px;margin-right:16px;white-space:nowrap}
+  nav a:hover{color:var(--mint)}
+  .navscroll{overflow-x:auto}
+
+  section{margin:0 0 64px;scroll-margin-top:64px}
+  h2{font-size:13px;color:var(--faint);letter-spacing:2px;text-transform:uppercase;
+     margin:0 0 6px;font-weight:600}
+  h3{font-size:25px;margin:0 0 18px;letter-spacing:-.3px}
+  h4{font-size:17px;margin:30px 0 10px;color:var(--mint)}
+  p{margin:0 0 14px}
+  ul{margin:0 0 14px;padding-left:20px} li{margin:5px 0}
+
+  .lead{font-size:17px;color:var(--dim);border-left:2px solid var(--line);
+        padding-left:16px;margin-bottom:26px}
+
+  .key{background:var(--panel);border:1px solid var(--line);border-left:3px solid var(--mint);
+       border-radius:3px;padding:16px 20px;margin:20px 0}
+  .key.warn{border-left-color:var(--red)}
+  .key.gold{border-left-color:var(--gold)}
+  .key p:last-child{margin-bottom:0}
+  .key b{color:var(--mint)} .key.warn b{color:var(--red)} .key.gold b{color:var(--gold)}
+
+  table{width:100%;border-collapse:collapse;margin:18px 0;font-size:14.5px}
+  th,td{text-align:left;padding:9px 12px;border-bottom:1px solid var(--line);vertical-align:top}
+  th{color:var(--faint);font-weight:600;font-size:12px;letter-spacing:.6px;text-transform:uppercase}
+  tr:hover td{background:rgba(124,192,159,.035)}
+  td.num{font-variant-numeric:tabular-nums;white-space:nowrap}
+
+  pre{background:#0a100e;border:1px solid var(--line);border-radius:3px;
+      padding:16px 18px;overflow-x:auto;font:13.5px/1.65 ui-monospace,Consolas,monospace;
+      color:var(--dim);margin:16px 0}
+  code{font:13.5px ui-monospace,Consolas,monospace;color:var(--mint);
+       background:rgba(124,192,159,.08);padding:1px 5px;border-radius:2px}
+  pre code{background:none;padding:0;color:inherit}
+
+  .ok{color:var(--mint)} .no{color:var(--red)} .mid{color:var(--gold)}
+  .tag{display:inline-block;font-size:11px;padding:2px 7px;border-radius:2px;
+       border:1px solid var(--line);color:var(--faint);margin-left:6px;vertical-align:2px}
+
+  .fig{background:#0a100e;border:1px solid var(--line);border-radius:3px;padding:22px;margin:20px 0;text-align:center}
+  .fig figcaption{color:var(--faint);font-size:13px;margin-top:14px}
+
+  footer{border-top:1px solid var(--line);padding-top:26px;color:var(--faint);font-size:13.5px}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <h1>맵을 어떻게 엮을까</h1>
+  <div class="sub">
+    SlimeEscape 설계 연구 2 · 7회차 · 2026-08-29 ~ 30<br>
+    사장님 지시: <b>“할로우 나이트를 조금 모티브로 생각해서 하고 싶다, 맵 진행 방식을.”</b>
+  </div>
+</header>
+
+<nav><div class="navscroll">
+  <a href="#s0">왜 이 연구를</a>
+  <a href="#s1">1 분해</a>
+  <a href="#s2">2 구조</a>
+  <a href="#s3">3 길이</a>
+  <a href="#s4">4 능력</a>
+  <a href="#s5">5 획득</a>
+  <a href="#s6">6 방해</a>
+  <a href="#s7">7 분량</a>
+  <a href="#end">한 장 요약</a>
+</div></nav>
+
+<section id="s0">
+  <h2>출발점</h2>
+  <h3>실패한 데서 시작한다</h3>
+  <p class="lead">연결 맵을 만들어 드렸더니 답이 이랬다 — <em>“이게 내가 원하는 맵 이동 방식이 아니긴해.”</em></p>
+  <p><b>“연결”이라는 말을 잘못 번역했다.</b> 나는 <em>“방 A를 풀면 방 B로 간다”</em>로 읽었고,
+     사장님은 <em>“방들이 이어진 세계를 돌아다닌다”</em>로 말씀하신 것이었다.</p>
+  <table>
+    <tr><th>할로우 나이트</th><th>내가 만든 것</th></tr>
+    <tr><td>방 사이를 <b>그냥 걸어서</b> 오간다</td><td class="no">퍼즐을 풀어야만 다음 칸으로 간다</td></tr>
+    <tr><td><b>그물</b> — 위·아래·옆으로 갈래</td><td class="no">일자 사슬 — 한 방향뿐</td></tr>
+    <tr><td>잠긴 문은 <b>일부</b>. 나머진 열려 있다</td><td class="no">모든 통로가 문 — 자유가 0</td></tr>
+  </table>
+  <div class="key warn"><p><b>퍼즐은 길을 여는 장치지, 이동 수단이 아니다.</b></p></div>
+</section>
+
+<section id="s1">
+  <h2>1회차</h2>
+  <h3>할로우 나이트를 분해한다</h3>
+  <p class="lead">그 느낌을 만드는 부품을 여덟 개로 쪼개고, 우리 규칙에서 되는지 안 되는지를 적었다.</p>
+  <table>
+    <tr><th>부품</th><th>우리 규칙에서</th><th>값</th></tr>
+    <tr><td>① 이동은 공짜</td><td class="ok">된다</td><td class="num">0</td></tr>
+    <tr><td>② 세계가 그물</td><td class="ok">된다</td><td class="num">0</td></tr>
+    <tr><td>③ 막힌 데를 보여주고 보낸다</td><td class="ok">된다 — 문벽이 이미 그것</td><td class="num">0</td></tr>
+    <tr><td>④ 능력이 세계를 바꾼다</td><td class="mid">반</td><td class="no">앞 방이 헐거워진다</td></tr>
+    <tr><td>⑤ 길이가 곧 능력 <span class="tag">우리만의 것</span></td><td class="mid">반</td><td class="no">요소 ③과 충돌</td></tr>
+    <tr><td>⑥ 한 화면 = 한 방</td><td class="ok">그날 만듦</td><td class="num">0</td></tr>
+    <tr><td>⑦ 지름길을 연다</td><td class="mid">된다</td><td>규칙 +1</td></tr>
+    <tr><td>⑧ 길 잃지 않게</td><td class="ok">두고 온 몸</td><td class="num">0</td></tr>
+  </table>
+  <div class="key"><p><b>여덟 중 다섯이 값 0이다.</b> 실패한 건 규칙이 모자라서가 아니라
+    ①②③을 안 넣고 ⑥만 넣었기 때문이었다.</p></div>
+  <p>그리고 하나 건졌다. §6이 월드맵을 금지하는데, <b>지도보다 나은 게 이미 있다</b> —</p>
+  <div class="key gold"><p><b>두고 온 몸.</b> 연 문마다 내 몸이 굳어 박혀 있다.
+    지나온 자리가 지형에 남는다. 지도가 아니라 <b>세계 그 자체</b>라 §6을 안 건드린다.</p></div>
+</section>
+
+<section id="s2">
+  <h2>2회차</h2>
+  <h3>맵 구조</h3>
+  <div class="fig">
+<pre style="border:0;background:none;padding:0;text-align:left;display:inline-block">              [곁가지]
+                 │
+        [2]─────[3]
+       /            \
+    [1]              [4]      ← 큰 고리 하나
+       \            /
+        [6]─────[5]
+                 │
+              [곁가지]</pre>
+    <figcaption>안 E — 고리 + 짧은 곁가지</figcaption>
+  </div>
+  <table>
+    <tr><th>모양</th><th>문제</th></tr>
+    <tr><td>일자 사슬</td><td class="no">선택이 없다. 스테이지 목록에 그림만 입힌 것</td></tr>
+    <tr><td>나무(가지)</td><td class="mid">되돌아가는 길이 길다. 지름길을 못 만든다</td></tr>
+    <tr><td>고리</td><td class="ok">되돌아가기가 짧고 지름길이 생긴다. 다만 밋밋</td></tr>
+    <tr><td>격자</td><td class="no">길을 잃는다. 우회돼서 막힌 느낌이 안 난다</td></tr>
+    <tr><td><b>고리 + 곁가지</b></td><td class="ok"><b>추천</b> — 둘의 장점, 격자의 혼란 없음</td></tr>
+  </table>
+  <h4>어디를 잠그나</h4>
+  <div class="key"><p><b>통로의 20~30%만.</b> 방 20개에 통로 24개면 잠긴 문은 5~7개.
+    ① 첫 방에서 보이는 곳에 하나 · ② 고리를 끊는 자리(열면 지름길) · ③ 곁가지 입구 ·
+    <b>막다른 길에는 안 건다.</b></p></div>
+  <h4>왜 돌아오나</h4>
+  <ul>
+    <li><b>못 열었던 문</b> — 문벽에 요구하는 홈 모양을 새겨둔다 (말 없이 알려주기)</li>
+    <li><b>곁가지 끝의 문양 한 획</b> — 이미 정한 엔딩과 그대로 맞물린다</li>
+  </ul>
+</section>
+
+<section id="s3">
+  <h2>3회차 · 제일 큰 숙제</h2>
+  <h3>길이를 들고 다닐 수 없다</h3>
+  <p class="lead">확정 규칙 둘이 부딪힌다. <b>“몸이 길수록 높이 오른다”</b> vs
+    <b>“문을 열면 길이 1로 돌아간다”</b>(요소 ③).</p>
+  <table>
+    <tr><th>안</th><th>요소 ③</th><th>방 단위 검증</th><th>성장</th><th>새 규칙</th></tr>
+    <tr><td>A-1 길이를 유지</td><td class="no">버림</td><td class="no">잃음</td><td class="ok">강함</td><td class="num">0</td></tr>
+    <tr><td>A-2 일부만 가져감</td><td class="mid">반</td><td class="ok">O</td><td class="ok">O</td><td class="no">“정확히”를 깸</td></tr>
+    <tr><td>A-3 다른 게 자란다</td><td class="ok">O</td><td class="ok">O</td><td class="mid">흔함</td><td>능력 필요</td></tr>
+    <tr><td>A-4 조각이 다시 자람</td><td class="ok">O</td><td class="mid">재봐야</td><td class="no">없음</td><td>+1</td></tr>
+    <tr><td><b>A-5 문마다 값이 다르다</b></td><td class="ok">O</td><td class="ok">O</td><td class="mid">길 아닌 “갈 곳”</td><td class="num"><b>0</b></td></tr>
+  </table>
+  <div class="key gold"><p><b>내가 길어지는 게 아니라, 길어질 수 있는 방에 도착하는 것이다.</b><br>
+    성장하는 건 길이가 아니라 <b>갈 수 있는 곳</b>이고, 그건 그 방에 조각이 몇 개 있느냐가 정한다.</p></div>
+  <p>딸려 나온 결정 하나 — <b>통로에는 조각을 두지 않는다.</b>
+    그러면 “지나가다 실수로 먹는” 문제가 <b>규칙을 안 늘리고</b> 사라진다.</p>
+</section>
+
+<section id="s4">
+  <h2>4회차</h2>
+  <h3>능력</h3>
+  <div class="key warn"><p>측정값: 머리 바꾸기를 주면 <b>지금 판 11개 중 8개가 3~12걸음 짧아진다.</b>
+    그리고 b2는 최단해가 1개 → 2개가 되어 채택 기준이 깨진다.
+    <b>능력은 반드시 순서를 설계해야 한다.</b></p></div>
+  <table>
+    <tr><th>후보</th><th>값</th><th>무엇을 여나</th><th>판정</th></tr>
+    <tr><td>① 머리 바꾸기</td><td>요소 ② (예정됨)</td><td>되돌아 나오기</td><td class="ok">넣는다</td></tr>
+    <tr><td>③ 좁은 틈</td><td class="num"><b>0 — 지형</b></td><td>길이 1일 때만</td><td class="ok">넣는다</td></tr>
+    <tr><td>② 큰 조각</td><td>아주 작음</td><td>—</td><td class="mid">판 설계 도구로만</td></tr>
+    <tr><td>④ 무중력 구역</td><td>규칙 +1</td><td>오르기</td><td class="mid">보류 유지</td></tr>
+    <tr><td>⑤ 몸 나누기</td><td class="no">검증 상실</td><td>—</td><td class="no">버림</td></tr>
+    <tr><td>⑥ 몸 회수</td><td class="no">규칙 +1, 위험</td><td>돌아올 이유</td><td class="mid">나중에</td></tr>
+  </table>
+  <div class="key"><p><b>능력은 하나면 된다. 나머지는 지형이 한다.</b></p>
+  <pre><code>큰 문   → 조각이 많은 방에 가야 열린다
+좁은 틈 → 길이 1일 때만 지나간다
+높은 턱 → 길이가 k+1 이상이어야 오른다
+문벽    → 그 방의 문을 채워야 열린다</code></pre>
+  <p>잠금 네 종류 중 <b>셋이 값 0</b>이다.</p></div>
+  <p>능력은 <b>고리 반대편</b>에 둔다. 얻고 돌아오는 길이 곧 “앞 구역 다시 보기”가 되고,
+     그때 쉬워지는 건 <b>보상으로 받아들인다</b> — 그게 3회차 A-5의 약점(성취감)을 메운다.</p>
+</section>
+
+<section id="s5">
+  <h2>5회차</h2>
+  <h3>능력을 얻는 방식</h3>
+  <table>
+    <tr><th>안</th><th>값</th><th>§6</th><th>판정</th></tr>
+    <tr><td><b>그냥 거기 있다</b></td><td class="num">0</td><td class="ok">O</td><td class="ok">추천</td></tr>
+    <tr><td>문 N개 열면</td><td>작음</td><td class="ok">O</td><td class="mid">나은 게 없음</td></tr>
+    <tr><td>포인트 구매</td><td class="no">큼</td><td class="no">점수 금지</td><td class="no">버림</td></tr>
+    <tr><td>보스</td><td class="no">아주 큼</td><td class="no">전투 금지</td><td class="no">버림</td></tr>
+    <tr><td><b>관문 방</b> <span class="tag">보스 대신</span></td><td class="num">0</td><td class="ok">O</td><td class="ok">추천</td></tr>
+  </table>
+  <div class="key gold"><p><b>능력이 하나면 획득 방식은 시스템이 아니라 장소다.</b><br>
+    얻으면 <b>핵의 색이 바뀐다</b> — 상태창도 능력 목록도 없다. 내 몸을 보면 안다.</p></div>
+</section>
+
+<section id="s6">
+  <h2>6회차</h2>
+  <h3>맵 안의 방해 요소</h3>
+  <p class="lead">“방해 요소”라는 말을 셋으로 갈랐다. 셋은 전혀 다른 문제고, 셋 다 전투 없이 풀린다.</p>
+  <table>
+    <tr><th>원하는 것</th><th>해법</th><th>값</th></tr>
+    <tr><td><b>밀도</b> — 통로가 심심하다</td><td>통로를 짧은 이동 퍼즐로 (턱은 1칸까지)</td><td class="num">0</td></tr>
+    <tr><td><b>위험</b> — 긴장이 없다</td><td>되돌릴 수 없는 선택. <b>이미 규칙 안에 있다</b></td><td class="num">0</td></tr>
+    <tr><td><b>생기</b> — 세계가 죽어 있다</td><td>규칙에 영향 없는 움직임과 소리</td><td class="num">0</td></tr>
+  </table>
+  <div class="key warn"><p>적을 넣으면 <b>셋을 버려야 한다</b> —
+    ① “죽는 게 없다 · 되돌리기 무제한”(rev.1부터의 확정 규칙) ·
+    ② <b>솔버 검증</b>(적 하나에 상태가 칸 수만큼 곱해진다) ·
+    ③ 게이트 5의 “새 시스템 금지”.<br>
+    그러면 퍼즐이 아니라 액션이 된다 — 브리프 rev.0에서 <b>제일 먼저 배제한 종류</b>다.</p></div>
+</section>
+
+<section id="s7">
+  <h2>7회차</h2>
+  <h3>엔딩과 분량</h3>
+  <div class="key warn"><p>어제 사장님이 판 다섯을 푸신 평균이 <b>20초</b>다.
+    21방이면 <b>7분</b>. 처음 하는 사람이라도 <b>40~60분</b>. 목표는 2시간이었다.</p></div>
+  <table>
+    <tr><th>갈래</th><th>얻는 시간</th><th>값</th></tr>
+    <tr><td>방을 더 만든다</td><td>방당 20~60초</td><td>손이 든다. 선형</td></tr>
+    <tr><td>방을 더 어렵게</td><td>방당 몇 분</td><td class="no">어려운 판 만들기는 처음 하는 일 (§5)</td></tr>
+    <tr><td>한 방에 문 여럿</td><td>방당 ×1.5~2</td><td class="ok">이미 만들었다 — 22개 검증됨</td></tr>
+    <tr><td><b>길 잃고 돌아다니는 시간</b></td><td>?</td><td class="ok">이번 연구의 구조가 주는 것</td></tr>
+  </table>
+  <p><b>21방으로 먼저 낸다.</b> 고리 구조라 나중에 곁가지를 뻗거나 옆에 새 고리를 붙이기 쉽다.
+     곁가지 끝의 문 = <b>문양 한 획</b> 5개, 마지막 문은 획이 다 있어야 열리고,
+     <b>마지막 방엔 심이 없다</b> — 규칙을 더하는 게 아니라 빼는 엔딩.</p>
+  <div class="key gold"><p><b>2시간은 방 개수로 못 채운다. 먼저 끝내고, 반응을 보고 늘린다.</b><br>
+    다만 <b>“최소 2시간”은 사장님이 내신 기준이라 내가 못 정한다.</b>
+    40~60분짜리로 먼저 내는 것에 동의하셔야 이 안이 성립한다.</p></div>
+</section>
+
+<section id="end">
+  <h2>전부 모으면</h2>
+  <h3>한 장 요약</h3>
+  <pre><code>모양     큰 고리 하나 + 짧은 곁가지(2~3방)
+잠금     통로의 20~30%만. 첫 방에 하나 보이게 · 고리를 끊는 자리 · 곁가지 입구
+         막다른 길엔 안 건다
+
+길이     매번 1로 돌아간다. 성장하는 건 "갈 수 있는 곳"이고
+         그건 그 방의 조각 수가 정한다.  통로엔 조각을 두지 않는다
+
+능력     하나만 — 머리 바꾸기. 고리 반대편에 그냥 놓여 있다
+         얻으면 핵의 색이 바뀐다.  나머지 잠금은 전부 지형
+         (큰 문 · 좁은 틈 · 높은 턱 · 문벽 — 셋이 값 0)
+
+방해     밀도는 지형으로 · 위험은 이미 규칙 안에 · 생기는 그림으로
+         적 · 전투 · 시간제한은 버린다
+
+분량     21방으로 먼저 낸다 (40~60분). 고리라 덧붙이기 쉽다
+         곁가지 끝 = 문양 한 획 5개 · 마지막 방엔 심이 없다
+
+길찾기   두고 온 몸 + 구역 색. 지도는 안 만든다</code></pre>
+
+  <div class="key gold">
+    <p><b>새로 만드는 규칙은 하나뿐이다 — 머리 바꾸기.</b>
+       나머지는 전부 이미 있는 규칙을 배치로 쓰는 것이다.</p>
+  </div>
+
+  <h4>사장님이 정해주셔야 하는 것</h4>
+  <div class="key warn">
+    <p><b>“최소 2시간”을 1차 출시에서 뺄 것인가.</b><br>
+      <b>예</b> → 21방으로 끝내고 출시까지 밀어붙인다<br>
+      <b>아니오</b> → 35방. 다만 <b>판을 어렵게 만드는 법</b>을 먼저 배워야 한다 (§5의 위험 그대로)</p>
+  </div>
+
+  <h4>재봐야 아는 것 <span class="tag">구현 금지라 적어만 둠</span></h4>
+  <ul>
+    <li>두고 온 몸만으로 방 20개에서 길을 안 잃는가</li>
+    <li>머리 바꾸기가 한 걸음을 쓰는지 공짜인지 — 공짜면 판이 훨씬 헐거워진다</li>
+    <li>좁은 틈이 실제로 잠금 구실을 하는가 (길이 1이 되는 순간이 많아 너무 자주 열릴 수도)</li>
+    <li>헤매는 시간이 <b>재미있는 헤맴</b>인지 지루한 헤맴인지 — 사람이 해봐야만 안다</li>
+  </ul>
+</section>
+
+<footer>
+  SlimeEscape · 설계 연구 2 · 2026-08-29 ~ 30 · 7회차<br>
+  원문은 <code>docs/map-study/</code> 에 회차별로 있다. 확정 규칙은 <code>docs/project-brief.md</code>.
+</footer>
+
+</div>
+</body>
+</html>

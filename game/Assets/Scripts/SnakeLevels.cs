@@ -21,6 +21,8 @@ namespace SlimeEscape
         public string sol1, sol2;    // 문마다 정답 수순
         /// 🔴 그 문으로 나가면 가는 방. 비어 있으면 거기서 끝난다.
         public string next1, next2;
+        /// 🔴 "any" = 아무 문이나 열면 끝 · "all" = 문을 다 열어야 끝(이동하는 판)
+        public string clear;
         public string[] grid;
     }
 
@@ -45,6 +47,6 @@ namespace SlimeEscape
         }
 
         public static SnakeEngine.Level ToLevel(SnakeLevelJson j, bool gravity) =>
-            SnakeEngine.Parse(j.grid, j.id, gravity);
+            SnakeEngine.Parse(j.grid, j.id, gravity, j.clear);
     }
 }

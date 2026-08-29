@@ -40,6 +40,28 @@ namespace SlimeEscape
         Color EdgeOf(int door) => door == 0 ? HoleEdge : Hole2Edge;
         Color FillOf(int door) => door == 0 ? HoleFill : Hole2Fill;
 
+        // 🔴 문벽 — 짝이 되는 문을 열기 전엔 벽. 열면 사라진다.
+        //    벽(Rock)과 색을 달리해서 "이건 열릴 수 있는 벽"으로 읽히게 한다.
+        static readonly Color GateCol  = new Color32(0x4a, 0x3f, 0x2e, 0xff);
+        static readonly Color GateEdge = new Color32(0x8a, 0x74, 0x4a, 0xff);
+        /// 🔴 두고 온 몸 — 자물쇠에 남아 굳은 것. 밟고 지나갈 수 있다.
+        static readonly Color SpentCol = new Color32(0x4d, 0x5a, 0x54, 0xff);
+
+        readonly Dictionary<int, SpriteRenderer> _gateViews = new Dictionary<int, SpriteRenderer>();
+        readonly Dictionary<int, int> _gateOf = new Dictionary<int, int>();   // 칸 -> 문 번호
+        readonly Dictionary<int, SpriteRenderer> _gateInner = new Dictionary<int, SpriteRenderer>();
+        int _shownDm = -1;    // 지금 화면에 그려진 "열린 문" 상태
+        float _gateFade = 1f;
+
+        // ---- 방 ----
+        // 🔴 지도 전체를 한 번에 보여주면 "방"이 안 생긴다. 넓은 판 하나로 보일 뿐이다.
+        //    문벽을 **다 닫아놓고** 이어진 덩어리를 찾으면 그게 곧 방이다 — 따로 적을 필요가 없다.
+        int[] _roomOf;                       // 칸 -> 방 번호 (-1이면 벽)
+        readonly List<Rect> _roomBox = new List<Rect>();
+        int _room = -1;                      // 지금 비추는 방
+        Vector3 _camWant; float _camSizeWant;
+        const float CamEase = 6f;            // 방을 옮길 때 미끄러지는 빠르기
+
         // ---- 손맛 수치 (게임 안에서 K로 조절) ----
         [System.Serializable]
         public class Knobs
@@ -205,6 +227,7 @@ namespace SlimeEscape
             StartRun();
 
             Restart();
+            AimCamera(true);       // 판을 열 때는 딱 맞춘다
         }
 
         void StartReplay()
@@ -263,6 +286,69 @@ namespace SlimeEscape
         {
             PlayerPrefs.SetString(ProgressKey, string.Join(",", _cleared));
             PlayerPrefs.Save();
+        }
+
+        /// 문벽을 다 닫은 채로 이어진 칸끼리 묶는다 = 방
+        void SplitRooms()
+        {
+            int total = _L.W * _L.H;
+            _roomOf = new int[total];
+            for (int i = 0; i < total; i++) _roomOf[i] = -1;
+            _roomBox.Clear();
+
+            var q = new Queue<int>();
+            for (int s = 0; s < total; s++)
+            {
+                if (_roomOf[s] >= 0 || _L.IsBlocked(s, 0)) continue;
+                int id = _roomBox.Count;
+                int minX = _L.W, maxX = 0, minY = _L.H, maxY = 0;
+                _roomOf[s] = id; q.Enqueue(s);
+                while (q.Count > 0)
+                {
+                    int c = q.Dequeue();
+                    int x = _L.X(c), y = _L.Y(c);
+                    if (x < minX) minX = x; if (x > maxX) maxX = x;
+                    if (y < minY) minY = y; if (y > maxY) maxY = y;
+                    int[] nb = { c - 1, c + 1, c - _L.W, c + _L.W };
+                    for (int k = 0; k < 4; k++)
+                    {
+                        int m = nb[k];
+                        if (m < 0 || m >= total) continue;
+                        if (k < 2 && _L.Y(m) != y) continue;        // 가로로 넘어가지 않게
+                        if (_roomOf[m] >= 0 || _L.IsBlocked(m, 0)) continue;
+                        _roomOf[m] = id; q.Enqueue(m);
+                    }
+                }
+                _roomBox.Add(new Rect(minX, minY, maxX - minX + 1, maxY - minY + 1));
+            }
+            _room = -1;
+        }
+
+        /// 지금 핵이 있는 방에 카메라를 맞춘다
+        void AimCamera(bool snap)
+        {
+            int r = (_roomOf != null && _st != null && _roomOf[_st.Head] >= 0) ? _roomOf[_st.Head] : -1;
+            // 🔴 방이 하나뿐이면 예전처럼 판 전체를 잡는다 — 지금까지의 판이 안 바뀐다
+            bool whole = _roomBox.Count <= 1 || r < 0;
+            float asp = Mathf.Max(0.1f, _cam.aspect);
+            float cx, cy, halfW, halfH;
+            if (whole) { cx = _L.W * 0.5f; cy = -_L.H * 0.5f; halfW = _L.W * 0.5f; halfH = _L.H * 0.5f; }
+            else
+            {
+                var b = _roomBox[r];
+                cx = b.x + b.width * 0.5f; cy = -(b.y + b.height * 0.5f);
+                halfW = b.width * 0.5f; halfH = b.height * 0.5f;
+            }
+            float fit = Mathf.Max(halfH + 0.9f, (halfW + 0.9f) / asp);
+            // 작은 화면에선 읽기를 택한다 (2026-08-29)
+            float refFit = Mathf.Max(BoardH * 0.5f + 0.6f, (BoardW * 0.5f + 0.6f) / asp);
+            float size = Mathf.Max(whole ? refFit : 0f, fit);
+            if (Screen.height / (2f * size) < 30f) size = fit;
+
+            _camWant = new Vector3(cx, cy, -10);
+            _camSizeWant = size;
+            _room = r;
+            if (snap) { _cam.transform.position = _camWant; _cam.orthographicSize = _camSizeWant; }
         }
 
         void AddBridge(int a, int b, Vector3 scale, Vector2 offset)
@@ -367,23 +453,28 @@ namespace SlimeEscape
                 _foodViews.Add(sr);
             }
 
-            // 🔴 칸 크기는 판이 달라져도 그대로 둔다.
-            //    매번 화면에 꽉 맞추면 9x7이든 20x12든 똑같아 보여서
-            //    **판이 넓어지는 걸 플레이어가 못 느낀다.** 작은 판은 가운데 작게 앉는다.
-            //    기준(BoardW x BoardH)보다 큰 판이 오면 그때만 물러난다.
-            float asp = Mathf.Max(0.1f, _cam.aspect);
-            float fitLevel = Mathf.Max(_L.H * 0.5f + 0.6f, (_L.W * 0.5f + 0.6f) / asp);
-            float fitRef   = Mathf.Max(BoardH * 0.5f + 0.6f, (BoardW * 0.5f + 0.6f) / asp);
+            // 🔴 카메라는 AimCamera가 잡는다 — 방이 여럿이면 **지금 방만** 비춘다.
+            //    지도를 통째로 보여주면 "방"이 안 생긴다 (2026-08-29 확인).
 
-            // 🔴 칸 크기를 고정하면 판이 넓어지는 게 눈에 보인다(그래서 그렇게 했다).
-            //    그런데 작은 화면에선 첫 판이 그냥 안 보인다 — 휴대폰에서 확인됨(2026-08-29).
-            //    그래서 **칸이 너무 작아지면 읽기를 택한다.** 보기 좋음보다 보이는 게 먼저다.
-            float size = Mathf.Max(fitRef, fitLevel);
-            const float MinCellPx = 30f;
-            if (Screen.height / (2f * size) < MinCellPx) size = fitLevel;
+            // 🔴 문벽 — 열리면 사라진다. 벽보다 밝고 테두리가 있어 "열릴 수 있는 벽"으로 보인다.
+            _gateViews.Clear(); _gateOf.Clear(); _shownDm = -1;
+            for (int gi = 0; gi < _L.Gates.Length; gi++)
+                foreach (int c in _L.Gates[gi])
+                {
+                    var edge = NewSprite("Gate", -2);
+                    edge.transform.position = CellPos(c);
+                    edge.transform.localScale = new Vector3(0.98f, 0.98f, 1);
+                    edge.color = GateEdge;
+                    var inner = NewSprite("GateIn", -1);
+                    inner.transform.position = CellPos(c);
+                    inner.transform.localScale = new Vector3(0.78f, 0.78f, 1);
+                    inner.color = GateCol;
+                    _gateViews[c] = edge;
+                    _gateOf[c] = gi;
+                    _gateInner[c] = inner;
+                }
 
-            _cam.transform.position = new Vector3(_L.W * 0.5f, -_L.H * 0.5f, -10);
-            _cam.orthographicSize = size;
+            SplitRooms();
         }
 
         void GridLine(int i, bool vertical)
@@ -428,24 +519,51 @@ namespace SlimeEscape
             for (int i = 0; i < _foodViews.Count; i++) _foodViews[i].enabled = !SnakeEngine.IsEaten(_st, i);
 
             // 목표 홈에 몸이 들어간 칸은 밝아진다 — "몇 칸 남았는지"가 눈에 보이게
+            // 🔴 문이 열리면 그 문벽이 사라지고, 그 홈은 "두고 온 몸"이 된다.
+            //    화면을 매번 다시 만들지 않고 색만 바꾼다 — 몸이 움직이는 중에도 안 튄다.
+            // 🔴 문벽이 툭 사라지면 허전하다 — 스르르 꺼지게 한다
+            if (_shownDm != _st.Dm) { _shownDm = _st.Dm; _gateFade = 0f; }
+            _gateFade = Mathf.Min(1f, _gateFade + Time.deltaTime / 0.45f);
+            foreach (var kv in _gateViews)
+            {
+                bool open = (_st.Dm & (1 << _gateOf[kv.Key])) != 0;
+                float a = open ? 1f - _gateFade : 1f;
+                var ec = GateEdge; ec.a = a;
+                kv.Value.color = ec;
+                kv.Value.enabled = a > 0.01f;
+                if (_gateInner.TryGetValue(kv.Key, out var gin))
+                {
+                    var ic = GateCol; ic.a = a;
+                    gin.color = ic;
+                    gin.enabled = a > 0.01f;
+                    float s = Mathf.Lerp(0.78f, 0.2f, open ? _gateFade : 0f);
+                    gin.transform.localScale = new Vector3(s, s, 1);
+                }
+            }
+
             // 🔴 안 채운 홈만 눈에 띄게 둔다 — 남은 칸이 저절로 세어진다
             var body = new HashSet<int>(_st.Body);
             foreach (var kv in _holes)
             {
                 bool covered = body.Contains(kv.Key);
                 int door = _doorOf.TryGetValue(kv.Key, out var dn) ? dn : 0;
-                kv.Value.color = covered ? FillOf(door) : HoleCol;
+                // 🔴 이미 연 문은 몸을 두고 온 자리다 — 굳은 색으로 남긴다
+                bool spent = (_st.Dm & (1 << door)) != 0;
+                kv.Value.color = spent ? SpentCol : covered ? FillOf(door) : HoleCol;
                 if (_holeEdges.TryGetValue(kv.Key, out var e))
                 {
                     var ec = EdgeOf(door);
-                    e.color = covered ? new Color(ec.r, ec.g, ec.b, 0.30f) : ec;
+                    e.color = spent ? new Color(SpentCol.r, SpentCol.g, SpentCol.b, 0.55f)
+                        : covered ? new Color(ec.r, ec.g, ec.b, 0.30f) : ec;
                 }
             }
             // 다리는 양쪽이 다 덮였을 때만 같이 물든다 — 안 그러면 끊겨 보인다
             foreach (var br in _bridges)
             {
                 int door = _doorOf.TryGetValue(br.a, out var dn) ? dn : 0;
-                br.sr.color = (body.Contains(br.a) && body.Contains(br.b)) ? FillOf(door) : HoleCol;
+                bool spent = (_st.Dm & (1 << door)) != 0;
+                br.sr.color = spent ? SpentCol
+                    : (body.Contains(br.a) && body.Contains(br.b)) ? FillOf(door) : HoleCol;
             }
         }
 
@@ -603,6 +721,16 @@ namespace SlimeEscape
         void Animate(float dt)
         {
             // 다 끝났으면 더 안 키운다 (가만히 두면 값이 무한정 커진다)
+            // 🔴 방이 바뀌면 카메라가 미끄러져 따라간다. 문을 지나는 게 이걸로 읽힌다.
+            if (_roomOf != null && _st != null)
+            {
+                int r = _roomOf[_st.Head];
+                if (r != _room) AimCamera(false);
+                float k = 1f - Mathf.Exp(-CamEase * dt);
+                _cam.transform.position = Vector3.Lerp(_cam.transform.position, _camWant, k);
+                _cam.orthographicSize = Mathf.Lerp(_cam.orthographicSize, _camSizeWant, k);
+            }
+
             float fallSpan = FallSpan;
             float done = 1f + fallSpan + Lag * Mathf.Max(0, _st.Length - 1);
             if (_stepT < done + 1f) _stepT += dt / Mathf.Max(0.02f, K.stepTime);
@@ -829,6 +957,13 @@ namespace SlimeEscape
             // 남은 홈을 점으로 — 숫자보다 한눈에 들어온다
             string dots = "";
             for (int i = 0; i < need; i++) dots += (i < filled ? "●" : "○") + " ";
+            // 🔴 문이 여럿이면 남은 문도 보여준다
+            if (_L.Doors.Count > 1)
+            {
+                int openCount = 0;
+                for (int i = 0; i < _L.Doors.Count; i++) if ((_st.Dm & (1 << i)) != 0) openCount++;
+                dots += "     문 " + openCount + "/" + _L.Doors.Count;
+            }
             GUI.Label(new Rect(0, 42, w, 22), dots, _sMid);
 
             // 🔴 지도 대신 **지나온 길**을 보여준다. 어디서 갈렸는지가 남는다.
