@@ -54,10 +54,12 @@ namespace SlimeEscape
         {
             public List<int> Body;
             public int Fm;
-            public State(List<int> body, int fm) { Body = body; Fm = fm; }
+            /// 🔴 낙하 중에 먹어서 아직 몸에 안 붙은 성장 횟수. 다음 걸음마다 하나씩 갚는다.
+            public int Pg;
+            public State(List<int> body, int fm, int pg = 0) { Body = body; Fm = fm; Pg = pg; }
             public int Head => Body[0];
             public int Length => Body.Count;
-            public State Clone() => new State(new List<int>(Body), Fm);
+            public State Clone() => new State(new List<int>(Body), Fm, Pg);
         }
 
         /// 문자 격자를 판으로.
@@ -107,7 +109,13 @@ namespace SlimeEscape
         }
 
         /// 지지될 때까지 떨어뜨린다. 떨어질 데가 없으면 false = 그 걸음은 불가.
-        static bool Settle(Level L, List<int> body)
+        /// <summary>
+        /// 🔴 떨어지는 동안에도 **머리가 지나가는 조각을 먹는다** (2026-08-29).
+        /// 전에는 걸음에만 구현돼 있어서 조각 위로 떨어지면 안 먹혔다. 사람이 바로 부딪혔다.
+        /// 다만 낙하 중엔 꼬리가 물러날 자리가 없다 — 거기에 마디를 붙이면 몸이 겹친다.
+        /// 그래서 **다음 걸음에 꼬리가 안 물러나는 것**으로 갚는다 (pg, 고전 스네이크와 같다).
+        /// </summary>
+        static bool Settle(Level L, List<int> body, ref int fm, ref int pg)
         {
             if (!L.Gravity) return true;
             for (int guard = 0; guard < 64; guard++)
@@ -119,6 +127,8 @@ namespace SlimeEscape
                     if (next >= L.W * L.H) return false;
                     body[i] = next;
                 }
+                int fi = L.Foods.IndexOf(body[0]);       // 머리가 새로 들어간 칸
+                if (fi >= 0 && (fm & (1 << fi)) == 0) { fm |= (1 << fi); pg++; }
             }
             return false;
         }
@@ -126,8 +136,9 @@ namespace SlimeEscape
         public static State StartState(Level L)
         {
             var body = new List<int> { L.Start };
-            Settle(L, body);
-            return new State(body, 0);
+            int fm = 0, pg = 0;
+            Settle(L, body, ref fm, ref pg);   // 시작하자마자 떨어지며 먹을 수도 있다
+            return new State(body, fm, pg);
         }
 
         public static bool IsEaten(State st, int foodIndex) => (st.Fm & (1 << foodIndex)) != 0;
@@ -171,10 +182,14 @@ namespace SlimeEscape
 
             var body = new List<int>(st.Body.Count + 1) { nh };
             body.AddRange(st.Body);
-            if (!grows) body.RemoveAt(body.Count - 1);
-            if (!Settle(L, body)) return false;          // 🔬 중력 — 떨어질 데가 없으면 못 간다
+            int pg = st.Pg;
+            // 자라는 걸음이면 꼬리를 그대로 둔다. 아니면 낙하 중에 진 빚(pg)부터 갚는다.
+            if (!grows) { if (pg > 0) pg--; else body.RemoveAt(body.Count - 1); }
 
-            result = new State(body, grows ? (st.Fm | (1 << fi)) : st.Fm);
+            int fm = grows ? (st.Fm | (1 << fi)) : st.Fm;
+            if (!Settle(L, body, ref fm, ref pg)) return false;   // 🔬 중력 — 떨어질 데가 없으면 못 간다
+
+            result = new State(body, fm, pg);
             return true;
         }
     }

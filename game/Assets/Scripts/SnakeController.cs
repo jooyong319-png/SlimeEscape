@@ -63,6 +63,9 @@ namespace SlimeEscape
         readonly List<SpriteRenderer> _foodViews = new List<SpriteRenderer>();
         readonly Dictionary<int, SpriteRenderer> _holes = new Dictionary<int, SpriteRenderer>();
         readonly Dictionary<int, SpriteRenderer> _holeEdges = new Dictionary<int, SpriteRenderer>();
+        /// 이웃한 목표 칸의 속을 이어 붙이는 조각. (칸 두 개, 그림 하나)
+        readonly List<(int a, int b, SpriteRenderer sr)> _bridges = new List<(int, int, SpriteRenderer)>();
+        const float SlotInner = 0.82f;   // 홈 속의 크기. 나머지가 테두리로 보인다
         bool _won;
         float _wonAt;
 
@@ -103,6 +106,32 @@ namespace SlimeEscape
         LostSet _lostSet;
         SnakeLog.Run _run;
         float _runStart;
+
+        // ---- 정답 재생 (개발자 전용, F3) ----
+        //    "이게 진짜 깨져?"에 답하는 제일 빠른 방법은 게임이 직접 두는 것이다.
+        //    재생 중에는 기록을 안 남긴다 — 검증 데이터가 더러워지면 안 된다.
+        bool _replay;
+        bool _allDone;   // 마지막 판까지 깼다 — 결과 화면
+
+        // ---- 안내 화면 ----
+        // 🔴 친구 검증에서 나온 첫 마디가 "설명도 없이 하라고만 나온다"였다 (2026-08-29).
+        //    브리프 §6이 금지하는 건 **스토리**지 **규칙을 설명하는 그림**이 아니다.
+        //    글로 늘어놓지 않고, 실제로 화면에 나오는 색을 그대로 보여주며 한 줄씩 붙인다.
+        bool _intro = true;
+        const string IntroKey = "snakeSeenIntro";
+        readonly Dictionary<Color, Texture2D> _chips = new Dictionary<Color, Texture2D>();
+
+        // ---- 손가락 조작 ----
+        // 🔴 휴대폰엔 키보드가 없다. 그리고 한 판에 100걸음을 넘기기도 하므로
+        //    스와이프만 두면 손이 아프다 — 방향 패드를 같이 둔다.
+        bool Touchy => Application.isMobilePlatform || Input.touchSupported;
+        Vector2 _swipeFrom;
+        bool _swiping;
+        float _uiScale = 1f;
+        int _styledAt = -1;          // 화면 높이가 바뀌면 글씨 크기를 다시 잡는다
+        int _replayAt;
+        float _replayNext;
+        const float ReplayStep = 0.32f;
         GUIStyle _sBig, _sMid, _sSmall;
 
         /// 마디 하나당 출발 지연 (걸음 시간 기준). follow가 1이면 0 = 동시에 움직인다.
@@ -129,6 +158,7 @@ namespace SlimeEscape
             _set = SnakeLevels.Load();
             _gravity = _set.gravity;
             LoadProgress();
+            _intro = PlayerPrefs.GetInt(IntroKey, 0) == 0;
 
             int start = 0;
             while (start < _set.levels.Length && _cleared.Contains(_set.levels[start].id)) start++;
@@ -152,6 +182,34 @@ namespace SlimeEscape
             StartRun();
 
             Restart();
+        }
+
+        void StartReplay()
+        {
+            var sol = Def.sol;
+            if (string.IsNullOrEmpty(sol)) { Debug.LogWarning("[재생] 정답 수순이 없다"); return; }
+            EndRun();                 // 사람이 한 것까지만 기록하고
+            _run = null;              // 재생은 기록에 안 남긴다
+            Restart();
+            _replay = true;
+            _replayAt = 0;
+            _replayNext = Time.time + 0.4f;
+        }
+
+        void StepReplay()
+        {
+            var sol = Def.sol;
+            if (_replayAt >= sol.Length) { _replay = false; return; }
+            char c = sol[_replayAt++];
+            _replayNext = Time.time + ReplayStep;
+            switch (c)
+            {
+                case '↑': Step(SnakeEngine.Dir.Up); break;
+                case '↓': Step(SnakeEngine.Dir.Down); break;
+                case '←': Step(SnakeEngine.Dir.Left); break;
+                case '→': Step(SnakeEngine.Dir.Right); break;
+                default: Debug.LogWarning("[재생] 모르는 글자 " + c); _replay = false; break;
+            }
         }
 
         void StartRun()
@@ -184,6 +242,15 @@ namespace SlimeEscape
             PlayerPrefs.Save();
         }
 
+        void AddBridge(int a, int b, Vector3 scale, Vector2 offset)
+        {
+            var sr = NewSprite("HoleBridge", 0);
+            sr.transform.position = CellPos(a) + offset;   // Vector2 + Vector2
+            sr.transform.localScale = scale;
+            sr.color = HoleCol;
+            _bridges.Add((a, b, sr));
+        }
+
         // ---------------- 화면 ----------------
         Vector2 CellPos(int cell) => new Vector2(_L.X(cell) + 0.5f, -(_L.Y(cell) + 0.5f));
 
@@ -205,21 +272,39 @@ namespace SlimeEscape
             // 🔴 목표 홈 — 바닥보다 어둡게 파인 것처럼. 몸이 덮으면 한 칸씩 빛이 찬다
             _holes.Clear();
             _holeEdges.Clear();
+            _bridges.Clear();
+
+            // 🔴 목표는 칸 여럿이 아니라 **몸이 들어갈 한 덩어리 홈**이다.
+            //    칸마다 테두리를 치면 이어진 뱀 모양이 "구멍 여러 개"로 보인다.
+            //    실제로 사람이 61초 동안 못 읽었다 (2026-08-29 검증).
+            //    그래서 민트를 칸 가득 깔아 서로 붙게 하고, 어두운 속만 안쪽에 둔다.
+            //    이웃한 칸 사이는 속끼리 다리로 이어 붙여 테두리가 안 끼게 한다.
             foreach (int c in _L.Target)
             {
-                // 테두리(민트) 위에 속(아주 어두운 색)을 덮어 프레임처럼 보이게 한다
                 var edge = NewSprite("HoleEdge", -1);
                 edge.transform.position = CellPos(c);
-                edge.transform.localScale = new Vector3(0.96f, 0.96f, 1);
+                edge.transform.localScale = new Vector3(1f, 1f, 1);   // 칸 가득 — 이웃과 붙는다
                 edge.color = HoleEdge;
 
                 var inner = NewSprite("HoleInner", 0);
                 inner.transform.position = CellPos(c);
-                inner.transform.localScale = new Vector3(0.80f, 0.80f, 1);
+                inner.transform.localScale = new Vector3(SlotInner, SlotInner, 1);
                 inner.color = HoleCol;
 
                 _holes[c] = inner;
                 _holeEdges[c] = edge;
+            }
+
+            // 속끼리 잇는 다리 — 오른쪽·아래 이웃만 보면 중복 없이 다 이어진다
+            foreach (int c in _L.Target)
+            {
+                int x = _L.X(c), y = _L.Y(c);
+                if (x + 1 < _L.W && _L.TargetSet.Contains(c + 1))
+                    AddBridge(c, c + 1, new Vector3(1f - SlotInner, SlotInner, 1),
+                              new Vector2(0.5f, 0f));
+                if (y + 1 < _L.H && _L.TargetSet.Contains(c + _L.W))
+                    AddBridge(c, c + _L.W, new Vector3(SlotInner, 1f - SlotInner, 1),
+                              new Vector2(0f, -0.5f));
             }
 
             // 심 — 머리가 마지막에 있어야 할 자리
@@ -255,8 +340,16 @@ namespace SlimeEscape
             float asp = Mathf.Max(0.1f, _cam.aspect);
             float fitLevel = Mathf.Max(_L.H * 0.5f + 0.6f, (_L.W * 0.5f + 0.6f) / asp);
             float fitRef   = Mathf.Max(BoardH * 0.5f + 0.6f, (BoardW * 0.5f + 0.6f) / asp);
+
+            // 🔴 칸 크기를 고정하면 판이 넓어지는 게 눈에 보인다(그래서 그렇게 했다).
+            //    그런데 작은 화면에선 첫 판이 그냥 안 보인다 — 휴대폰에서 확인됨(2026-08-29).
+            //    그래서 **칸이 너무 작아지면 읽기를 택한다.** 보기 좋음보다 보이는 게 먼저다.
+            float size = Mathf.Max(fitRef, fitLevel);
+            const float MinCellPx = 30f;
+            if (Screen.height / (2f * size) < MinCellPx) size = fitLevel;
+
             _cam.transform.position = new Vector3(_L.W * 0.5f, -_L.H * 0.5f, -10);
-            _cam.orthographicSize = Mathf.Max(fitRef, fitLevel);
+            _cam.orthographicSize = size;
         }
 
         void GridLine(int i, bool vertical)
@@ -312,6 +405,9 @@ namespace SlimeEscape
                         ? new Color(HoleEdge.r, HoleEdge.g, HoleEdge.b, 0.30f)
                         : HoleEdge;
             }
+            // 다리는 양쪽이 다 덮였을 때만 같이 물든다 — 안 그러면 끊겨 보인다
+            foreach (var br in _bridges)
+                br.sr.color = (body.Contains(br.a) && body.Contains(br.b)) ? HoleFill : HoleCol;
         }
 
         // ---------------- 입력 ----------------
@@ -321,7 +417,21 @@ namespace SlimeEscape
             if (_run != null && !_won && _lostSet != null && _lostSet.IsLost(_st))
                 _run.lostSeconds += Time.deltaTime;
 
+            if (_intro)
+            {
+                if (Input.anyKeyDown || Input.touchCount > 0) CloseIntro();
+                return;
+            }
+
             if (Input.GetKeyDown(KeyCode.F1)) { _dev = !_dev; if (!_dev) _showPanel = false; }
+
+            if (_dev && Input.GetKeyDown(KeyCode.F3)) { StartReplay(); return; }
+            if (_replay)
+            {
+                if (Input.anyKeyDown && !Input.GetKeyDown(KeyCode.F3)) { _replay = false; return; }
+                if (Time.time >= _replayNext) StepReplay();
+                return;                                  // 재생 중엔 사람 입력을 안 받는다
+            }
             if (_dev && Input.GetKeyDown(KeyCode.K)) _showPanel = !_showPanel;
             // 검증용 — 테스터를 바꿀 때 진행을 지운다
             if (_dev && Input.GetKeyDown(KeyCode.F2))
@@ -336,16 +446,23 @@ namespace SlimeEscape
                 return;
             }
             // 열렸으면 잠깐 두고 다음 방으로 — 손이 멈추지 않게
-            if (_won && _index < _set.levels.Length - 1 && Time.time > _wonAt + NextLevelDelay)
+            if (_won && Time.time > _wonAt + NextLevelDelay)
             {
-                Load(_index + 1);
-                return;
+                if (_index < _set.levels.Length - 1) { Load(_index + 1); return; }
+                if (!_allDone) { EndRun(); _allDone = true; }   // 마지막 판 — 여기서 끝난다
             }
 
-            if (Input.GetKeyDown(KeyCode.R)) { if (_run != null) _run.restart++; Restart(); return; }
+            if (Input.GetKeyDown(KeyCode.R))
+            {
+                if (_allDone) { _allDone = false; Load(0); return; }
+                if (_run != null) _run.restart++;
+                Restart(); return;
+            }
             if (_dev && Input.GetKeyDown(KeyCode.N)) { Load(_index + 1); return; }
             if (_dev && Input.GetKeyDown(KeyCode.P)) { Load(_index - 1); return; }
             if (Input.GetKeyDown(KeyCode.Z)) { Undo(); return; }
+
+            if (Swipe(out var sdir)) { Step(sdir); return; }
 
             if (Input.GetKeyDown(KeyCode.UpArrow) || Input.GetKeyDown(KeyCode.W)) Step(SnakeEngine.Dir.Up);
             else if (Input.GetKeyDown(KeyCode.DownArrow) || Input.GetKeyDown(KeyCode.S)) Step(SnakeEngine.Dir.Down);
@@ -418,6 +535,27 @@ namespace SlimeEscape
             SyncViews();
         }
 
+        /// 손가락을 그은 방향. 화면 짧은 쪽의 6%를 넘겨야 한 걸음으로 친다.
+        bool Swipe(out SnakeEngine.Dir dir)
+        {
+            dir = SnakeEngine.Dir.Up;
+            if (Input.touchCount == 0) { _swiping = false; return false; }
+            var tch = Input.GetTouch(0);
+            if (tch.phase == TouchPhase.Began) { _swipeFrom = tch.position; _swiping = true; return false; }
+            if (!_swiping || (tch.phase != TouchPhase.Ended && tch.phase != TouchPhase.Moved)) return false;
+
+            var d = (Vector2)tch.position - _swipeFrom;
+            float need = Mathf.Min(Screen.width, Screen.height) * 0.06f;
+            if (d.magnitude < need) return false;
+
+            _swipeFrom = tch.position;                 // 이어서 그으면 계속 간다
+            if (Mathf.Abs(d.x) > Mathf.Abs(d.y))
+                dir = d.x > 0 ? SnakeEngine.Dir.Right : SnakeEngine.Dir.Left;
+            else
+                dir = d.y > 0 ? SnakeEngine.Dir.Up : SnakeEngine.Dir.Down;   // 화면 y는 위가 +
+            return true;
+        }
+
         // ---------------- 움직임 ----------------
         void Animate(float dt)
         {
@@ -473,7 +611,16 @@ namespace SlimeEscape
                 _segs[i].transform.position = _segPos[i];
                 // 🔴 착지 눌림은 세로로만 — 넓히면 한 칸을 넘는다
                 _segs[i].transform.localScale = new Vector3(s, s * (1f - _land * 0.35f), 1);
-                _segs[i].color = i == 0 ? HeadCol : BodyCol;
+                // 🔴 떨어지며 먹으면 다음 걸음에 길어진다 — 그 사이에 아무 표시가 없으면
+                //    "먹었는데 사라졌다"로 보인다. 사람이 실제로 그렇게 헤맸다 (2026-08-29).
+                //    꼬리를 조각 색으로 물들여 "여기서 길어진다"를 미리 보여준다.
+                var col = i == 0 ? HeadCol : BodyCol;
+                if (_st.Pg > 0 && i == _st.Length - 1)
+                {
+                    float beat = 0.5f + 0.5f * Mathf.Sin(Time.time * 9f);
+                    col = Color.Lerp(col, FoodCol, 0.45f + 0.35f * beat);
+                }
+                _segs[i].color = col;
             }
         }
 
@@ -490,15 +637,112 @@ namespace SlimeEscape
             if (!string.IsNullOrEmpty(json)) { try { JsonUtility.FromJsonOverwrite(json, K); } catch { K = new Knobs(); } }
         }
 
+        /// 🔴 WebGL 빌드에서는 유니티 기본 글꼴이 **운영체제 글꼴에 기대기 때문에**
+        ///    브라우저에 한글이 없어 전부 네모로 깨진다. 에디터에선 절대 재현 안 된다.
+        ///    그래서 한글이 든 폰트를 프로젝트 안에 넣고 GUIStyle마다 직접 지정한다.
+        ///    ⚠ Resources/Fonts/kr.ttf 는 지금 재배포 불가 폰트다 — 그 폴더의 README 참고.
+        Font _krFont;
+
+        /// 손가락용 방향 패드 + 되돌리기/다시. 🔴 판 하나에 100걸음을 넘기므로
+        /// 버튼이 커야 한다 — 작은 버튼은 그 자체가 난이도가 된다.
+        void Pad(float w, float h)
+        {
+            float b = Mathf.Clamp(Mathf.Min(w, h) * 0.12f, 46f, 108f);   // 버튼 한 변
+            float m = b * 0.28f;                                          // 가장자리 여백
+            var big = new GUIStyle(GUI.skin.button) { fontSize = Mathf.RoundToInt(20 * _uiScale) };
+            var small = new GUIStyle(GUI.skin.button) { fontSize = Mathf.RoundToInt(13 * _uiScale) };
+
+            // 왼쪽 아래 십자
+            float px = m, py = h - m - b * 3f;
+            if (GUI.Button(new Rect(px + b, py, b, b), "↑", big)) Step(SnakeEngine.Dir.Up);
+            if (GUI.Button(new Rect(px, py + b, b, b), "←", big)) Step(SnakeEngine.Dir.Left);
+            if (GUI.Button(new Rect(px + b * 2f, py + b, b, b), "→", big)) Step(SnakeEngine.Dir.Right);
+            if (GUI.Button(new Rect(px + b, py + b * 2f, b, b), "↓", big)) Step(SnakeEngine.Dir.Down);
+
+            // 오른쪽 아래 — 되돌리기 · 다시
+            float qx = w - m - b * 1.6f;
+            if (GUI.Button(new Rect(qx, py + b, b * 1.6f, b), "되돌리기", small)) Undo();
+            if (GUI.Button(new Rect(qx, py + b * 2f + m * 0.4f, b * 1.6f, b * 0.8f), "다시", small))
+            {
+                if (_run != null) _run.restart++;
+                Restart();
+            }
+        }
+
+        void CloseIntro()
+        {
+            _intro = false;
+            PlayerPrefs.SetInt(IntroKey, 1);
+            PlayerPrefs.Save();
+        }
+
+        /// 설명에 쓸 색 조각. 화면에 실제로 쓰는 색을 그대로 보여준다 —
+        /// 말로 "민트색 테두리"라고 하는 것보다 그 색을 보여주는 쪽이 짧다.
+        Texture2D Chip(Color c)
+        {
+            if (_chips.TryGetValue(c, out var tex) && tex != null) return tex;
+            tex = new Texture2D(1, 1);
+            tex.SetPixel(0, 0, c);
+            tex.Apply();
+            _chips[c] = tex;
+            return tex;
+        }
+
+        void Row(float x, float y, float s, Color box, Color inner, string text, GUIStyle st)
+        {
+            GUI.DrawTexture(new Rect(x, y, s, s), Chip(box));
+            if (inner.a > 0f)
+                GUI.DrawTexture(new Rect(x + s * 0.16f, y + s * 0.16f, s * 0.68f, s * 0.68f), Chip(inner));
+            var t2 = new GUIStyle(st) { alignment = TextAnchor.MiddleLeft };
+            GUI.Label(new Rect(x + s * 1.5f, y - 2, 620, s + 4), text, t2);
+        }
+
+        void Intro(float w, float h)
+        {
+            float s = Mathf.Clamp(h * 0.055f, 22f, 52f);          // 색 조각 한 변
+            float gap = s * 1.5f;
+            float x = w * 0.5f - Mathf.Min(w * 0.42f, 320f);
+            float y = h * 0.5f - gap * 2.6f;
+
+            GUI.Label(new Rect(0, y - gap * 2.0f, w, s * 1.4f), "슬라임 탈출", _sBig);
+
+            Row(x, y, s, BodyCol, new Color(0, 0, 0, 0), "이게 나. 한 칸씩 움직인다", _sMid);
+            y += gap;
+            Row(x, y, s, Floor, FoodCol, "조각을 먹으면 몸이 길어진다", _sMid);
+            y += gap;
+            Row(x, y, s, HoleEdge, HoleCol, "여기를 몸으로 채운다  —  남아도 모자라도 안 된다", _sMid);
+            y += gap;
+            Row(x, y, s, CoreRing, CoreCol, "머리는 이 칸에서 끝나야 한다", _sMid);
+            y += gap * 1.5f;
+
+            GUI.Label(new Rect(0, y, w, s),
+                Touchy ? "버튼으로 움직인다  ·  되돌리기는 몇 번이든 된다"
+                       : "← ↑ ↓ →  움직이기      Z  되돌리기      R  처음부터", _sMid);
+            GUI.Label(new Rect(0, h - s * 2.2f, w, s),
+                Touchy ? "화면을 누르면 시작" : "아무 키나 누르면 시작", _sSmall);
+        }
+
         void Styles()
         {
-            if (_sBig != null) return;
-            _sBig = new GUIStyle(GUI.skin.label) { fontSize = 21, alignment = TextAnchor.MiddleCenter };
-            _sMid = new GUIStyle(GUI.skin.label) { fontSize = 16, alignment = TextAnchor.MiddleCenter };
-            _sSmall = new GUIStyle(GUI.skin.label) { fontSize = 13, alignment = TextAnchor.MiddleCenter };
+            // 🔴 휴대폰은 화면이 작다. 21px 글씨는 안 보인다 — 높이에 맞춰 키운다.
+            if (_sBig != null && _styledAt == Screen.height) return;
+            _styledAt = Screen.height;
+            _uiScale = Mathf.Clamp(Screen.height / 720f, 0.85f, 2.2f);
+            _krFont = Resources.Load<Font>("Fonts/kr");
+            if (_krFont == null) Debug.LogWarning("[글꼴] Resources/Fonts/kr 를 못 찾았다 — WebGL에서 한글이 깨진다");
+            _sBig = new GUIStyle(GUI.skin.label) { fontSize = Mathf.RoundToInt(21 * _uiScale), alignment = TextAnchor.MiddleCenter };
+            _sMid = new GUIStyle(GUI.skin.label) { fontSize = Mathf.RoundToInt(16 * _uiScale), alignment = TextAnchor.MiddleCenter };
+            _sSmall = new GUIStyle(GUI.skin.label) { fontSize = Mathf.RoundToInt(13 * _uiScale), alignment = TextAnchor.MiddleCenter };
             _sBig.normal.textColor = new Color(1f, 1f, 1f, 0.88f);
             _sMid.normal.textColor = new Color(1f, 1f, 1f, 0.70f);
             _sSmall.normal.textColor = new Color(1f, 1f, 1f, 0.40f);
+
+            // 🔴 IMGUI는 GUIStyle마다 지정해야 한다. 하나라도 빠뜨리면 거기만 깨진다.
+            if (_krFont != null)
+            {
+                _sBig.font = _sMid.font = _sSmall.font = _krFont;
+                GUI.skin.font = _krFont;      // GUILayout.Label 등 기본 스타일까지
+            }
         }
 
         void OnGUI()
@@ -508,6 +752,32 @@ namespace SlimeEscape
             var def = Def;
             int filled = SnakeEngine.Filled(_L, _st);
             int need = _L.Target.Count;
+
+            if (_intro)
+            {
+                Intro(w, h);
+                if (Event.current.type == EventType.MouseDown) CloseIntro();
+                return;
+            }
+
+            // ---- 다 깼으면 결과만 보여준다 ----
+            //    🔴 WebGL은 파일을 못 쓴다. 이 화면이 기록을 돌려받는 유일한 통로다.
+            if (_allDone)
+            {
+                GUI.Label(new Rect(0, 40, w, 30), "다 깼습니다. 고맙습니다!", _sBig);
+                GUI.Label(new Rect(0, 74, w, 24),
+                    "이 화면을 찍어서 보내주세요", _sMid);
+                var box = new Rect(w * 0.5f - 250, 110, 500, 230);
+                GUI.Box(box, GUIContent.none);
+                GUILayout.BeginArea(new Rect(box.x + 16, box.y + 12, box.width - 32, box.height - 24));
+                GUILayout.Label(SnakeLog.Table());
+                GUILayout.Label(SnakeLog.Summary());
+                GUILayout.EndArea();
+                GUI.Label(new Rect(0, h - 56, w, 22),
+                    "재미있었는지 · 어디서 막혔는지 · 그만두고 싶었는지 한 줄만 적어주시면 큰 도움이 됩니다", _sMid);
+                GUI.Label(new Rect(0, h - 32, w, 20), "R  처음부터 다시", _sSmall);
+                return;
+            }
 
             // ---- 플레이어가 보는 것 : 이름 · 남은 홈 · 조작. 그게 전부다 ----
             GUI.Label(new Rect(0, 12, w, 28), def.name, _sBig);
@@ -523,8 +793,14 @@ namespace SlimeEscape
             }
             else
             {
-                GUI.Label(new Rect(0, h - 34, w, 22),
-                    "← ↑ ↓ →      Z  되돌리기      R  처음부터", _sSmall);
+                if (!Touchy)
+                    GUI.Label(new Rect(0, h - 34, w, 22),
+                        "← ↑ ↓ →      Z  되돌리기      R  처음부터", _sSmall);
+
+                // 🔴 다시 볼 길을 남긴다. 한 번 보고 잊으면 물어볼 데가 없다.
+                var qs = new GUIStyle(GUI.skin.button) { fontSize = Mathf.RoundToInt(15 * _uiScale) };
+                float qb = Mathf.Clamp(28f * _uiScale, 28f, 56f);
+                if (GUI.Button(new Rect(w - qb - 10, 10, qb, qb), "?", qs)) _intro = true;
 
                 // 🔴 안내는 필요한 순간에만 뜬다. 늘 떠 있으면 아무도 안 읽는다.
                 if (_index == 0 && !_cleared.Contains(def.id))
@@ -534,6 +810,12 @@ namespace SlimeEscape
                     GUI.Label(new Rect(0, h - 62, w, 22),
                         "머리가 노란 칸에서 끝나야 한다", _sMid);
             }
+
+            if (_replay)
+                GUI.Label(new Rect(0, 70, w, 22),
+                    $"정답 재생 중  {_replayAt}/{def.sol.Length}   (아무 키나 누르면 멈춤)", _sMid);
+
+            if (Touchy && !_replay) Pad(w, h);
 
             // ---- 개발자가 보는 것 : F1 ----
             if (!_dev) { GUI.Label(new Rect(w - 60, h - 22, 52, 18), "F1", _sSmall); return; }
@@ -547,7 +829,7 @@ namespace SlimeEscape
                             (_L.Core >= 0 ? (onCore ? "   ·   머리 심에 있음" : "") : ""));
             GUILayout.Label($"최단 {def.best}걸음 · 이미 진 상태 {def.lost:0.0}% · 헤맴 {def.wander}" +
                             (_lostSet != null && _lostSet.Ready ? $" · 상태 {_lostSet.States}" : " · (못 잼)") +
-                            $"      N/P 판   K 손맛   G 중력 {(_gravity ? "켬" : "끔")}");
+                            $"      N/P 판   K 손맛   F3 정답재생   G 중력 {(_gravity ? "켬" : "끔")}");
             GUILayout.Label("기록: " + SnakeLog.Summary() +
                             (_run != null ? $"   ·   지금 판 {Time.time - _runStart:0}초" +
                                             (_run.lostSeconds > 0.5f ? $" (이미 진 상태 {_run.lostSeconds:0}초)" : "") : ""));

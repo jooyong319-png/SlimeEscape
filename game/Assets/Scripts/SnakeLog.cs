@@ -43,8 +43,22 @@ namespace SlimeEscape
             Flush();
         }
 
+        /// 사람이 보고 옮겨적을 수 있는 표. 🔴 WebGL은 파일을 못 쓰므로 이게 유일한 통로다.
+        public static string Table()
+        {
+            var sb = new StringBuilder();
+            sb.AppendLine("판      깸   걸린초  걸음/최단  막힘  되돌림  다시");
+            foreach (var r in _runs)
+                sb.AppendLine($"{r.level,-6} {(r.cleared ? "O" : "X"),-3} {r.seconds,7:0.0}  " +
+                              $"{r.moves,4}/{r.best,-4} {r.blocked,4} {r.undo,6} {r.restart,5}");
+            return sb.ToString();
+        }
+
         public static void Flush()
         {
+#if UNITY_WEBGL && !UNITY_EDITOR
+            return;                 // 브라우저엔 파일 시스템이 없다 — 화면으로 보여준다
+#else
             try
             {
                 var sb = new StringBuilder();
@@ -55,6 +69,7 @@ namespace SlimeEscape
                 System.IO.File.WriteAllText(Path, sb.ToString(), Encoding.UTF8);
             }
             catch (Exception e) { Debug.LogWarning("[기록] 못 씀 — " + e.Message); }
+#endif
         }
 
         /// <summary>사람이 읽을 요약. 개발자 화면에 띄운다.</summary>
@@ -85,7 +100,9 @@ namespace SlimeEscape
         {
             var sb = new StringBuilder();
             foreach (int c in st.Body) { sb.Append(c); sb.Append(','); }
+            // 🔴 Pg(미룬 성장)도 상태의 일부다. 빼먹으면 서로 다른 상태가 같은 것으로 합쳐진다.
             sb.Append('|'); sb.Append(st.Fm);
+            sb.Append('|'); sb.Append(st.Pg);
             return sb.ToString();
         }
 

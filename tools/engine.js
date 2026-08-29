@@ -54,21 +54,29 @@
   }
 
   /// 지지될 때까지 떨어뜨린다. 떨어질 데가 없으면(판 밖) null = 그 걸음은 불가.
-  function settle(L, body) {
-    if (!L.gravity) return body;
+  ///
+  /// 🔴 떨어지는 동안에도 **머리가 지나가는 조각을 먹는다** (2026-08-29).
+  ///    전에는 걸음에만 구현돼 있어서 조각 위로 떨어지면 안 먹혔다. 사람이 바로 부딪혔다.
+  ///    다만 낙하 중엔 꼬리가 물러날 자리가 없다 — 거기에 마디를 붙이면 몸이 겹친다.
+  ///    그래서 **다음 걸음에 꼬리가 안 물러나는 것**으로 갚는다 (고전 스네이크와 같다).
+  ///    { body, fm, pg } 를 돌려준다. pg = 아직 안 갚은 성장 횟수.
+  function settle(L, body, fm, pg) {
+    if (!L.gravity) return { body: body, fm: fm, pg: pg };
     for (let guard = 0; guard < 64; guard++) {
-      if (supported(L, body)) return body;
+      if (supported(L, body)) return { body: body, fm: fm, pg: pg };
       const next = body.map(c => c + L.w);
       for (const c of next) if (c >= L.w * L.h) return null;
       body = next;
+      const fi = L.foodIdx.get(body[0]);        // 머리가 새로 들어간 칸
+      if (fi !== undefined && !(fm & (1 << fi))) { fm |= (1 << fi); pg++; }
     }
     return null;
   }
 
   /// 상태: { body: [머리, ..., 꼬리], fm }
   const startState = L => {
-    const b = settle(L, [L.start]);
-    return { body: b || [L.start], fm: 0 };
+    const r = settle(L, [L.start], 0, 0);
+    return r || { body: [L.start], fm: 0, pg: 0 };
   };
 
   function step(L, st, di) {
@@ -87,10 +95,13 @@
     for (let i = 0; i < blocked; i++) if (st.body[i] === nh) return null;
 
     let body = [nh, ...st.body];
-    if (!grows) body.pop();
-    body = settle(L, body);                    // 🔬 중력 (꺼져 있으면 그대로)
-    if (!body) return null;
-    return { body, fm: grows ? (st.fm | (1 << fi)) : st.fm };
+    let pg = st.pg || 0;
+    // 자라는 걸음이면 꼬리를 그대로 둔다. 아니면 낙하 중에 진 빚(pg)부터 갚는다.
+    if (!grows) { if (pg > 0) pg--; else body.pop(); }
+
+    const r = settle(L, body, grows ? (st.fm | (1 << fi)) : st.fm, pg);
+    if (!r) return null;
+    return { body: r.body, fm: r.fm, pg: r.pg };
   }
 
   /// 몸이 목표 칸을 '정확히' 덮었는가 (남아도 모자라도 안 된다)
@@ -101,7 +112,7 @@
     return true;
   }
 
-  const keyOf = st => st.body.join(',') + '|' + st.fm;
+  const keyOf = st => st.body.join(',') + '|' + st.fm + '|' + (st.pg || 0);
 
   function solve(def) {
     const L = parse(def);

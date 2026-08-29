@@ -26,3 +26,14 @@ tools/unity-*.log
 # OS
 .DS_Store
 Thumbs.db
+
+# 빌드 산출물 — 18MB가 넘고, 소스에서 다시 만들 수 있다
+build/
+
+# 🔴 폰트는 저장소에 올리지 않는다.
+#    kr.ttf 는 윈도우 기본 폰트(malgun.ttf)를 자른 것이라 **재배포 불가**다.
+#    공개 저장소에 올리는 것은 재배포에 해당하고, git 기록에서 지우기도 어렵다.
+#    다시 만들려면:  python tools/subset-font.py "C:/Windows/Fonts/malgun.ttf"
+#    출시할 때는 자유 라이선스(SIL OFL) 폰트로 갈아야 한다 — Fonts/README.md 참고
+game/Assets/Resources/Fonts/kr.ttf
+game/Assets/Resources/Fonts/kr.ttf.meta
