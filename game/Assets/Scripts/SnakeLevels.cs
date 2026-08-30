@@ -13,19 +13,18 @@ namespace SlimeEscape
     {
         public string id;
         public string name;
+        /// 🔴 가르치는 판. 맵 안에서 키부터 하나씩 알려준다.
+        public bool tutorial;
         public int best;      // 최단 걸음 수 — stamp.js가 박는다
         public string sol;    // 정답 수순 ↑↓←→ — stamp.js가 박는다
+        /// 🔴 별을 먹고 깨는 최단 걸음. 별 셋의 커트라인은 여기서 나온다.
+        public int bestStar;
+        /// 🔴 별 셋 커트라인 — 이 걸음 안에 별을 먹고 깨야 한다. 널널하게 잡는다.
+        public int cut;
         public float lost;    // "이미 진 상태" 비율(%) — 낮으면 실수해도 회복된다 = 쉽다
         public int wander;    // 🔴 진 뒤에도 더 돌아다닐 수 있는 걸음 수 — 채택 기준(14 이하)
-        public int best1, best2;     // 문마다 최단 걸음
-        public string sol1, sol2;    // 문마다 정답 수순
-        /// 🔴 그 문으로 나가면 가는 방. 비어 있으면 거기서 끝난다.
-        public string next1, next2;
-        /// 🔴 이 구역을 깨면 **문양 한 획**을 얻는다. 다 모아야 마지막 문이 열린다.
-        ///    새 규칙이 아니다 — 이미 있는 진행 저장(깬 판 목록)을 그대로 쓴다.
-        public bool mark;
-        /// 🔴 이 방에 들어가려면 문양 획이 이만큼 있어야 한다. 0이면 아무 조건 없다.
-        public int needMarks;
+        // 🔴 판은 목록 순서대로 이어진다 — 이어짐을 따로 적지 않는다.
+        //    (08-30에 세계 지도·문양 획·양방향 이동을 걷어냈다. RPG 부속이라 퍼즐을 안 늘렸다)
         /// 🔴 "any" = 아무 문이나 열면 끝 · "all" = 문을 다 열어야 끝(이동하는 판)
         public string clear;
         public string[] grid;
@@ -34,6 +33,8 @@ namespace SlimeEscape
     [Serializable]
     public class SnakeLevelSetJson
     {
+        /// 🔴 몇 번째 굴인가. 1묶음 16판 · 묶음마다 한 시간이 목표다 (08-30).
+        public int chapter = 1;
         public bool gravity = true;
         public SnakeLevelJson[] levels;
     }

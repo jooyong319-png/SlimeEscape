@@ -61,12 +61,17 @@ namespace SlimeEscape
 #else
             try
             {
+                // 🔴 **덧붙인다.** 예전엔 통째로 덮어써서 Play 를 다시 켤 때마다 앞 기록이 날아갔다.
+                //    실제로 16판 중 앞 14판의 시간을 잃었다 (08-30). 이 값이 분량의 유일한 자다.
+                bool isNew = !System.IO.File.Exists(Path);
                 var sb = new StringBuilder();
-                sb.AppendLine("판,클리어,걸린초,이미진상태초,걸음,최단,막힌입력,되돌리기,다시시작");
+                if (isNew) sb.AppendLine("때,판,클리어,걸린초,이미진상태초,걸음,최단,막힌입력,되돌리기,다시시작");
+                string now = System.DateTime.Now.ToString("MM-dd HH:mm");
                 foreach (var r in _runs)
-                    sb.AppendLine($"{r.level},{(r.cleared ? 1 : 0)},{r.seconds:0.0},{r.lostSeconds:0.0}," +
+                    sb.AppendLine($"{now},{r.level},{(r.cleared ? 1 : 0)},{r.seconds:0.0},{r.lostSeconds:0.0}," +
                                   $"{r.moves},{r.best},{r.blocked},{r.undo},{r.restart}");
-                System.IO.File.WriteAllText(Path, sb.ToString(), Encoding.UTF8);
+                System.IO.File.AppendAllText(Path, sb.ToString(), Encoding.UTF8);
+                _runs.Clear();          // 이미 적었으니 다시 안 적는다
             }
             catch (Exception e) { Debug.LogWarning("[기록] 못 씀 — " + e.Message); }
 #endif
@@ -92,7 +97,8 @@ namespace SlimeEscape
     /// </summary>
     public sealed class LostSet
     {
-        readonly HashSet<string> _lost = new HashSet<string>();
+        /// 열쇠 -> 이기기까지 남은 걸음 수. 없으면 **여기서부턴 못 이긴다.**
+        readonly Dictionary<string, int> _togo = new Dictionary<string, int>();
         public bool Ready { get; private set; }
         public int States { get; private set; }
 
@@ -100,9 +106,14 @@ namespace SlimeEscape
         {
             var sb = new StringBuilder();
             foreach (int c in st.Body) { sb.Append(c); sb.Append(','); }
-            // 🔴 Pg(미룬 성장)도 상태의 일부다. 빼먹으면 서로 다른 상태가 같은 것으로 합쳐진다.
+            // 🔴 상태를 이루는 걸 **하나도 빼면 안 된다.** 빼면 서로 다른 상태가 하나로 합쳐져서
+            //    "이미 졌다"도 "다음 한 걸음"도 엉뚱한 답이 나온다.
+            //    (08-30: Dm/Sc/Pm 을 빼먹고 있었다 — 홈이 둘인 판에서는 전부 틀린 값이었다)
             sb.Append('|'); sb.Append(st.Fm);
             sb.Append('|'); sb.Append(st.Pg);
+            sb.Append('|'); sb.Append(st.Dm);
+            sb.Append('|'); sb.Append(st.Sc);
+            sb.Append('|'); sb.Append(st.Pm);
             return sb.ToString();
         }
 
@@ -130,7 +141,8 @@ namespace SlimeEscape
                 var outs = new List<int>();
                 edges[i] = outs;
                 if (SnakeEngine.IsWin(L, st)) { win.Add(i); continue; }
-                for (int d = 0; d < 4; d++)
+                int acts = L.Pads.Count > 0 ? 5 : 4;
+                for (int d = 0; d < acts; d++)
                     if (SnakeEngine.Step(L, st, (SnakeEngine.Dir)d, out var ns)) outs.Add(Id(ns));
             }
             if (win.Count == 0) return;
@@ -140,20 +152,50 @@ namespace SlimeEscape
             for (int i = 0; i < states.Count; i++)
                 foreach (int j in edges[i]) rev[j].Add(i);
 
-            var canWin = new bool[states.Count];
+            // 🔴 이긴 자리에서 **거꾸로** 퍼뜨리며 "몇 걸음 남았나"를 적는다.
+            //    이 한 번의 계산으로 "이미 졌나"와 "다음 한 걸음"이 둘 다 나온다.
+            var togo = new int[states.Count];
+            for (int i = 0; i < states.Count; i++) togo[i] = int.MaxValue;
             var q = new Queue<int>();
-            foreach (int i in win) { canWin[i] = true; q.Enqueue(i); }
+            foreach (int i in win) { togo[i] = 0; q.Enqueue(i); }
             while (q.Count > 0)
-                foreach (int p in rev[q.Dequeue()])
-                    if (!canWin[p]) { canWin[p] = true; q.Enqueue(p); }
+            {
+                int cur = q.Dequeue();
+                foreach (int p in rev[cur])
+                    if (togo[p] == int.MaxValue) { togo[p] = togo[cur] + 1; q.Enqueue(p); }
+            }
 
             for (int i = 0; i < states.Count; i++)
-                if (!canWin[i]) _lost.Add(Key(states[i]));
+                if (togo[i] != int.MaxValue) _togo[Key(states[i])] = togo[i];
 
             States = states.Count;
             Ready = true;
         }
 
-        public bool IsLost(SnakeEngine.State st) => Ready && _lost.Contains(Key(st));
+        /// 여기서부턴 무슨 짓을 해도 못 이긴다
+        public bool IsLost(SnakeEngine.State st) => Ready && !_togo.ContainsKey(Key(st));
+
+        /// 이기기까지 남은 최소 걸음. 못 이기면 -1.
+        public int ToGo(SnakeEngine.State st) =>
+            Ready && _togo.TryGetValue(Key(st), out int v) ? v : -1;
+
+        /// <summary>
+        /// 🔴 **다음 한 걸음만** 알려준다. 답을 통째로 보여주면 그 판은 거기서 끝난다.
+        /// 지금 자리에서 남은 걸음이 하나 줄어드는 쪽을 고른다 —
+        /// 처음부터의 정답이 아니라 **어디서 꼬였든** 거기서의 정답이다.
+        /// </summary>
+        public bool Nudge(SnakeEngine.Level L, SnakeEngine.State st, out SnakeEngine.Dir dir)
+        {
+            dir = SnakeEngine.Dir.Up;
+            int here = ToGo(st);
+            if (here <= 0) return false;
+            int acts = L.Pads.Count > 0 ? 5 : 4;
+            for (int d = 0; d < acts; d++)
+            {
+                if (!SnakeEngine.Step(L, st, (SnakeEngine.Dir)d, out var ns)) continue;
+                if (ToGo(ns) == here - 1) { dir = (SnakeEngine.Dir)d; return true; }
+            }
+            return false;
+        }
     }
 }

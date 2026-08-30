@@ -168,6 +168,15 @@ let ok = placeDoor(bx(0), LOW, D1, ['=', '*']);      // 문1 — 왼쪽 방
   if (!placed) ok = false;
 }
 
+// 🔴 출구 — 맵을 넘는 자리. 문벽 뒤 방의 **양 끝**에 둔다.
+//    왼쪽 출구는 들어온 자리(이전 맵에서 오면 여기서 나온다),
+//    오른쪽 출구는 나가는 자리. 둘 다 **바닥 높이**라 길이 1로도 드나든다.
+{
+  const back = bx(COLS - 1);
+  if (g[floorY][back + RW - 1] === '.') g[floorY][back + RW - 1] = '>';
+  if (g[floorY][bx(0)] === '.') g[floorY][bx(0)] = '<';
+}
+
 // 🔴 문벽 뒤 방에 뭔가 있는지 확인한다. 빈 방으로 이어지면 문을 여는 뜻이 없다
 {
   const back = bx(COLS - 1);

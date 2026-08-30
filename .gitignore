@@ -37,3 +37,17 @@ build/
 #    출시할 때는 자유 라이선스(SIL OFL) 폰트로 갈아야 한다 — Fonts/README.md 참고
 game/Assets/Resources/Fonts/kr.ttf
 game/Assets/Resources/Fonts/kr.ttf.meta
+
+# 생성기가 뱉는 중간 산출물 — 결과만 levels.json 에 들어간다
+tools/*.txt
+tools/*.bak.json
+tools/ch1-ready.json
+tools/serve.log
+tools/e3_*.json
+tools/n3_*.json
+tools/n4_*.json
+tools/r_*.json
+tools/r5c_*.json
+tools/cands.json
+tools/doors.json
+tools/rec-*.txt

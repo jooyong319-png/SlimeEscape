@@ -27,6 +27,7 @@ namespace SlimeEscape.EditorTools
                 case '↓': d = SnakeEngine.Dir.Down; return true;
                 case '←': d = SnakeEngine.Dir.Left; return true;
                 case '→': d = SnakeEngine.Dir.Right; return true;
+                case '↧': d = SnakeEngine.Dir.Drop; return true;   // 받침대에 몸을 놓는다
             }
             d = SnakeEngine.Dir.Up; return false;
         }

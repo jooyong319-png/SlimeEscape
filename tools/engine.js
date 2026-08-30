@@ -14,7 +14,8 @@
 (function (root) {
   'use strict';
 
-  const DIRS = [[0, -1, '↑'], [0, 1, '↓'], [-1, 0, '←'], [1, 0, '→']];
+  const DIRS = [[0, -1, '↑'], [0, 1, '↓'], [-1, 0, '←'], [1, 0, '→'], [0, 0, '↧']];
+  // ↧ = 받침대에 몸을 놓는다
 
   function parse(def) {
     const g = def.grid.map(r => r.split(''));
@@ -22,6 +23,17 @@
     let start = null, core = -1;
     const foods = [], zone = [];
     const gates = [[], [], []];        // 🔴 문벽: gates[i] = i번 문이 열리면 사라지는 칸들
+    // 🔴 별 'o' — 먹어도 **몸이 안 자란다**. 문 계산을 건드리면 안 되기 때문이다.
+    //    안 먹어도 판은 깨진다. 별 둘/셋을 받으려면 먹어야 한다.
+    let star = -1;
+    // 🔴 받침대 'T' — 몸을 여기 두고 핵만 갈 수 있다. 두고 온 몸은 **딛고 설 지형**이 된다.
+    //    "이 몸을 홈에 낼 것인가, 계단으로 쓸 것인가" 가 이 게임의 결정이다.
+    //    아무 데나 놓게 하면 '어디에 놓았나'가 상태에 들어가 솔버가 터진다.
+    //    자리를 정해두면 **받침대 칸 수만큼의 비트**로 끝난다.
+    const pads = [];
+    // 🔴 화살표 표지판 '^ v < >' — **순수 장식.** 퍼즐엔 아무 영향이 없다.
+    //    가르치는 판에서 "여기서 이 키를 누르세요"를 맵 안에 박아두는 용도다.
+    const signs = [];
     // 🔴 문이 여러 개다. 기호 쌍마다 하나씩 — 첫 문 '=' '*', 둘째 문 '-' '%'.
     //    doors[i] = { cells: [...], core: n }
     const doors = [{ cells: [], core: -1 }, { cells: [], core: -1 }];
@@ -36,6 +48,10 @@
       else if (c === '~') { zone.push(y * w + x); g[y][x] = '.'; }   // 🔬 무중력 구역
       // 🔴 문벽 — 그 문을 열기 전엔 벽, 열면 사라진다
       else if (c >= '1' && c <= '3') { gates[c.charCodeAt(0) - 49].push(y * w + x); g[y][x] = '.'; }
+      // 🔴 출구 — 밟을 수 있는 바닥이다. 퍼즐엔 아무 영향이 없고, 게임이 여기서 맵을 넘긴다
+      else if (c === 'o') { star = y * w + x; g[y][x] = '.'; }
+      else if (c === 'T') { pads.push(y * w + x); g[y][x] = '.'; }
+      else if ('^v<>'.includes(c)) { signs.push({ cell: y * w + x, dir: '^v<>'.indexOf(c) }); g[y][x] = '.'; }
     }
     const open = doors.filter(d => d.cells.length);
     // 🔴 문마다 칸 수 제약은 clear에 달렸다.
@@ -52,6 +68,10 @@
 
     return {
       ...def, g, w, h, start, foods, doors: open, clear,
+      star,
+      pads,
+      signs,
+      padIdx: new Map(pads.map((c, i) => [c, i])),
       gateSet: gates.map(cs => new Set(cs)),
       hasGates: gates.some(cs => cs.length),
       allDoors: (1 << open.length) - 1,
@@ -96,6 +116,8 @@
       //    이미 연 문의 칸에는 굳은 몸이 박혀 있다. 지나갈 수는 있지만 **딛고 설 수도 있다.**
       //    이게 없으면 문을 연 뒤 길이 1이 된 핵은 한 칸도 못 올라 갇힌다.
       if (spent(L, below, dm)) return true;
+      // 받침대에 놓고 온 몸도 디딤돌이다
+      if (L.padIdx.has(below) && ((body.pm || 0) & (1 << L.padIdx.get(below)))) return true;
     }
     return false;
   }
@@ -107,28 +129,52 @@
   ///    다만 낙하 중엔 꼬리가 물러날 자리가 없다 — 거기에 마디를 붙이면 몸이 겹친다.
   ///    그래서 **다음 걸음에 꼬리가 안 물러나는 것**으로 갚는다 (고전 스네이크와 같다).
   ///    { body, fm, pg } 를 돌려준다. pg = 아직 안 갚은 성장 횟수.
-  function settle(L, body, fm, pg, dm) {
-    if (!L.gravity) return { body: body, fm: fm, pg: pg };
+  function settle(L, body, fm, pg, dm, sc, pm) {
+    body.pm = pm || 0;                 // supported() 가 받침대를 보게 들려 보낸다
+    sc = sc || 0;
+    if (L.star >= 0 && body[0] === L.star) sc = 1;
+    if (!L.gravity) return { body: body, fm: fm, pg: pg, sc: sc };
     for (let guard = 0; guard < 64; guard++) {
-      if (supported(L, body, dm)) return { body: body, fm: fm, pg: pg };
+      if (supported(L, body, dm)) return { body: body, fm: fm, pg: pg, sc: sc };
       const next = body.map(c => c + L.w);
       for (const c of next) if (c >= L.w * L.h) return null;
       body = next;
       const fi = L.foodIdx.get(body[0]);        // 머리가 새로 들어간 칸
       if (fi !== undefined && !(fm & (1 << fi))) { fm |= (1 << fi); pg++; }
+      if (L.star >= 0 && body[0] === L.star) sc = 1;   // 떨어지며 지나가도 줍는다
     }
     return null;
   }
 
   /// 상태: { body: [머리, ..., 꼬리], fm }
   const startState = L => {
-    const r = settle(L, [L.start], 0, 0, 0);
-    const st = r || { body: [L.start], fm: 0, pg: 0 };
+    const r = settle(L, [L.start], 0, 0, 0, 0, 0);
+    const st = r || { body: [L.start], fm: 0, pg: 0, sc: 0 };
+    st.pm = 0;
     st.dm = 0;                       // 🔴 열린 문 비트마스크
     return st;
   };
 
+  /// 🔴 받침대에 몸을 놓는다. **몸 전체가 받침대 안에** 있어야 하고, 통째로 놓는다.
+  ///    일부만 떼게 하면 덤 조각을 먹고도 살아나서 난이도가 통째로 사라진다.
+  ///    놓고 나면 핵(머리)만 남고, 그 자리에서 다시 떨어질 수 있다.
+  function drop(L, st) {
+    if (!L.pads.length || st.body.length < 2) return null;
+    let mask = 0;
+    for (const c of st.body) {
+      const i = L.padIdx.get(c);
+      if (i === undefined) return null;              // 하나라도 밖이면 못 놓는다
+      if ((st.pm || 0) & (1 << i)) return null;      // 이미 찬 자리엔 못 놓는다
+      mask |= 1 << i;
+    }
+    const pm = (st.pm || 0) | mask;
+    const r = settle(L, [st.body[0]], st.fm, 0, st.dm || 0, st.sc || 0, pm);
+    if (!r) return null;
+    return { body: r.body, fm: r.fm, pg: r.pg, sc: r.sc, dm: st.dm || 0, pm };
+  }
+
   function step(L, st, di) {
+    if (di === 4) return drop(L, st);
     const [dx, dy] = DIRS[di];
     const hx = st.body[0] % L.w, hy = (st.body[0] / L.w) | 0;
     const nx = hx + dx, ny = hy + dy;
@@ -148,9 +194,12 @@
     // 자라는 걸음이면 꼬리를 그대로 둔다. 아니면 낙하 중에 진 빚(pg)부터 갚는다.
     if (!grows) { if (pg > 0) pg--; else body.pop(); }
 
-    const r = settle(L, body, grows ? (st.fm | (1 << fi)) : st.fm, pg, st.dm || 0);
+    let sc = st.sc || 0;
+    if (L.star >= 0 && nh === L.star) sc = 1;
+
+    const r = settle(L, body, grows ? (st.fm | (1 << fi)) : st.fm, pg, st.dm || 0, sc, st.pm || 0);
     if (!r) return null;
-    const ns = { body: r.body, fm: r.fm, pg: r.pg, dm: st.dm || 0 };
+    const ns = { body: r.body, fm: r.fm, pg: r.pg, sc: r.sc, dm: st.dm || 0, pm: st.pm || 0 };
 
     // 🔴 문이 채워졌나 — 채워졌으면 **몸을 자물쇠에 두고 핵만 남는다.**
     //    (몸이 문 칸을 정확히 덮고 있으므로, 남는 몸의 모양은 곧 그 문이다)
@@ -162,9 +211,9 @@
         ns.pg = 0;                   // 두고 온 몸과 함께 미룬 성장도 사라진다
       }
       // 🔴 문벽이 사라지면 발밑이 없어질 수 있다 — 그러면 떨어진다
-      const after = settle(L, ns.body, ns.fm, ns.pg, ns.dm);
+      const after = settle(L, ns.body, ns.fm, ns.pg, ns.dm, ns.sc, ns.pm);
       if (!after) return null;
-      ns.body = after.body; ns.fm = after.fm; ns.pg = after.pg;
+      ns.body = after.body; ns.fm = after.fm; ns.pg = after.pg; ns.sc = after.sc;
     }
     return ns;
   }
@@ -186,17 +235,26 @@
   /// 이 판이 끝났나.
   ///   any — 아무 문이나 하나 열면 끝 (지금까지의 판)
   ///   all — 🔴 문을 다 열어야 끝. 열 때마다 몸을 두고 핵만 간다
-  function isWin(L, st) {
+  function isWin(L, st, needStar) {
     const dm = st.dm || 0;
-    if (L.clear === 'all') return dm === L.allDoors && L.allDoors !== 0;
-    return dm !== 0 || matchDoor(L, st) >= 0;
+    const doors = L.clear === 'all'
+      ? (dm === L.allDoors && L.allDoors !== 0)
+      : (dm !== 0 || matchDoor(L, st) >= 0);
+    if (!doors) return false;
+    // 🔴 별 둘/셋을 노리는 계산에서만 별을 요구한다. 깨는 것 자체엔 필요 없다.
+    if (needStar && L.star >= 0 && !(st.sc || 0)) return false;
+    // 🔴 홈을 채우면 **거기서 끝난다.** 출구까지 걸어가는 건 없앴다 (08-30 사장님).
+    //    출구 그림은 남아 있지만 연출일 뿐이다 — 밟으러 갈 필요가 없다.
+    return true;
   }
   /// 예전 이름 — 어느 문이 열렸는지 물을 때
   const wonDoor = (L, st) => matchDoor(L, st);
 
-  const keyOf = st => st.body.join(',') + '|' + st.fm + '|' + (st.pg || 0) + '|' + (st.dm || 0);
+  const keyOf = st => st.body.join(',') + '|' + st.fm + '|' + (st.pg || 0) + '|' +
+                      (st.dm || 0) + '|' + (st.sc || 0) + '|' + (st.pm || 0);
 
-  function solve(def) {
+  function solve(def, opts) {
+    const needStar = !!(opts && opts.needStar);
     const L = parse(def);
     if (L.start === null) return { ok: false, why: 'S가 없음' };
     if (!L.target.length) return { ok: false, why: '목표(=)가 없음' };
@@ -207,11 +265,14 @@
     const need = L.clear === 'all'
       ? L.doors.reduce((s, d) => s + d.cells.length - 1, 0)
       : L.target.length - 1;
-    if (L.foods.length !== need)
-      return { ok: false, why: `조각이 안 맞는다 — ${need}개가 필요한데 ${L.foods.length}개다` };
+    // 🔴 모자라면 못 푼다. 하지만 **남는 건 괜찮다** — 그게 곧 "먹으면 안 되는 조각"이다.
+    //    (여기를 '정확히 같아야 한다'로 묶어둔 게 난이도의 족쇄였다. 08-30)
+    //    더 먹으면 몸이 길어져 홈에 안 맞고, 먹은 건 못 뱉는다 = 그 자리에서 진다.
+    if (L.foods.length < need)
+      return { ok: false, why: `조각이 모자란다 — ${need}개가 필요한데 ${L.foods.length}개다` };
 
     const s0 = startState(L);
-    if (isWin(L, s0)) return { ok: true, moves: 0, path: '', shortest: 1, states: 1 };
+    if (isWin(L, s0, needStar)) return { ok: true, moves: 0, path: '', shortest: 1, states: 1 };
 
     const q = [s0];
     const dist = new Map([[keyOf(s0), 0]]);
@@ -223,10 +284,11 @@
       const st = q[head++];
       const sk = keyOf(st), d = dist.get(sk);
       if (d >= gd) continue;
-      for (let di = 0; di < 4; di++) {
+      const acts = L.pads.length ? 5 : 4;
+      for (let di = 0; di < acts; di++) {
         const ns = step(L, st, di);
         if (!ns) continue;
-        const nk = keyOf(ns), win = isWin(L, ns);
+        const nk = keyOf(ns), win = isWin(L, ns, needStar);
         if (dist.has(nk)) { if (win && dist.get(nk) === d + 1) wins.push(nk); continue; }
         dist.set(nk, d + 1); prev.set(nk, [sk, DIRS[di][2]]);
         if (win) { if (d + 1 < gd) { gd = d + 1; goal = nk; } wins.push(nk); continue; }
@@ -250,7 +312,7 @@
     const r = solve(def);
     let st = startState(L);
     const steps = [{ st, sym: '시작' }];
-    const SYM = { '↑': 0, '↓': 1, '←': 2, '→': 3 };
+    const SYM = { '↑': 0, '↓': 1, '←': 2, '→': 3, '↧': 4 };
     for (const c of (r.path || '')) {
       st = step(L, st, SYM[c]);
       if (!st) break;
@@ -272,6 +334,9 @@
         else if (L.g[y][x] === '#') r += '#';
         else if (L.hasGates && L.gateSet.some((s, i) => s.has(y * L.w + x) && !((st.dm || 0) & (1 << i))))
           r += L.gateSet.findIndex(s => s.has(y * L.w + x)) + 1;   // 열린 문벽은 안 그린다
+        else if (y * L.w + x === L.star) r += 'o';
+        else if (L.padIdx.has(y * L.w + x))
+          r += ((st.pm || 0) & (1 << L.padIdx.get(y * L.w + x))) ? 'Ⅰ' : 'T';
         else if (L.zoneSet.has(y * L.w + x)) r += '~';
         else if (L.doors[1] && L.doors[1].set.has(y * L.w + x))
           r += (y * L.w + x) === L.doors[1].core ? '%' : '-';

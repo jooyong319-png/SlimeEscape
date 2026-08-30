@@ -1,0 +1,412 @@
+<title>지도를 어떤 모양으로 놓을까</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Black+Han+Sans&family=Gothic+A1:wght@400;500;700;900&family=IBM+Plex+Mono:wght@400;600&display=swap">
+<style>
+/* 이 게임의 색을 그대로 쓴다 — 어두운 굴, 슬라임 민트, 금색 문 */
+:root{
+  --ground:#131b17; --panel:#1b2620; --panel2:#212e27; --line:#2f4037;
+  --ink:#e2ebe4; --muted:#87998f; --dim:#5f7168;
+  --slime:#a8e6cf; --gold:#d8b06a; --ember:#e8901f; --spent:#667d72;
+  --good:#7fd6a2; --warn:#e0b44a; --bad:#e07a5f;
+}
+*{box-sizing:border-box}
+body{
+  background:var(--ground); color:var(--ink);
+  font-family:"Gothic A1",system-ui,-apple-system,"Malgun Gothic",sans-serif;
+  font-size:16px; line-height:1.8; margin:0; padding:0 20px 96px;
+  -webkit-font-smoothing:antialiased;
+}
+.wrap{max-width:78ch; margin:0 auto}
+code{font-family:"IBM Plex Mono",ui-monospace,monospace; font-size:.92em; color:var(--slime)}
+
+header{padding:72px 0 40px; border-bottom:1px solid var(--line)}
+.eyebrow{
+  font-family:"IBM Plex Mono",monospace; font-size:12px; letter-spacing:.18em;
+  text-transform:uppercase; color:var(--gold); margin:0 0 18px;
+}
+h1{
+  font-family:"Black Han Sans",sans-serif; font-weight:400;
+  font-size:clamp(34px,6.2vw,58px); line-height:1.14; letter-spacing:-.01em;
+  margin:0 0 22px; text-wrap:balance;
+}
+.lede{font-size:18px; color:var(--muted); margin:0; max-width:60ch}
+.lede b{color:var(--ink); font-weight:700}
+
+.now{
+  display:grid; grid-template-columns:repeat(auto-fit,minmax(118px,1fr));
+  gap:1px; background:var(--line); border:1px solid var(--line); margin:34px 0 0;
+}
+.now > div{background:var(--panel); padding:16px 18px}
+.now dt{
+  font-family:"IBM Plex Mono",monospace; font-size:11px; letter-spacing:.13em;
+  color:var(--dim); margin:0 0 6px; text-transform:uppercase;
+}
+.now dd{
+  margin:0; font-size:26px; font-weight:700; line-height:1.1;
+  font-variant-numeric:tabular-nums;
+}
+.now dd small{font-size:13px; font-weight:500; color:var(--muted); margin-left:3px}
+.now .hot dd{color:var(--ember)}
+
+section{padding:52px 0; border-bottom:1px solid var(--line)}
+h2{
+  font-family:"Black Han Sans",sans-serif; font-weight:400;
+  font-size:clamp(23px,3.4vw,30px); line-height:1.3; margin:0 0 8px; text-wrap:balance;
+}
+h2 + .sub{color:var(--muted); margin:0 0 28px; font-size:15px}
+h3{font-size:17px; font-weight:700; margin:30px 0 8px}
+p{margin:0 0 16px; max-width:66ch}
+.hi{color:var(--gold); font-weight:700}
+.sl{color:var(--slime); font-weight:700}
+.gd{color:var(--gold); font-weight:700}
+
+.calc{
+  border:1px solid var(--line); background:var(--panel);
+  font-family:"IBM Plex Mono",monospace; font-size:14px;
+  padding:22px 24px; margin:24px 0; overflow-x:auto;
+}
+.calc table{border-collapse:collapse; width:100%; min-width:380px}
+.calc td{padding:7px 0; font-variant-numeric:tabular-nums}
+.calc td:first-child{color:var(--muted); padding-right:28px}
+.calc td:last-child{text-align:right; font-weight:600; white-space:nowrap}
+.calc tr.tot td{border-top:1px solid var(--line); padding-top:12px; color:var(--gold)}
+
+.opt{border:1px solid var(--line); background:var(--panel); margin:0 0 20px; overflow:hidden}
+.opt.pick{border-color:var(--gold)}
+.opt > .top{display:flex; gap:20px; align-items:flex-start; flex-wrap:wrap; padding:22px 24px 18px}
+.opt .art{flex:0 0 200px; background:var(--ground); border:1px solid var(--line); padding:10px}
+.opt .art svg{display:block; width:100%; height:auto}
+.opt .head{flex:1 1 300px; min-width:250px}
+.opt h3{
+  margin:0 0 4px; font-size:20px;
+  font-family:"Black Han Sans",sans-serif; font-weight:400;
+}
+.tag{
+  display:inline-block; font-family:"IBM Plex Mono",monospace; font-size:10.5px;
+  letter-spacing:.12em; text-transform:uppercase; padding:3px 9px;
+  border:1px solid var(--line); color:var(--muted); margin:0 0 12px;
+}
+.opt.pick .tag{border-color:var(--gold); color:var(--gold)}
+.opt p{margin:0 0 12px; font-size:15px}
+
+.facts{display:flex; flex-wrap:wrap; border-top:1px solid var(--line); background:var(--panel2); margin:0}
+.facts > div{flex:1 1 128px; padding:13px 18px; border-right:1px solid var(--line)}
+.facts > div:last-child{border-right:0}
+.facts dt{
+  font-family:"IBM Plex Mono",monospace; font-size:10.5px; letter-spacing:.11em;
+  color:var(--dim); text-transform:uppercase; margin:0 0 4px;
+}
+.facts dd{margin:0; font-size:15px; font-weight:700; font-variant-numeric:tabular-nums}
+.facts .g dd{color:var(--good)}
+.facts .w dd{color:var(--warn)}
+.facts .b dd{color:var(--bad)}
+
+.pm{list-style:none; padding:0; margin:0}
+.pm li{position:relative; padding-left:22px; font-size:14.5px; margin:0 0 5px; color:var(--muted)}
+.pm li::before{position:absolute; left:0; top:0; font-family:"IBM Plex Mono",monospace; font-weight:600}
+.pm li.p::before{content:"+"; color:var(--good)}
+.pm li.m::before{content:"\2212"; color:var(--bad)}
+.pm strong{color:var(--ink)}
+
+.rec{
+  border:1px solid var(--gold); padding:30px 28px; margin:0;
+  background:linear-gradient(180deg,rgba(216,176,106,.09),rgba(216,176,106,0) 60%);
+}
+.rec h2{margin-bottom:16px}
+.rec ol{margin:0; padding-left:22px}
+.rec li{margin:0 0 12px; max-width:62ch}
+
+.todo{list-style:none; padding:0; margin:20px 0 0; border-top:1px solid var(--line)}
+.todo li{
+  display:flex; gap:16px; align-items:baseline; padding:13px 2px;
+  border-bottom:1px solid var(--line); font-size:15px;
+}
+.todo .n{
+  font-family:"IBM Plex Mono",monospace; font-size:12px; color:var(--gold);
+  flex:0 0 30px; letter-spacing:.05em;
+}
+.todo .c{
+  margin-left:auto; padding-left:14px; flex:0 0 auto;
+  font-family:"IBM Plex Mono",monospace; font-size:12px; color:var(--dim);
+}
+
+.ask{border:1px solid var(--slime); padding:26px 28px; margin:0; background:rgba(168,230,207,.05)}
+.ask h2{color:var(--slime)}
+.ask p:last-child{margin-bottom:0}
+
+footer{
+  padding:40px 0 0; color:var(--dim); font-size:13px; line-height:1.9;
+  font-family:"IBM Plex Mono",monospace;
+}
+@media (max-width:620px){
+  .opt .art{flex:1 1 100%}
+  .facts > div{flex:1 1 50%}
+}
+</style>
+
+<div class="wrap">
+
+<header>
+  <p class="eyebrow">SlimeEscape &middot; 2026-08-30</p>
+  <h1>지도를 어떤 모양으로 놓을까</h1>
+  <p class="lede">위아래 출구가 필요한지는 지도 모양이 정합니다. 그런데 지도 모양은 <b>2시간</b>이 나오느냐도 같이 정합니다. 그래서 두 질문은 하나입니다.</p>
+
+  <dl class="now">
+    <div><dt>지금 판</dt><dd>10<small>판</small></dd></div>
+    <div><dt>지금 방</dt><dd>14<small>방</small></dd></div>
+    <div><dt>최단 걸음</dt><dd>377</dd></div>
+    <div class="hot"><dt>실제 플레이</dt><dd>4<small>분</small></dd></div>
+    <div class="hot"><dt>목표까지</dt><dd>30<small>배</small></dd></div>
+  </dl>
+</header>
+
+<section>
+  <h2>먼저 &mdash; 2시간은 지도에서 안 나옵니다</h2>
+  <p class="sub">넓히는 걸로는 못 갑니다. 계산이 안 맞습니다.</p>
+
+  <p>지금 <strong>14방을 4분</strong>에 깨셨습니다. <strong>방 하나당 17초</strong>입니다. 이 속도를 그대로 두고 2시간을 채우려면 <span class="hi">방이 420개</span> 필요합니다. 만들 수도 없고, 만들어도 같은 걸 420번 하는 겁니다.</p>
+
+  <p>실제로 2시간짜리 게임들이 쓰는 배분은 이렇습니다.</p>
+
+  <div class="calc">
+    <table>
+      <tr><td>방 하나를 푸는 데</td><td>2분</td></tr>
+      <tr><td>방 수</td><td>&times; 40방</td></tr>
+      <tr><td>= 처음 푸는 시간</td><td>80분</td></tr>
+      <tr><td>되돌아가기 &middot; 길 찾기 &middot; 막혔다 다시</td><td>+ 40분</td></tr>
+      <tr class="tot"><td>합계</td><td>120분</td></tr>
+    </table>
+  </div>
+
+  <p>핵심은 <span class="hi">방당 17초 &rarr; 2분</span>입니다. 7배입니다. 이건 <strong>방을 좁고 빽빽하게</strong> 만들어야 나옵니다 &mdash; 지금 방은 폭 11칸짜리 평지 복도라서 걸음의 <strong>82%가 그냥 걷기</strong>입니다. 넓히면 이 비율이 더 나빠집니다.</p>
+
+  <p>그러면 <strong>지도 모양은 어디에 쓰나?</strong> 위 표의 <span class="hi">아래 40분</span>입니다. 되돌아갈 이유를 만드는 것 &mdash; 그게 지도가 하는 일의 전부입니다.</p>
+</section>
+
+<section>
+  <h2>그리고 &mdash; 위아래가 이 게임의 유일한 잠금입니다</h2>
+  <p class="sub">이건 취향이 아니라 이미 있는 규칙에서 나옵니다.</p>
+
+  <p>지금 규칙 두 개를 나란히 놓아 보겠습니다.</p>
+
+  <div class="calc">
+    <table>
+      <tr><td><span class="sl">길이 1인 핵</span>은 한 칸도 못 오른다</td><td>이동 규칙</td></tr>
+      <tr><td><span class="gd">두고 온 몸</span>은 밟고 설 수 있다</td><td>문 규칙</td></tr>
+    </table>
+  </div>
+
+  <p>두 줄을 곱하면 이렇게 됩니다 &mdash; <strong>높은 곳은 몸을 두고 와야 갈 수 있다.</strong> 이게 이 게임이 가진 단 하나의 진짜 잠금장치입니다. &ldquo;열쇠를 먹었나&rdquo;가 아니라 <strong>&ldquo;무엇을 포기했나&rdquo;</strong>로 길이 열립니다.</p>
+
+  <p>그런데 <strong>좌우로만 이어진 지도에서는 이 잠금을 쓸 데가 없습니다.</strong> 옆으로는 그냥 걸어가면 되니까요. 위아래가 있어야 이 규칙이 놉니다.</p>
+</section>
+
+<section>
+  <h2>네 가지 안</h2>
+  <p class="sub">네모 하나가 방입니다. <span class="gd">금색 선</span>은 몸을 두고 와야 지나는 길입니다.</p>
+
+  <div class="opt">
+    <div class="top">
+      <div class="art">
+        <svg viewBox="0 0 200 96" role="img" aria-label="방 여섯 개가 한 줄로 이어진 지도">
+          <g fill="#212e27" stroke="#3d5347" stroke-width="1.5">
+            <rect x="6" y="38" width="22" height="20"/><rect x="40" y="38" width="22" height="20"/>
+            <rect x="74" y="38" width="22" height="20"/><rect x="108" y="38" width="22" height="20"/>
+            <rect x="142" y="38" width="22" height="20"/><rect x="176" y="38" width="18" height="20"/>
+          </g>
+          <g stroke="#667d72" stroke-width="1.5">
+            <line x1="28" y1="48" x2="40" y2="48"/><line x1="62" y1="48" x2="74" y2="48"/>
+            <line x1="96" y1="48" x2="108" y2="48"/><line x1="130" y1="48" x2="142" y2="48"/>
+            <line x1="164" y1="48" x2="176" y2="48"/>
+          </g>
+          <circle cx="17" cy="48" r="3.5" fill="#a8e6cf"/>
+        </svg>
+      </div>
+      <div class="head">
+        <span class="tag">지금 이대로</span>
+        <h3>한 줄</h3>
+        <p>방이 옆으로만 이어집니다. 출구는 방마다 좌우 2개. 지금 만들어져 있는 그대로입니다.</p>
+        <ul class="pm">
+          <li class="p">오늘 안에 끝납니다. 새로 만들 게 없습니다</li>
+          <li class="m">되돌아갈 이유가 <strong>0</strong>입니다 &mdash; 위 표의 40분이 통째로 빠집니다</li>
+          <li class="m">위로 오르는 잠금을 못 씁니다. 이 게임의 유일한 잠금인데요</li>
+        </ul>
+      </div>
+    </div>
+    <dl class="facts">
+      <div><dt>방당 출구</dt><dd>2</dd></div>
+      <div class="g"><dt>만드는 값</dt><dd>0회차</dd></div>
+      <div class="b"><dt>기대 분량</dt><dd>80분</dd></div>
+      <div class="g"><dt>솔버 부담</dt><dd>방당 2번</dd></div>
+    </dl>
+  </div>
+
+  <div class="opt pick">
+    <div class="top">
+      <div class="art">
+        <svg viewBox="0 0 200 96" role="img" aria-label="세 층이 양 끝 세로 통로로 이어진 지도">
+          <g fill="#212e27" stroke="#3d5347" stroke-width="1.5">
+            <rect x="14" y="8" width="24" height="18"/><rect x="50" y="8" width="24" height="18"/>
+            <rect x="86" y="8" width="24" height="18"/><rect x="122" y="8" width="24" height="18"/>
+            <rect x="14" y="39" width="24" height="18"/><rect x="50" y="39" width="24" height="18"/>
+            <rect x="86" y="39" width="24" height="18"/><rect x="122" y="39" width="24" height="18"/>
+            <rect x="158" y="39" width="24" height="18"/>
+            <rect x="14" y="70" width="24" height="18"/><rect x="50" y="70" width="24" height="18"/>
+            <rect x="86" y="70" width="24" height="18"/><rect x="122" y="70" width="24" height="18"/>
+          </g>
+          <g stroke="#667d72" stroke-width="1.5">
+            <line x1="38" y1="17" x2="50" y2="17"/><line x1="74" y1="17" x2="86" y2="17"/><line x1="110" y1="17" x2="122" y2="17"/>
+            <line x1="38" y1="48" x2="50" y2="48"/><line x1="74" y1="48" x2="86" y2="48"/><line x1="110" y1="48" x2="122" y2="48"/><line x1="146" y1="48" x2="158" y2="48"/>
+            <line x1="38" y1="79" x2="50" y2="79"/><line x1="74" y1="79" x2="86" y2="79"/><line x1="110" y1="79" x2="122" y2="79"/>
+          </g>
+          <g stroke="#d8b06a" stroke-width="2">
+            <line x1="26" y1="57" x2="26" y2="70"/>
+            <line x1="26" y1="26" x2="26" y2="39"/>
+            <line x1="134" y1="26" x2="134" y2="39"/>
+          </g>
+          <circle cx="26" cy="79" r="3.5" fill="#a8e6cf"/>
+        </svg>
+      </div>
+      <div class="head">
+        <span class="tag">추천</span>
+        <h3>층과 통로</h3>
+        <p>층마다 방이 옆으로 이어지고, <strong>층 끝에서만</strong> 위아래로 넘어갑니다. 좌우는 지금 그대로 두고 세로 통로만 얹습니다.</p>
+        <ul class="pm">
+          <li class="p">위로 가는 통로가 곧 <strong>몸을 두고 와야 지나는 길</strong>입니다 &mdash; 잠금이 제자리를 찾습니다</li>
+          <li class="p">&ldquo;3층 왼쪽 끝&rdquo; 한 마디로 위치가 설명됩니다. <strong>미니맵을 안 만들어도 됩니다</strong></li>
+          <li class="p">추가할 건 출구 기호 <code>^</code> <code>v</code> 두 개와 세로 카메라뿐입니다</li>
+          <li class="m">층 끝 방은 들어오는 문이 3개라 세 번 다 풀리는지 검사해야 합니다</li>
+        </ul>
+      </div>
+    </div>
+    <dl class="facts">
+      <div><dt>방당 출구</dt><dd>2&ndash;3</dd></div>
+      <div class="g"><dt>만드는 값</dt><dd>1회차</dd></div>
+      <div class="g"><dt>기대 분량</dt><dd>100&ndash;130분</dd></div>
+      <div class="w"><dt>솔버 부담</dt><dd>방당 2&ndash;3번</dd></div>
+    </dl>
+  </div>
+
+  <div class="opt">
+    <div class="top">
+      <div class="art">
+        <svg viewBox="0 0 200 96" role="img" aria-label="사방으로 뻗은 격자 지도">
+          <g fill="#212e27" stroke="#3d5347" stroke-width="1.5">
+            <rect x="50" y="6" width="24" height="18"/><rect x="86" y="6" width="24" height="18"/>
+            <rect x="14" y="37" width="24" height="18"/><rect x="50" y="37" width="24" height="18"/>
+            <rect x="86" y="37" width="24" height="18"/><rect x="122" y="37" width="24" height="18"/>
+            <rect x="158" y="37" width="24" height="18"/>
+            <rect x="50" y="68" width="24" height="18"/><rect x="86" y="68" width="24" height="18"/>
+            <rect x="122" y="68" width="24" height="18"/>
+          </g>
+          <g stroke="#667d72" stroke-width="1.5">
+            <line x1="74" y1="15" x2="86" y2="15"/>
+            <line x1="38" y1="46" x2="50" y2="46"/><line x1="74" y1="46" x2="86" y2="46"/>
+            <line x1="110" y1="46" x2="122" y2="46"/><line x1="146" y1="46" x2="158" y2="46"/>
+            <line x1="74" y1="77" x2="86" y2="77"/><line x1="110" y1="77" x2="122" y2="77"/>
+          </g>
+          <g stroke="#d8b06a" stroke-width="2">
+            <line x1="62" y1="24" x2="62" y2="37"/><line x1="98" y1="24" x2="98" y2="37"/>
+            <line x1="62" y1="55" x2="62" y2="68"/><line x1="134" y1="55" x2="134" y2="68"/>
+          </g>
+          <circle cx="26" cy="46" r="3.5" fill="#a8e6cf"/>
+        </svg>
+      </div>
+      <div class="head">
+        <span class="tag">할로우 나이트 정식</span>
+        <h3>격자</h3>
+        <p>사방 어디로든 이어집니다. 지름길, 막다른 길, 나중에야 열리는 뒷문까지 전부 가능합니다.</p>
+        <ul class="pm">
+          <li class="p">진짜 &ldquo;장소&rdquo;가 됩니다. 길 찾는 것 자체가 놀이가 됩니다</li>
+          <li class="m">방마다 진입점이 4개 &rarr; <strong>생성기가 통과 못 하는 방이 확 늘어납니다</strong></li>
+          <li class="m"><strong>미니맵이 필수</strong>가 됩니다 &mdash; 새 시스템이 하나 더 붙습니다</li>
+          <li class="m">오늘 안에 못 끝냅니다</li>
+        </ul>
+      </div>
+    </div>
+    <dl class="facts">
+      <div><dt>방당 출구</dt><dd>최대 4</dd></div>
+      <div class="b"><dt>만드는 값</dt><dd>3&ndash;4회차</dd></div>
+      <div class="g"><dt>기대 분량</dt><dd>150분+</dd></div>
+      <div class="b"><dt>솔버 부담</dt><dd>방당 4번</dd></div>
+    </dl>
+  </div>
+
+  <div class="opt">
+    <div class="top">
+      <div class="art">
+        <svg viewBox="0 0 200 96" role="img" aria-label="아래로 내려가는 우물 모양 지도">
+          <g fill="#212e27" stroke="#3d5347" stroke-width="1.5">
+            <rect x="88" y="5" width="24" height="16"/>
+            <rect x="88" y="32" width="24" height="16"/><rect x="124" y="32" width="24" height="16"/>
+            <rect x="16" y="59" width="24" height="16"/><rect x="52" y="59" width="24" height="16"/><rect x="88" y="59" width="24" height="16"/>
+            <rect x="88" y="80" width="24" height="14"/>
+          </g>
+          <g stroke="#667d72" stroke-width="1.5">
+            <line x1="112" y1="40" x2="124" y2="40"/>
+            <line x1="76" y1="67" x2="88" y2="67"/><line x1="40" y1="67" x2="52" y2="67"/>
+          </g>
+          <g stroke="#d8b06a" stroke-width="2">
+            <line x1="100" y1="21" x2="100" y2="32"/><line x1="100" y1="48" x2="100" y2="59"/>
+            <line x1="100" y1="75" x2="100" y2="80"/>
+          </g>
+          <circle cx="100" cy="13" r="3.5" fill="#a8e6cf"/>
+        </svg>
+      </div>
+      <div class="head">
+        <span class="tag">중력을 축으로</span>
+        <h3>우물</h3>
+        <p>세로가 주축이고 좌우는 곁가지입니다. 계속 아래로 내려갑니다.</p>
+        <ul class="pm">
+          <li class="p">중력 게임과 정직하게 맞습니다 &mdash; <strong>내려가긴 쉽고 올라오긴 어렵다</strong>, 그 비대칭이 그대로 긴장이 됩니다</li>
+          <li class="p">&ldquo;얼마나 내려왔나&rdquo;가 진행도 그 자체입니다</li>
+          <li class="m">올라오는 게 어려워서 <strong>갇히기 쉽습니다</strong> &mdash; 못 돌아가는 상황을 전부 막아야 합니다</li>
+          <li class="m">층보다 설계가 까다롭습니다</li>
+        </ul>
+      </div>
+    </div>
+    <dl class="facts">
+      <div><dt>방당 출구</dt><dd>2&ndash;3</dd></div>
+      <div class="w"><dt>만드는 값</dt><dd>2회차</dd></div>
+      <div class="w"><dt>기대 분량</dt><dd>100분</dd></div>
+      <div class="w"><dt>솔버 부담</dt><dd>방당 2&ndash;3번</dd></div>
+    </dl>
+  </div>
+</section>
+
+<section>
+  <div class="rec">
+    <h2>추천 &mdash; 층과 통로</h2>
+    <ol>
+      <li><strong>규칙이 이미 그 모양을 가리킵니다.</strong> 길이 1인 핵은 못 오릅니다. 그래서 위로 가는 통로는 저절로 &ldquo;몸을 두고 와야 지나는 길&rdquo;이 됩니다. 새 규칙을 하나도 안 만들고 잠금이 생깁니다.</li>
+      <li><strong>미니맵을 안 만들어도 됩니다.</strong> 격자는 지도 화면이 없으면 사람이 길을 잃습니다. 층 구조는 &ldquo;2층 오른쪽 끝&rdquo;으로 말이 되니까, 화면 구석에 층 번호 하나면 충분합니다. 시스템 하나를 통째로 아낍니다.</li>
+      <li><strong>지금 있는 걸 안 버립니다.</strong> 구역 4개가 그대로 한 층이 됩니다. 세로 통로만 얹으면 됩니다.</li>
+    </ol>
+  </div>
+
+  <h3>그러면 이렇게 하게 됩니다</h3>
+  <ul class="todo">
+    <li><span class="n">T3</span><span>방을 좁게 &mdash; 폭 11 &rarr; 6~7. <strong>분량의 진짜 원천은 여깁니다</strong></span><span class="c">1회차</span></li>
+    <li><span class="n">T6</span><span>세로 출구 <code>^</code> <code>v</code> &middot; 층 끝 방에만</span><span class="c">1회차</span></li>
+    <li><span class="n">T7</span><span>세로 카메라 &mdash; 위아래로 미끄러지게</span><span class="c">반회차</span></li>
+    <li><span class="n">T8</span><span>진입점 3곳이 다 풀리는지 검사 (생성기)</span><span class="c">반회차</span></li>
+    <li><span class="n">T9</span><span>층 번호 표시 &middot; 층별 획</span><span class="c">반회차</span></li>
+  </ul>
+</section>
+
+<section style="border-bottom:0">
+  <div class="ask">
+    <h2>정해주실 것</h2>
+    <p><strong>하나 &mdash;</strong> 네 안 중 어느 것으로 갈까요. 저는 <span class="hi">층과 통로</span>를 밉니다.</p>
+    <p><strong>둘 &mdash;</strong> 층을 몇 개로 할까요. <strong>3층 &times; 층당 12~14방 = 40방</strong>이면 위 계산의 2시간에 맞습니다. 지금이 14방이니 <strong>26방을 더</strong> 만들어야 합니다.</p>
+    <p><strong>셋 &mdash;</strong> 뒤로 돌아가는 문은 <strong>모든 방</strong>에 뚫을까요, 아니면 <strong>층 안에서만</strong> 자유롭고 층 사이는 한 방향일까요.</p>
+  </div>
+</section>
+
+<footer>
+  수치 출처 &mdash; 이어진 판 10개 / 방 14개 / 최단 377걸음(솔버) / 실제 플레이 4분(2026-08-30 사장님 측정)<br>
+  기대 분량은 어림입니다. 방을 좁게 만든 뒤 다시 재야 진짜 숫자가 나옵니다.
+</footer>
+
+</div>

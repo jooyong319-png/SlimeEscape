@@ -1,91 +1,64 @@
-// 🔴 처음부터 끝까지 이어지는가 — 한 판 통째로 걸어본다.
+// 판 목록을 처음부터 끝까지 훑는다.
 //
-//   node tools/playthrough.js
+// 확인하는 것:
+//   · 판마다 실제로 풀리는가 (홈을 채우면 끝 — 출구는 연출일 뿐이다)
+//   · 판마다 별이 있고, 별을 먹는 길이 그냥 가는 길과 **다른가**
+//   · 커트라인이 별 먹는 최단보다 넉넉한가
+//   · 앞판이 뒷판보다 쉬운가 (난이도가 뒤집히면 알려준다)
 //
-// 판 하나씩 검증하는 것(stamp)만으로는 **길이 끊긴 것**을 못 잡는다.
-// next1/next2 를 따라가면서 확인한다:
-//   · 그 방이 풀리는가 · 최단해가 하나인가
-//   · 획이 제때 모이는가 · needMarks 가 있는 문 앞에서 막히지 않는가
-//   · 마지막 방에 실제로 닿는가 · 고리가 있어 무한히 도는 건 아닌가
-const fs = require('fs');
-const path = require('path');
+// 🔴 이건 "풀 수 있나"만 본다. **재미는 못 잰다.** 두 번 증명했다.
+'use strict';
 const E = require('./engine.js').SlimeEngine;
+const d = require('../game/Assets/Resources/levels.json');
 
-const FILE = path.join(__dirname, '..', 'game', 'Assets', 'Resources', 'levels.json');
-const doc = JSON.parse(fs.readFileSync(FILE, 'utf8'));
-const byId = new Map(doc.levels.map(l => [l.id, l]));
+const solve = (l, star) =>
+  E.solve({ grid: l.grid, gravity: true, clear: l.clear || 'all', id: l.id },
+          star ? { needStar: true } : undefined);
 
-let cur = doc.levels[0];
-const seen = new Set();
-let marks = 0, totalMoves = 0, rooms = 0, steps = 0;
-const trail = [];
-let fail = 0;
+let bad = 0, warn = 0, sumBest = 0, sumStar = 0;
+console.log('#   판     최단   별포함  돌아감  커트    별자리');
+console.log('─'.repeat(58));
 
-console.log('방   구역          걸음   방수  획');
-while (cur) {
-  if (seen.has(cur.id)) { console.log('🔴 고리다 — ' + cur.id + ' 를 다시 만났다'); fail++; break; }
-  seen.add(cur.id);
-  trail.push(cur.id);
+let prev = 0;
+d.levels.forEach((l, i) => {
+  const hasStar = l.grid.join('').includes('o');
+  const r = solve(l, false);
+  if (!r.ok) { console.log(String(i + 1).padStart(2) + '. ' + l.id.padEnd(6) + '🔴 ' + r.why); bad++; return; }
+  sumBest += r.moves;
 
-  const def = { grid: cur.grid, gravity: doc.gravity !== false, clear: cur.clear || 'any', id: cur.id };
-  let r;
-  try { r = E.solve(def); } catch (e) { console.log('🔴 ' + cur.id + ': ' + e.message); fail++; break; }
-  if (!r.ok) { console.log('🔴 ' + cur.id + ': ' + r.why); fail++; break; }
-  if (r.shortest !== 1) { console.log('⚠️  ' + cur.id + ': 최단해가 ' + r.shortest + '개'); fail++; }
+  let sr = null;
+  if (hasStar) { sr = solve(l, true); if (sr.ok) sumStar += sr.moves; }
 
-  const n = cur.id === 'fin' ? 1 : Math.round((cur.grid[0].length - 1) / 12);
-  rooms += n; totalMoves += r.moves; steps++;
-  if (cur.mark) marks++;
+  const detour = sr && sr.ok ? sr.moves - r.moves : null;
+  console.log(
+    String(i + 1).padStart(2) + '. ' + l.id.padEnd(6) +
+    String(r.moves).padStart(5) +
+    (sr && sr.ok ? String(sr.moves).padStart(8) : '       —') +
+    (detour === null ? '       —' : ('     +' + detour).padStart(8)) +
+    (l.cut ? String(l.cut).padStart(7) : '      —') +
+    (hasStar ? '   O' : '   🔴 없음'));
 
-  console.log(String(steps).padStart(2) + '   ' + cur.id.padEnd(5) + (cur.name || '').padEnd(9) +
-              String(r.moves).padStart(5) + '걸음' + String(n).padStart(5) + '방' + String(marks).padStart(4));
-
-  const nextId = cur.next1 || cur.next2 || '';
-  if (!nextId) break;
-  const nx = byId.get(nextId);
-  if (!nx) { console.log('🔴 ' + cur.id + ' 의 다음 방 "' + nextId + '" 이 없다'); fail++; break; }
-
-  // 🔴 획이 모자라면 그 문은 안 열린다 — 여기서 막히면 끝까지 못 간다
-  if (nx.needMarks && marks < nx.needMarks) {
-    console.log('🔴 ' + nx.id + ' 앞에서 막힌다 — 획이 ' + marks + '개인데 ' + nx.needMarks + '개가 필요하다');
-    fail++; break;
+  if (!hasStar) { console.log('    🔴 ' + l.id + ' — 별이 없다. 별 둘·셋을 못 받는다'); bad++; }
+  else if (!sr.ok) { console.log('    🔴 ' + l.id + ' — 별을 먹고는 못 깬다'); bad++; }
+  else {
+    if (detour === 0) { console.log('    🟡 ' + l.id + ' — 별이 가는 길에 있다. 장식이지 퍼즐이 아니다'); warn++; }
+    if (!l.cut || l.cut < sr.moves) { console.log('    🔴 ' + l.id + ' — 커트라인이 별 먹는 최단보다 빡빡하다'); bad++; }
   }
-  cur = nx;
-}
+  if (r.moves + 12 < prev) { console.log('    🟡 ' + l.id + ' — 앞판보다 확 쉬워진다 (' + prev + ' → ' + r.moves + ')'); warn++; }
+  prev = r.moves;
+});
 
-console.log('');
-// 🔴 길이 이어지는 것만으로는 모자란다 — **가르치는 판을 거치는가**도 봐야 한다.
-//    (08-30: 구역을 맨 앞에 넣어 1-1~1-5를 통째로 건너뛰게 만들었다.
-//     이 검사가 "이어진다"고 초록불을 줬지만 사장님은 첫 판을 못 깼다)
-const teach = trail.filter(id => id.startsWith('1-')).length;
-const firstBig = byId.get(trail[0]);
-if (teach === 0) { console.log('🔴 가르치는 판을 하나도 안 거친다'); fail++; }
-else if (firstBig && (firstBig.best || 0) > 20) {
-  console.log('🔴 첫 판이 ' + firstBig.best + '걸음이다 — 처음 하는 사람에겐 너무 크다'); fail++;
-}
+console.log('─'.repeat(58));
+console.log('판 ' + d.levels.length + ' · 최단 합계 ' + sumBest + '걸음 · 별까지 ' + sumStar + '걸음');
 
-// 🔴 구역이 갈수록 커지는가 — 순서에 뜻이 있어야 한다.
-//    (08-30: 65 › 77 › 64 › 76 › 66 으로 오르내렸다. 순서가 아무 뜻이 없었다)
-//    가르치는 판(1-x)은 가르치는 게 달라서 줄 세우면 안 되고,
-//    마지막 방은 "규칙을 빼는 엔딩"이라 짧은 게 맞다 — 둘 다 빼고 본다.
-{
-  const reg = trail.filter(id => id.startsWith('r')).map(id => byId.get(id).best || 0);
-  for (let i = 1; i < reg.length; i++)
-    if (reg[i] < reg[i - 1]) {
-      console.log('🔴 구역이 작아진다: ' + reg.join(' › ') + ' — 순서를 걸음 수 순으로');
-      fail++; break;
-    }
-}
-
-console.log('지나온 길: ' + trail.join(' › '));
-console.log('합계 ' + rooms + '방 · ' + totalMoves + '걸음 · 획 ' + marks + '개');
-
-// 🔴 시간 어림 — 어제 사장님 기록에서 뽑은 값이다. 사람이 해봐야 정확해진다
-const perMove = 0.9;          // 걸음당 초 (생각하는 시간 포함, b판 기록에서)
-const flounder = 2.5;         // 실제 걸음 / 최단 걸음 (b판 기록 1.3~4.0의 가운데)
-const est = totalMoves * flounder * perMove / 60;
-console.log('어림 ' + est.toFixed(0) + '분 (걸음당 ' + perMove + '초 · 최단의 ' + flounder + '배로 잡고)');
-console.log('🔴 이건 어림이다. 처음 하는 사람은 더 걸리고, 아는 사람은 덜 걸린다');
-
-if (fail) { console.log('\n🔴 끊긴 데가 ' + fail + '군데 있다'); process.exit(1); }
-console.log('\n🟢 처음부터 끝까지 이어진다');
+// 🔴 실측으로 맞춘 어림 (08-30 사장님 기록):
+//    1-15 최단 47걸음 → 337초 · 1-16 최단 47걸음 → 214초.
+//    긴 판일수록 최단 대비 배수가 커진다 — 47걸음짜리에 5배를 걸으셨다.
+//    그래서 판마다 초 = best * (1.5 + best/15) 로 잡는다. 47 → 216초로 맞는다.
+let secs = 0;
+for (const l of d.levels) secs += l.best * (1.5 + l.best / 15);
+console.log('어림 ' + (secs / 60).toFixed(0) + '분 — 목표 60분 (한 묶음)');
+console.log('  판마다: ' + d.levels.map(l => Math.round(l.best * (1.5 + l.best / 15) / 60 * 10) / 10 + '분').join(' '));
+console.log(bad ? '\n🔴 고칠 것 ' + bad + '개' + (warn ? ' · 봐둘 것 ' + warn + '개' : '')
+                : '\n🟢 처음부터 끝까지 풀린다' + (warn ? ' · 봐둘 것 ' + warn + '개' : ''));
+process.exit(bad ? 1 : 0);
