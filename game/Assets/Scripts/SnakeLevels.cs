@@ -21,6 +21,9 @@ namespace SlimeEscape
         public string sol1, sol2;    // 문마다 정답 수순
         /// 🔴 그 문으로 나가면 가는 방. 비어 있으면 거기서 끝난다.
         public string next1, next2;
+        /// 🔴 이 구역을 깨면 **문양 한 획**을 얻는다. 다 모아야 마지막 문이 열린다.
+        ///    새 규칙이 아니다 — 이미 있는 진행 저장(깬 판 목록)을 그대로 쓴다.
+        public bool mark;
         /// 🔴 "any" = 아무 문이나 열면 끝 · "all" = 문을 다 열어야 끝(이동하는 판)
         public string clear;
         public string[] grid;

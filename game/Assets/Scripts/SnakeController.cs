@@ -151,6 +151,19 @@ namespace SlimeEscape
 
         // 🔴 어느 문으로 나갔느냐가 다음 방을 정한다. 지도 화면이 필요 없는 갈래다.
         int _wonBy = -1;
+
+        /// 🔴 모은 문양 획 / 전체. 깬 판 목록에서 센다 — 따로 저장하지 않는다.
+        (int got, int all) Marks()
+        {
+            int got = 0, all = 0;
+            foreach (var l in _set.levels)
+            {
+                if (!l.mark) continue;
+                all++;
+                if (_cleared.Contains(l.id)) got++;
+            }
+            return (got, all);
+        }
         readonly List<string> _trail = new List<string>();   // 지나온 방
 
         // ---- 안내 화면 ----
@@ -989,6 +1002,15 @@ namespace SlimeEscape
                 dots += "     문 " + openCount + "/" + _L.Doors.Count;
             }
             GUI.Label(new Rect(0, 42, w, 22), dots, _sMid);
+
+            // 🔴 모은 획 — 유적을 얼마나 열었는지가 한눈에 온다
+            var mk = Marks();
+            if (mk.all > 0)
+            {
+                string ms = "";
+                for (int i = 0; i < mk.all; i++) ms += (i < mk.got ? "◆" : "◇") + " ";
+                GUI.Label(new Rect(0, h - 62, w, 22), ms, _sMid);
+            }
 
             // 🔴 지도 대신 **지나온 길**을 보여준다. 어디서 갈렸는지가 남는다.
             if (_trail.Count > 1)
