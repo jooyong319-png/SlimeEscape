@@ -34,9 +34,11 @@
     // 🔴 화살표 표지판 '^ v < >' — **순수 장식.** 퍼즐엔 아무 영향이 없다.
     //    가르치는 판에서 "여기서 이 키를 누르세요"를 맵 안에 박아두는 용도다.
     const signs = [];
-    // 🔴 문이 여러 개다. 기호 쌍마다 하나씩 — 첫 문 '=' '*', 둘째 문 '-' '%'.
+    // 🔴 홈이 여러 개다. 기호 쌍마다 하나씩 —
+    //    첫 홈 '=' '*' · 둘째 홈 '-' '%' · 셋째 홈 '~' '@'
+    //    ('~' 은 접었던 무중력 구역 기호를 다시 쓴다)
     //    doors[i] = { cells: [...], core: n }
-    const doors = [{ cells: [], core: -1 }, { cells: [], core: -1 }];
+    const doors = [{ cells: [], core: -1 }, { cells: [], core: -1 }, { cells: [], core: -1 }];
     for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
       const c = g[y][x];
       if (c === 'S') { start = y * w + x; g[y][x] = '.'; }
@@ -45,7 +47,8 @@
       else if (c === '*') { doors[0].cells.push(y * w + x); doors[0].core = y * w + x; g[y][x] = '.'; }
       else if (c === '-') { doors[1].cells.push(y * w + x); g[y][x] = '.'; }
       else if (c === '%') { doors[1].cells.push(y * w + x); doors[1].core = y * w + x; g[y][x] = '.'; }
-      else if (c === '~') { zone.push(y * w + x); g[y][x] = '.'; }   // 🔬 무중력 구역
+      else if (c === '~') { doors[2].cells.push(y * w + x); g[y][x] = '.'; }
+      else if (c === '@') { doors[2].cells.push(y * w + x); doors[2].core = y * w + x; g[y][x] = '.'; }
       // 🔴 문벽 — 그 문을 열기 전엔 벽, 열면 사라진다
       else if (c >= '1' && c <= '3') { gates[c.charCodeAt(0) - 49].push(y * w + x); g[y][x] = '.'; }
       // 🔴 출구 — 밟을 수 있는 바닥이다. 퍼즐엔 아무 영향이 없고, 게임이 여기서 맵을 넘긴다
@@ -340,6 +343,8 @@
         else if (L.zoneSet.has(y * L.w + x)) r += '~';
         else if (L.doors[1] && L.doors[1].set.has(y * L.w + x))
           r += (y * L.w + x) === L.doors[1].core ? '%' : '-';
+        else if (L.doors[2] && L.doors[2].set.has(y * L.w + x))
+          r += (y * L.w + x) === L.doors[2].core ? '@' : '~';
         else if (fi !== undefined && !(st.fm & (1 << fi))) r += '+';
         else if (c === L.core) r += '*';
         else if (L.targetSet.has(c)) r += '=';

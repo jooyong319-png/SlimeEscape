@@ -173,6 +173,7 @@ namespace SlimeEscape
             L.Wall = new bool[L.W * L.H];
             var d0 = new Level.Door();     // = *
             var d1 = new Level.Door();     // - %
+            var d2 = new Level.Door();     // ~ @
             for (int y = 0; y < L.H; y++)
             {
                 if (grid[y].Length != L.W)
@@ -189,6 +190,8 @@ namespace SlimeEscape
                         case '*': d0.Cells.Add(c); d0.Core = c; break;
                         case '-': d1.Cells.Add(c); break;
                         case '%': d1.Cells.Add(c); d1.Core = c; break;
+                        case '~': d2.Cells.Add(c); break;
+                        case '@': d2.Cells.Add(c); d2.Core = c; break;
                         case '1': case '2': case '3':
                             L.Gates[grid[y][x] - '1'].Add(c); L.HasGates = true; break;
                         case 'o': L.Star = c; break;
@@ -203,7 +206,7 @@ namespace SlimeEscape
             if (L.Start < 0) throw new System.ArgumentException($"{id}: S가 없다");
             if (L.Foods.Count > MaxFoods) throw new System.ArgumentException($"{id}: 조각이 {MaxFoods}개를 넘는다");
 
-            foreach (var d in new[] { d0, d1 })
+            foreach (var d in new[] { d0, d1, d2 })
                 if (d.Cells.Count > 0) { d.Set = new HashSet<int>(d.Cells); L.Doors.Add(d); }
             // 🔴 문마다 칸 수 제약은 Clear에 달렸다 (JS engine.js와 같아야 한다).
             //    "any" — 아무 문이나 하나 채우고 끝난다. 길이는 한 번뿐이니 칸 수가 같아야 한다

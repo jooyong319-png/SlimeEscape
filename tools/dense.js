@@ -65,7 +65,7 @@ function build(r, W, H, doorLens, extra, carve) {
     }
     return out;
   };
-  const GLY = [['=', '*'], ['-', '%']];
+  const GLY = [['=', '*'], ['-', '%'], ['~', '@']];
   const doors = [];
   for (let di = 0; di < doorLens.length; di++) {
     const len = doorLens[di];
@@ -125,7 +125,26 @@ function build(r, W, H, doorLens, extra, carve) {
     if (!stand.length) return null;
     const [fx, fy] = stand.pop(); g[fy][fx] = '+';
   }
-  return g.map(row => row.join(''));
+  return crop(g.map(row => row.join('')));
+}
+
+/// 🔴 바깥의 통돌을 잘라낸다. 벽 한 겹만 남긴다.
+///    이러면 "넓은데 휑한" 판이 안 나온다 — 판 크기가 내용에 맞춰 정해진다.
+function crop(grid) {
+  const H = grid.length, W = grid[0].length;
+  let x0 = W, x1 = -1, y0 = H, y1 = -1;
+  for (let y = 0; y < H; y++)
+    for (let x = 0; x < W; x++)
+      if (grid[y][x] !== '#') {
+        if (x < x0) x0 = x; if (x > x1) x1 = x;
+        if (y < y0) y0 = y; if (y > y1) y1 = y;
+      }
+  if (x1 < 0) return grid;
+  x0 = Math.max(0, x0 - 1); x1 = Math.min(W - 1, x1 + 1);
+  y0 = Math.max(0, y0 - 1); y1 = Math.min(H - 1, y1 + 1);
+  const out = [];
+  for (let y = y0; y <= y1; y++) out.push(grid[y].slice(x0, x1 + 1));
+  return out;
 }
 
 /// 🔴 꽉참 = **놀 수 있는 칸 중 할 일이 있는 칸의 비율.**
@@ -144,21 +163,24 @@ function density(grid) {
 }
 
 const W = +(process.env.W || 11), H = +(process.env.H || 9);
-const D1 = +(process.env.D1 || 4), D2 = +(process.env.D2 || 3);
+const D1 = +(process.env.D1 || 4), D2 = +(process.env.D2 || 3), D3 = +(process.env.D3 || 0);
 const EXTRA = +(process.env.EXTRA || 1);
 const CARVE = +(process.env.CARVE || 0.55);
 const MINDEN = +(process.env.MINDEN || 0.45);
 const LO = +(process.env.LO || 25), HI = +(process.env.HI || 200);
+const MINW = +(process.env.MINW || 12), MINH = +(process.env.MINH || 8);
 const N = +(process.env.N || 300), SEED = +(process.env.SEED || 1);
 const SHOW = +(process.env.SHOW || 2);
 
 const r = rng(SEED);
 const out = [];
-let made = 0, ok = 0, nDen = 0, nUnsolved = 0, nRange = 0; const lens = [];
+let made = 0, ok = 0, nSmall = 0, nDen = 0, nUnsolved = 0, nRange = 0; const lens = [];
 for (let i = 0; i < N; i++) {
-  const grid = build(r, W, H, D2 > 0 ? [D1, D2] : [D1], EXTRA, CARVE);
+  const lens = [D1]; if (D2 > 0) lens.push(D2); if (D3 > 0) lens.push(D3);
+  const grid = build(r, W, H, lens, EXTRA, CARVE);
   if (!grid) continue;
   made++;
+  if (grid[0].length < MINW || grid.length < MINH) { nSmall++; continue; }
   const den = density(grid);
   if (den < MINDEN) { nDen++; continue; }
   const a = E.solve({ grid, gravity: true, clear: 'all', id: 'd' + i });
@@ -169,10 +191,10 @@ for (let i = 0; i < N; i++) {
   out.push({ grid, moves: a.moves, states: a.states, den });
 }
 out.sort((a, b) => b.moves - a.moves);
-console.log(`지은 판 ${made} · 밀도탈락 ${nDen} · 못품 ${nUnsolved} · 범위밖 ${nRange} · 범위안 ${ok} · 유일 ${out.length}` + (lens.length ? '  걸음분포 ' + lens.slice(0,10).join(',') : ''));
+console.log(`지은 판 ${made} · 작음 ${nSmall} · 밀도탈락 ${nDen} · 못품 ${nUnsolved} · 범위밖 ${nRange} · 범위안 ${ok} · 유일 ${out.length}` + (lens.length ? '  걸음분포 ' + lens.slice(0,10).join(',') : ''));
 for (const f of out.slice(0, SHOW)) {
   console.log('─'.repeat(40));
-  console.log(`${f.moves}걸음 · 상태 ${f.states} · 꽉참 ${(f.den * 100).toFixed(0)}%`);
+  console.log(`${f.grid[0].length}x${f.grid.length} · ${f.moves}걸음 · 상태 ${f.states} · 꽉참 ${(f.den * 100).toFixed(0)}%`);
   console.log(f.grid.join('\n'));
   console.log(JSON.stringify(f.grid));
 }
