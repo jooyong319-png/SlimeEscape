@@ -24,6 +24,8 @@ namespace SlimeEscape
         /// 🔴 이 구역을 깨면 **문양 한 획**을 얻는다. 다 모아야 마지막 문이 열린다.
         ///    새 규칙이 아니다 — 이미 있는 진행 저장(깬 판 목록)을 그대로 쓴다.
         public bool mark;
+        /// 🔴 이 방에 들어가려면 문양 획이 이만큼 있어야 한다. 0이면 아무 조건 없다.
+        public int needMarks;
         /// 🔴 "any" = 아무 문이나 열면 끝 · "all" = 문을 다 열어야 끝(이동하는 판)
         public string clear;
         public string[] grid;

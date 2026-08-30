@@ -151,6 +151,7 @@ namespace SlimeEscape
 
         // 🔴 어느 문으로 나갔느냐가 다음 방을 정한다. 지도 화면이 필요 없는 갈래다.
         int _wonBy = -1;
+        bool _blocked;        // 획이 모자라 마지막 문 앞에서 멈췄다
 
         /// 🔴 모은 문양 획 / 전체. 깬 판 목록에서 센다 — 따로 저장하지 않는다.
         (int got, int all) Marks()
@@ -234,7 +235,7 @@ namespace SlimeEscape
         void Load(int i)
         {
             _index = Mathf.Clamp(i, 0, _set.levels.Length - 1);
-            _wonBy = -1;
+            _wonBy = -1; _blocked = false;
             if (_trail.Count == 0 || _trail[_trail.Count - 1] != _set.levels[_index].id)
                 _trail.Add(_set.levels[_index].id);
             _L = SnakeLevels.ToLevel(Def, _gravity);
@@ -644,6 +645,13 @@ namespace SlimeEscape
             {
                 string want = _wonBy == 1 ? Def.next2 : Def.next1;
                 int to = IndexOf(want);
+                // 🔴 마지막 문 — 문양 획이 모자라면 안 열린다.
+                //    새 규칙이 아니라 **길을 막는 것**이다. 깬 판 목록에서 세기만 한다.
+                if (to >= 0 && _set.levels[to].needMarks > 0)
+                {
+                    var need = Marks();
+                    if (need.got < _set.levels[to].needMarks) { _blocked = true; return; }
+                }
                 if (to >= 0) { Load(to); return; }
                 if (!_allDone) { EndRun(); _allDone = true; }   // 길이 끝났다
             }
@@ -1020,7 +1028,9 @@ namespace SlimeEscape
 
             if (_won)
             {
-                string via = _wonBy == 1 ? "푸른 문이 열렸다" : "민트 문이 열렸다";
+                string via = _blocked
+                    ? "표식이 모자라다"
+                    : _wonBy == 1 ? "푸른 문이 열렸다" : "민트 문이 열렸다";
                 GUI.Label(new Rect(0, h - 40, w, 24), via, _sMid);
             }
             else

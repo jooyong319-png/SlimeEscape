@@ -176,6 +176,9 @@ catch (e) { console.log('\n🔴 ' + e.message); process.exit(1); }
 console.log('\n' + (r.ok
   ? r.moves + '걸음 · 최단해 ' + r.shortest + '개 · 상태 ' + r.states.toLocaleString()
   : '🔴 ' + r.why));
+// 🔴 못 풀리면 종료코드로 알린다. 안 그러면 부르는 쪽이 **이전 판을 그대로 복사**한다
+//    (08-30: r2가 r3로, r4가 r5로 베껴졌다)
+if (!r.ok || r.shortest !== 1) process.exit(1);
 if (r.ok) {
   require('fs').writeFileSync(require('path').join(__dirname, 'region.json'),
     JSON.stringify({ id: 'r1', name: '첫 구역', clear: 'all', best: r.moves, sol: r.path, grid }, null, 2) + '\n');
