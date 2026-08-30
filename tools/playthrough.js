@@ -64,6 +64,19 @@ else if (firstBig && (firstBig.best || 0) > 20) {
   console.log('🔴 첫 판이 ' + firstBig.best + '걸음이다 — 처음 하는 사람에겐 너무 크다'); fail++;
 }
 
+// 🔴 구역이 갈수록 커지는가 — 순서에 뜻이 있어야 한다.
+//    (08-30: 65 › 77 › 64 › 76 › 66 으로 오르내렸다. 순서가 아무 뜻이 없었다)
+//    가르치는 판(1-x)은 가르치는 게 달라서 줄 세우면 안 되고,
+//    마지막 방은 "규칙을 빼는 엔딩"이라 짧은 게 맞다 — 둘 다 빼고 본다.
+{
+  const reg = trail.filter(id => id.startsWith('r')).map(id => byId.get(id).best || 0);
+  for (let i = 1; i < reg.length; i++)
+    if (reg[i] < reg[i - 1]) {
+      console.log('🔴 구역이 작아진다: ' + reg.join(' › ') + ' — 순서를 걸음 수 순으로');
+      fail++; break;
+    }
+}
+
 console.log('지나온 길: ' + trail.join(' › '));
 console.log('합계 ' + rooms + '방 · ' + totalMoves + '걸음 · 획 ' + marks + '개');
 
