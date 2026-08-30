@@ -54,6 +54,16 @@ while (cur) {
 }
 
 console.log('');
+// 🔴 길이 이어지는 것만으로는 모자란다 — **가르치는 판을 거치는가**도 봐야 한다.
+//    (08-30: 구역을 맨 앞에 넣어 1-1~1-5를 통째로 건너뛰게 만들었다.
+//     이 검사가 "이어진다"고 초록불을 줬지만 사장님은 첫 판을 못 깼다)
+const teach = trail.filter(id => id.startsWith('1-')).length;
+const firstBig = byId.get(trail[0]);
+if (teach === 0) { console.log('🔴 가르치는 판을 하나도 안 거친다'); fail++; }
+else if (firstBig && (firstBig.best || 0) > 20) {
+  console.log('🔴 첫 판이 ' + firstBig.best + '걸음이다 — 처음 하는 사람에겐 너무 크다'); fail++;
+}
+
 console.log('지나온 길: ' + trail.join(' › '));
 console.log('합계 ' + rooms + '방 · ' + totalMoves + '걸음 · 획 ' + marks + '개');
 

@@ -30,7 +30,10 @@ const WALL = 1;
 const COLS = Number(process.env.COLS || 3);
 const D1 = Number(process.env.D1 || 3);      // 문1 칸 수 (왼쪽 방)
 const D2 = Number(process.env.D2 || 4);      // 문2 칸 수 (선반 위)
-const LEDGE = Number(process.env.LEDGE || 1); // 선반 문을 놓을 방 번호
+// 🔴 선반 문은 **문벽 뒤 방**에 둔다. 앞쪽에 두면 문벽을 열어도 빈 방만 나온다.
+//    (08-30: 사장님이 "문 열고 오른쪽 갔는데 뭐 없던데?" — 설계 연구 2회차에
+//     "막다른 길에는 잠금을 안 건다"고 적어놓고 내가 어겼다)
+const LEDGE = Number(process.env.LEDGE || (COLS - 1));
 const H = RH + 2 * WALL;
 const W = COLS * RW + (COLS + 1) * WALL;
 
@@ -163,6 +166,15 @@ let ok = placeDoor(bx(0), LOW, D1, ['=', '*']);      // 문1 — 왼쪽 방
     if (g[y][x] === '.' && ground(y, x)) { g[y][x] = 'S'; placed = true; }
   }
   if (!placed) ok = false;
+}
+
+// 🔴 문벽 뒤 방에 뭔가 있는지 확인한다. 빈 방으로 이어지면 문을 여는 뜻이 없다
+{
+  const back = bx(COLS - 1);
+  let has = false;
+  for (let y = LOW; y < LOW + RH; y++) for (let x = back; x < back + RW; x++)
+    if ('=*-%+'.includes(g[y][x])) has = true;
+  if (!has) { console.log('🔴 문벽 뒤 방이 비어 있다'); ok = false; }
 }
 
 const grid = g.map(r => r.join(''));
