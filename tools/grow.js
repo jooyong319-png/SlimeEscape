@@ -22,26 +22,112 @@ function rng(seed) {
 
 const GLY = [['=', '*'], ['-', '%'], ['~', '@']];
 
-/// 굴을 판다 — 여러 군데서 시작해 위아래로 고르게
-function carve(r, W, H, ratio) {
+// 🔴 지형 모양은 **여러 가지**여야 한다 (08-31 사장님).
+//    다 같은 방식으로 파면 판이 마흔 개라도 다 비슷하게 생긴다.
+//    아래 다섯 가지를 골고루 쓴다 — 굴 · 선반 · 기둥 · 방 · 계단.
+const SHAPES = ['cave', 'shelf', 'pillar', 'rooms', 'stair'];
+
+function blank(W, H) {
   const g = [];
   for (let y = 0; y < H; y++) g.push(new Array(W).fill('#'));
-  const want = Math.floor((W - 2) * (H - 2) * ratio);
-  const open = new Set();
+  return g;
+}
+const dig = (g, open, W, x, y) => {
+  if (g[y][x] === '#') { g[y][x] = '.'; open.add(y * W + x); }
+};
+
+/// 굴 — 아무렇게나 헤집는다. 울퉁불퉁하고 자연스럽다.
+function shapeCave(g, open, r, W, H, want) {
   const starts = 3 + Math.floor(r() * 3);
   for (let s = 0; s < starts; s++) {
     let cx = 1 + Math.floor(((s + 0.5) / starts + (r() - 0.5) * 0.25) * (W - 2));
     let cy = 1 + Math.floor(r() * (H - 2));
     cx = Math.max(1, Math.min(W - 2, cx));
     for (let k = 0; k < want * 8 && open.size < want; k++) {
-      if (g[cy][cx] === '#') { g[cy][cx] = '.'; open.add(cy * W + cx); }
+      dig(g, open, W, cx, cy);
       const u = r();
       const nx = cx + (u < 0.26 ? -1 : u < 0.52 ? 1 : 0);
       const ny = cy + (u < 0.52 ? 0 : u < 0.76 ? -1 : 1);
       if (nx > 0 && nx < W - 1 && ny > 0 && ny < H - 1) { cx = nx; cy = ny; }
     }
   }
-  if (open.size < want * 0.85) return null;
+}
+
+/// 선반 — 가로로 긴 층이 여러 겹. 오르내림이 뚜렷하다.
+function shapeShelf(g, open, r, W, H, want) {
+  const rows = [];
+  for (let y = H - 2; y >= 2; y -= 2) rows.push(y);
+  for (const y of rows) {
+    const x0 = 1 + Math.floor(r() * Math.max(1, (W - 2) * 0.35));
+    const len = Math.floor((W - 2) * (0.45 + r() * 0.45));
+    for (let x = x0; x < Math.min(W - 1, x0 + len); x++) { dig(g, open, W, x, y); dig(g, open, W, x, y - 1); }
+  }
+  // 층끼리 잇는 구멍
+  for (let i = 0; i + 1 < rows.length; i++) {
+    const x = 1 + Math.floor(r() * (W - 2));
+    for (let y = rows[i + 1]; y <= rows[i]; y++) dig(g, open, W, x, y);
+  }
+  while (open.size < want * 0.8) {
+    const x = 1 + Math.floor(r() * (W - 2)), y = 1 + Math.floor(r() * (H - 2));
+    dig(g, open, W, x, y);
+  }
+}
+
+/// 기둥 — 세로 돌기둥 사이를 다닌다. 좁고 답답한 맛.
+function shapePillar(g, open, r, W, H, want) {
+  for (let y = 1; y < H - 1; y++) for (let x = 1; x < W - 1; x++) dig(g, open, W, x, y);
+  const cols = 2 + Math.floor(r() * Math.max(1, (W - 4) / 3));
+  for (let i = 0; i < cols; i++) {
+    const x = 2 + Math.floor(r() * (W - 4));
+    const top = 1 + Math.floor(r() * (H - 4));
+    const len = 2 + Math.floor(r() * (H - top - 2));
+    for (let y = top; y < Math.min(H - 1, top + len); y++) {
+      if (g[y][x] === '.') { g[y][x] = '#'; open.delete(y * W + x); }
+    }
+  }
+}
+
+/// 방 — 네모난 방 몇 개를 복도로 잇는다. 사람이 지은 것 같은 느낌.
+function shapeRooms(g, open, r, W, H, want) {
+  const boxes = [];
+  const n = 2 + Math.floor(r() * 3);
+  for (let i = 0; i < n; i++) {
+    const rw = 3 + Math.floor(r() * 5), rh = 2 + Math.floor(r() * 3);
+    const x0 = 1 + Math.floor(r() * Math.max(1, W - 2 - rw));
+    const y0 = 1 + Math.floor(r() * Math.max(1, H - 2 - rh));
+    for (let y = y0; y < Math.min(H - 1, y0 + rh); y++)
+      for (let x = x0; x < Math.min(W - 1, x0 + rw); x++) dig(g, open, W, x, y);
+    boxes.push([x0 + (rw >> 1), y0 + (rh >> 1)]);
+  }
+  for (let i = 0; i + 1 < boxes.length; i++) {
+    let [x, y] = boxes[i]; const [tx, ty] = boxes[i + 1];
+    while (x !== tx) { x += x < tx ? 1 : -1; dig(g, open, W, x, y); }
+    while (y !== ty) { y += y < ty ? 1 : -1; dig(g, open, W, x, y); }
+  }
+}
+
+/// 계단 — 한쪽에서 반대쪽으로 층층이 올라간다.
+function shapeStair(g, open, r, W, H, want) {
+  const leftUp = r() < 0.5;
+  const steps = Math.max(2, Math.min(H - 3, Math.floor((W - 2) / 3)));
+  for (let i = 0; i < steps; i++) {
+    const y = H - 2 - i;
+    if (y < 1) break;
+    const wide = Math.floor((W - 2) * (1 - i / (steps + 1)));
+    const x0 = leftUp ? 1 : Math.max(1, W - 1 - wide);
+    for (let x = x0; x < Math.min(W - 1, x0 + wide); x++) { dig(g, open, W, x, y); dig(g, open, W, x, y - 1); }
+  }
+}
+
+/// 굴을 판다 — 모양을 골라서
+function carve(r, W, H, ratio, shape) {
+  const g = blank(W, H);
+  const want = Math.floor((W - 2) * (H - 2) * ratio);
+  const open = new Set();
+  const pick = shape || SHAPES[Math.floor(r() * SHAPES.length)];
+  ({ cave: shapeCave, shelf: shapeShelf, pillar: shapePillar,
+     rooms: shapeRooms, stair: shapeStair }[pick])(g, open, r, W, H, want);
+  if (open.size < 12) return null;
   // 시작점에서 못 닿는 주머니는 메운다
   const first = [...open][0];
   const seen = new Set([first]), q = [first];
@@ -85,8 +171,8 @@ function relevel(rows, body, dm, exceptCell) {
 }
 
 /// 판 한 장을 **자라게** 만든다
-function grow(r, W, H, doorLens, ratio, wanderMin, wanderMax) {
-  const g = carve(r, W, H, ratio);
+function grow(r, W, H, doorLens, ratio, wanderMin, wanderMax, shape) {
+  const g = carve(r, W, H, ratio, shape);
   if (!g) return null;
   const rows = () => g.map(row => row.join(''));
 
@@ -173,7 +259,7 @@ function grow(r, W, H, doorLens, ratio, wanderMin, wanderMax) {
   return crop(rows());
 }
 
-module.exports = { grow, carve, crop, rng };
+module.exports = { grow, carve, crop, rng, SHAPES };
 
 // 혼자 돌릴 때만 아래를 실행한다 (다른 도구가 require 해 쓸 수 있게)
 if (require.main === module) {

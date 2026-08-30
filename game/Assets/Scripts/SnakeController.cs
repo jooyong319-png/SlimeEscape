@@ -1628,6 +1628,92 @@ namespace SlimeEscape
             { _intro = true; _askReset = false; }
         }
 
+        /// <summary>
+        /// 🔴 가르치는 판에서만 — **홈에 어떻게 들어가는지**를 되풀이해 보여준다.
+        /// 글로 "몸을 홈에 정확히 포개세요"라고 써봐야 안 읽힌다. 움직이는 걸 봐야 안다.
+        /// (08-31 사장님: "홈에 어떤식으로 들어가야 되는지 움짤 같은 걸로")
+        ///
+        /// 네 마디로 되풀이한다 — 다가감 → 딱 맞음 → 빨려듦 → 핵만 남음.
+        /// </summary>
+        void HowTo(float w, float h)
+        {
+            const float LOOP = 4.4f;
+            float u = (Time.time % LOOP) / LOOP;
+
+            float cell = Mathf.Clamp(Mathf.Min(w * 0.055f, h * 0.085f), 22f, 54f);
+            float gw = cell * 7f, gh = cell * 2.6f;
+            var box = new Rect(w * 0.5f - gw * 0.5f, h - gh - 62f * _uiScale, gw, gh);
+
+            GUI.color = new Color(1, 1, 1, 0.90f);
+            GUI.DrawTexture(box, Solid(new Color(0.06f, 0.09f, 0.08f, 0.96f)));
+            GUI.color = Color.white;
+
+            float y = box.y + gh * 0.52f;
+            float x0 = box.x + cell * 0.7f;          // 홈 세 칸이 놓이는 자리
+            float slotX = x0 + cell * 3f;
+
+            // ---- 홈 세 칸 (민트 테두리 · 어두운 속) ----
+            for (int k = 0; k < 3; k++)
+            {
+                var r = new Rect(slotX + k * cell, y, cell, cell);
+                GUI.DrawTexture(r, Solid(HoleEdge));
+                GUI.DrawTexture(new Rect(r.x + 2, r.y + 2, r.width - 4, r.height - 4), Solid(HoleCol));
+            }
+            // 심 — 머리가 와야 하는 칸
+            var coreR = new Rect(slotX + 2 * cell, y, cell, cell);
+            GUI.DrawTexture(new Rect(coreR.x + cell * 0.28f, coreR.y + cell * 0.28f,
+                                     cell * 0.44f, cell * 0.44f), Solid(CoreCol));
+
+            // ---- 마디 셋 ----
+            // 0~0.42 다가감 · 0.42~0.60 딱 맞음 · 0.60~0.80 빨려듦 · 0.80~1 핵만
+            float slide = Mathf.Clamp01(u / 0.42f);
+            float ease = 1f - (1f - slide) * (1f - slide);
+            float from = x0 - cell * 2.2f;
+            float headX = Mathf.Lerp(from, slotX + 2 * cell, ease);
+
+            float suck = Mathf.Clamp01((u - 0.60f) / 0.20f);
+            bool gone = u >= 0.80f;
+
+            for (int k = 0; k < 3; k++)
+            {
+                if (gone && k > 0) continue;                     // 핵만 남는다
+                float bx = headX - k * cell;
+                float s = 1f;
+                if (suck > 0f && k > 0)
+                {
+                    // 심 쪽으로 딸려가며 쪼그라든다
+                    float v = Mathf.Clamp01((suck - (2 - k) * 0.12f) / 0.7f);
+                    bx = Mathf.Lerp(bx, slotX + 2 * cell, v * v);
+                    s = 1f - v * 0.85f;
+                }
+                float pad = cell * (1f - s) * 0.5f;
+                var col = k == 0 ? HeadCol : Color.Lerp(BodyCol, SpentTop, suck);
+                GUI.color = col;
+                GUI.DrawTexture(new Rect(bx + pad + cell * 0.06f, y + pad + cell * 0.06f,
+                                         cell * s - cell * 0.12f, cell * s - cell * 0.12f),
+                                Solid(Color.white));
+                GUI.color = Color.white;
+            }
+            // 다 빨려들면 홈이 굳은 색이 된다
+            if (suck > 0.5f)
+                for (int k = 0; k < 3; k++)
+                {
+                    GUI.color = new Color(1, 1, 1, (suck - 0.5f) * 2f);
+                    GUI.DrawTexture(new Rect(slotX + k * cell + 2, y + 2, cell - 4, cell - 4),
+                                    Solid(SpentCol));
+                    GUI.color = Color.white;
+                }
+
+            // ---- 한 줄 설명 ----
+            var cs = new GUIStyle(_sSmall) { alignment = TextAnchor.MiddleCenter };
+            cs.normal.textColor = new Color(1, 1, 1, 0.62f);
+            string line = u < 0.42f ? "조각을 먹어 몸을 홈과 같은 칸수로"
+                        : u < 0.60f ? "홈 위에 정확히 포갠다 — 머리는 노란 칸에"
+                        : u < 0.80f ? "몸이 홈으로 빨려든다"
+                                    : "핵만 남는다";
+            GUI.Label(new Rect(box.x, box.yMax - cell * 0.62f, box.width, cell * 0.6f), line, cs);
+        }
+
         /// 판 번호로 늘 같은 흔들림을 만든다 — 손으로 놓은 듯하되 켤 때마다 안 바뀌게
         static float Hash(int i)
         {
@@ -1911,8 +1997,10 @@ namespace SlimeEscape
                 {
                     // 가르치는 판에서는 크게 — 구석의 작은 글씨는 안 읽힌다
                     var cs = Def.tutorial ? _sBig : _sMid;
-                    GUI.Label(new Rect(0, h - (Def.tutorial ? 76 : 62), w, 30), coach, cs);
+                    GUI.Label(new Rect(0, Def.tutorial ? 96f * _uiScale : h - 62, w, 30), coach, cs);
                 }
+                // 🔴 가르치는 판에서는 "홈에 어떻게 들어가는가"를 계속 보여준다
+                if (Def.tutorial) HowTo(w, h);
             }
 
             if (_replay)

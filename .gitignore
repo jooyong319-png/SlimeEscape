@@ -51,3 +51,5 @@ tools/r5c_*.json
 tools/cands.json
 tools/doors.json
 tools/rec-*.txt
+tools/make40-pool*.json
+tools/*.log
