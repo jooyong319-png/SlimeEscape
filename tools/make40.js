@@ -19,10 +19,11 @@ const mins = b => b * (1.5 + b / 15) / 60;      // 08-30 실측으로 맞춘 식
 
 // ---- 목표 곡선 ----
 // 40판에 걸쳐 8걸음에서 72걸음까지. 앞은 촘촘하고 뒤로 갈수록 벌어진다.
-const N = 40;
-const target = i => Math.round(8 + 64 * Math.pow((i - 1) / (N - 1), 1.35));
-// 몇 번째부터 홈이 몇 개인가
-const tierOf = i => (i <= 14 ? 1 : i <= 34 ? 2 : 3);
+const N = +(process.env.LEVELS || 40);
+const TOP = +(process.env.TOP || 72);
+const target = i => Math.round(8 + (TOP - 8) * Math.pow((i - 1) / (N - 1), 1.35));
+// 몇 번째부터 홈이 몇 개인가 — 판 수가 늘면 같은 비율로 늘린다
+const tierOf = i => (i <= Math.round(N * 0.35) ? 1 : i <= Math.round(N * 0.85) ? 2 : 3);
 
 // ---- 띠 ----
 // 같은 홈 개수라도 돌아다니는 양을 달리해 **걸음 수가 넓게 퍼지게** 한다.
@@ -116,8 +117,31 @@ console.log(`  홈1 ${spread(1)}\n  홈2 ${spread(2)}\n  홈3 ${spread(3)}`);
 // 🔴 자리마다 "이 정도 걸음이었으면" 하는 값을 먼저 정하고, 남은 판 중 제일 가까운 걸 끼운다.
 //    이러면 같은 걸음 수가 여덟 개씩 늘어서는 일이 안 생긴다.
 const left = { 1: pool.filter(p => p.doors === 1), 2: pool.filter(p => p.doors === 2), 3: pool.filter(p => p.doors === 3) };
+
+// 🔴 옛 판은 **반드시 넣는다** (08-31 사장님). 걸음 수가 맞는 자리부터 먼저 잡아둔다.
+const fixed = new Map();                       // 자리 번호 -> 판
+{
+  const olds = pool.filter(p => p.old).sort((a, b) => a.best - b.best);
+  for (const p of olds) {
+    let bi = -1, bd = 1e9;
+    for (let i = 1; i <= N; i++) {
+      if (fixed.has(i) || tierOf(i) !== p.doors) continue;
+      const dd = Math.abs(target(i) - p.best);
+      if (dd < bd) { bd = dd; bi = i; }
+    }
+    if (bi < 0) for (let i = 1; i <= N; i++) {    // 띠가 안 맞으면 아무 빈자리
+      if (fixed.has(i)) continue;
+      const dd = Math.abs(target(i) - p.best);
+      if (dd < bd) { bd = dd; bi = i; }
+    }
+    if (bi > 0) { fixed.set(bi, p); left[p.doors] = left[p.doors].filter(x => x !== p); }
+  }
+  console.log(`옛 판 ${fixed.size}개를 자리에 박음`);
+}
+
 const chain = [];
 for (let i = 1; i <= N; i++) {
+  if (fixed.has(i)) { chain.push(fixed.get(i)); continue; }
   const want = target(i);
   let tier = tierOf(i);
   while (tier > 1 && !left[tier].length) tier--;          // 모자라면 아래 띠에서 빌린다
@@ -147,7 +171,7 @@ tut.id = '1-0';
 
 d.levels = [tut, ...chain.map((p, i) => ({
   id: '1-' + (i + 1),
-  name: p.doors === 1 ? '홈 하나' : p.doors === 2 ? '홈 둘 — 몸을 두고 간다' : '홈 셋 — 세 번 나눠 쓴다',
+  // 🔴 판 이름은 안 붙인다 — 열네 판이 전부 '홈 하나'라 없느니만 못했다 (08-31)
   grid: p.grid, clear: 'all',
   best: p.best, sol: p.sol, bestStar: p.bestStar, cut: p.cut,
   lost: 0, tight: 0, backtrack: 0, states: 0,

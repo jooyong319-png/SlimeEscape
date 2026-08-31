@@ -35,6 +35,8 @@ namespace SlimeEscape
         static readonly Color HoleFill  = new Color32(0x35, 0x5c, 0x49, 0xff);  // 몸이 덮은 칸
         static readonly Color CoreCol   = new Color32(0xf0, 0xc0, 0x5a, 0xff);  // 심
         static readonly Color CoreRing  = new Color32(0x8a, 0x66, 0x22, 0xff);
+        readonly List<(int door, SpriteRenderer ring, SpriteRenderer core)> _coreViews
+            = new List<(int, SpriteRenderer, SpriteRenderer)>();
 
         // 🔴 둘째 문은 색을 달리한다. 같은 민트로 두면 두 문이 한 덩어리로 보인다.
         static readonly Color Hole2Edge = new Color32(0x7f, 0x9c, 0xd8, 0xff);   // 테두리(푸른빛)
@@ -74,6 +76,8 @@ namespace SlimeEscape
         // 🔴 출구 — 맵을 넘는 자리. 동작만 넣고 **그리는 걸 빼먹어서** 아무것도 안 보였다(08-30).
         //    문(홈)과 헷갈리면 안 되니 색을 아예 다르게 — 따뜻한 빛으로 둔다.
         static readonly Color StarLit   = new Color32(0xf0, 0xc9, 0x6b, 0xff);  // 딴 별
+        static readonly Color PanelBg   = new Color32(0x14, 0x1c, 0x19, 0xff);  // 안내판 바탕
+        static readonly Color StageBg   = new Color32(0x0a, 0x0f, 0x0d, 0xff);  // 안내판 속 무대
         // 표지판 — 맵에 떠 있는 화살표. 지형과 안 섞이게 푸른빛으로 둔다.
         static readonly Color SignFrame = new Color32(0xdc, 0xe6, 0xf2, 0xff);
         static readonly Color SignFill  = new Color32(0x24, 0x3a, 0x58, 0xff);
@@ -171,8 +175,8 @@ namespace SlimeEscape
         bool Cleared(string id) => _recs.ContainsKey(id);
 
         /// 이 판에 오래 붙잡혀 있나 — 도움은 이때만 내민다
-        bool Stuck => !_won && !_replay && _lostSet != null && _lostSet.Ready
-                      && Time.time - _levelAt > StuckSeconds;
+        bool Stuck => !_won && !_replay && Time.time - _levelAt > StuckSeconds
+                      && Lost() != null && Lost().Ready;
 
         /// <summary>
         /// 🔴 별 셋 (08-30 사장님 규칙):
@@ -267,6 +271,18 @@ namespace SlimeEscape
         // ---- 🔴 게이트 4 기록 ----
         //    플레이어에게는 아무것도 안 보여준다. 파일에만 쌓는다.
         LostSet _lostSet;
+        bool _lostTried;          // 한 번 만들어 봤나 (실패해도 다시 안 만든다)
+
+        /// <summary>
+        /// 🔴 "이미 진 자리인가"를 알려면 상태를 전부 펼쳐야 한다. 큰 판은 39만 개다.
+        /// 그래서 **막혀서 도움이 필요해진 순간에 한 번만** 만든다.
+        /// 너무 크면 못 만들고, 그때는 도움 단추가 아예 안 뜬다.
+        /// </summary>
+        LostSet Lost()
+        {
+            if (!_lostTried) { _lostTried = true; _lostSet = new LostSet(_L); }
+            return _lostSet;
+        }
         SnakeLog.Run _run;
         float _runStart;
 
@@ -328,6 +344,7 @@ namespace SlimeEscape
             _cam.orthographic = true;
             _cam.clearFlags = CameraClearFlags.SolidColor;
             _cam.backgroundColor = BgCol;
+            _cam.rect = new Rect(0f, 0f, 1f, 1f);
 
             _set = SnakeLevels.Load();
             _gravity = _set.gravity;
@@ -359,12 +376,22 @@ namespace SlimeEscape
             _wonBy = -1;
             if (_trail.Count == 0 || _trail[_trail.Count - 1] != _set.levels[_index].id)
                 _trail.Add(_set.levels[_index].id);
+            // 🔴 가르치는 판에서는 카메라가 **왼쪽만** 쓴다. 오른쪽은 안내판 자리다.
+            //    자리를 비워두지 않고 겹쳐 그렸다가 안내가 판에 잘려 나갔다 (08-31).
+            //    Awake 에서 하면 안 된다 — 그때는 _set 이 아직 없어서 죽는다.
+            if (_cam != null)
+                _cam.rect = Def.tutorial ? new Rect(0f, 0f, 1f - GuideW, 1f)
+                                         : new Rect(0f, 0f, 1f, 1f);
+
             _L = SnakeLevels.ToLevel(Def, _gravity);
             BuildBoard();
 
             // 🔴 "여기서부턴 못 이긴다"를 미리 계산해 둔다. 지금 판은 수백 상태라 눈 깜짝할 새다.
             //    플레이어에게 보여주려는 게 아니라, 헛되이 쓴 시간을 기록하려는 것이다.
-            _lostSet = new LostSet(_L);
+            // 🔴 **판을 열 때 계산하지 않는다.** 큰 판은 상태가 39만 개라 몇 초씩 멈춘다.
+            //    도움이 필요해진 순간(2분 30초 막힘)에 한 번만 만든다.
+            _lostSet = null; _lostTried = false;
+            _slide = 0; _slideAt = -99f;
             _levelAt = Time.time; _nudges = 0; _nudgeShow = -9f;
             StartRun();
 
@@ -437,9 +464,10 @@ namespace SlimeEscape
         /// </summary>
         void Nudge()
         {
-            if (_lostSet == null || !_lostSet.Ready) return;
-            if (_lostSet.IsLost(_st)) { _nudgeShow = Time.time; _nudges++; return; }
-            if (!_lostSet.Nudge(_L, _st, out var dir)) return;
+            var ls = Lost();
+            if (ls == null || !ls.Ready) return;
+            if (ls.IsLost(_st)) { _nudgeShow = Time.time; _nudges++; return; }
+            if (!ls.Nudge(_L, _st, out var dir)) return;
             _nudges++;
             _nudgeDir = dir;
             _nudgeShow = Time.time;
@@ -725,22 +753,24 @@ namespace SlimeEscape
                               new Vector2(0f, -0.5f));
             }
 
-            // 심 — 머리가 마지막에 있어야 할 자리
-            if (_L.Core >= 0)
+            // 심 — 머리가 마지막에 있어야 할 자리.
+            // 🔴 채워진 홈에서는 **지워야 한다.** 안 지우면 노란 표시가 그대로 남아서
+            //    "어느 게 내 슬라임이지?" 가 된다 (08-31 사장님 화면).
+            _coreViews.Clear();
+            for (int di = 0; di < _L.Doors.Count; di++)
             {
-                foreach (var dd in _L.Doors)
-                {
-                    if (dd.Core < 0) continue;
-                    var ring = NewSprite("CoreRing", 1);
-                    ring.transform.position = CellPos(dd.Core);
-                    ring.transform.localScale = Vector3.one * 0.52f;
-                    ring.color = CoreRing;
+                var dd = _L.Doors[di];
+                if (dd.Core < 0) continue;
+                var ring = NewSprite("CoreRing", 1);
+                ring.transform.position = CellPos(dd.Core);
+                ring.transform.localScale = Vector3.one * 0.52f;
+                ring.color = CoreRing;
 
-                    var core = NewSprite("Core", 2);
-                    core.transform.position = CellPos(dd.Core);
-                    core.transform.localScale = Vector3.one * 0.30f;
-                    core.color = CoreCol;
-                }
+                var core = NewSprite("Core", 2);
+                core.transform.position = CellPos(dd.Core);
+                core.transform.localScale = Vector3.one * 0.30f;
+                core.color = CoreCol;
+                _coreViews.Add((di, ring, core));
             }
 
             for (int x = 1; x < _L.W; x++) GridLine(x, true);
@@ -1043,6 +1073,23 @@ namespace SlimeEscape
                         : covered ? new Color(ec.r, ec.g, ec.b, 0.30f) : ec;
                 }
             }
+            // 🔴 채워진 홈의 심 표시는 사라진다 — 몸이 빨려드는 동안 같이 흐려진다
+            foreach (var cv in _coreViews)
+            {
+                // 🔴 판이 바뀌면 스프라이트가 먼저 사라진다. 건드리면 예외가 나고
+                //    **그 뒤 코드가 통째로 안 돈다** — 그래서 판이 안 깨졌다 (08-31).
+                if (cv.ring == null || cv.core == null) continue;
+                bool done = (_st.Dm & (1 << cv.door)) != 0;
+                float a = done ? 1f - SuckT : 1f;
+                cv.ring.enabled = a > 0.02f;
+                cv.core.enabled = a > 0.02f;
+                if (a > 0.02f)
+                {
+                    var rc = CoreRing; rc.a = a; cv.ring.color = rc;
+                    var cc = CoreCol;  cc.a = a; cv.core.color = cc;
+                }
+            }
+
             // 🔴 받침대: 몸을 놓으면 칸이 꽉 차고 윗면이 밝아진다 = 여기 설 수 있다
             foreach (var kv in _padViews)
             {
@@ -1072,7 +1119,7 @@ namespace SlimeEscape
         void Update()
         {
             // 🔴 이미 진 상태에서 보낸 시간을 잰다. 화면엔 아무 표시도 안 한다.
-            if (_run != null && !_won && _lostSet != null && _lostSet.IsLost(_st))
+            if (_run != null && !_won && _lostSet != null && _lostSet.Ready && _lostSet.IsLost(_st))
                 _run.lostSeconds += Time.deltaTime;
 
             if (_intro)
@@ -1140,7 +1187,9 @@ namespace SlimeEscape
             // 🔴 홈을 채우면 끝. 문이 스르륵 열리는 걸 보여주고 결과 화면으로 넘어간다.
             //    (출구까지 걸어가게 했더니 지루하기만 했다 — 08-30 사장님)
             // 🔴 다 빨려든 다음에 결과 화면. 연출이 잘리면 "해냈다"가 안 남는다.
-            if (_won && _blobs.Count == 0 && Time.time > _wonAt + WinDelay)
+            // 🔴 연출이 멈춰도 판은 **반드시** 넘어간다. 연출 하나 때문에 못 깨면 안 된다.
+            if (_won && Time.time > _wonAt + WinDelay
+                && (_blobs.Count == 0 || Time.time > _wonAt + WinDelay + 2f))
             { ClearAndAdvance(); return; }
 
             if (Input.GetKeyDown(KeyCode.R))
@@ -1419,7 +1468,7 @@ namespace SlimeEscape
             float el = Time.time - _resultAt;
 
             var big = new GUIStyle(_sBig) { alignment = TextAnchor.MiddleCenter };
-            GUI.Label(new Rect(0, h * 0.5f - 128f * _uiScale, w, 36f * _uiScale), "깼다", big);
+            GUI.Label(new Rect(0, h * 0.5f - 128f * _uiScale, w, 36f * _uiScale), "CLEAR", big);
 
             // ---- 별 셋 ----
             float sz = Mathf.Clamp(64f * _uiScale, 48f, 96f), gap = sz * 0.34f;
@@ -1608,7 +1657,7 @@ namespace SlimeEscape
             if (hover >= 0 && Unlocked(hover))
             {
                 var d = _set.levels[hover];
-                string line = d.name ?? "";
+                string line = d.id;
                 if (_recs.TryGetValue(d.id, out int rec))
                 {
                     bool gs = rec < StarBit;
@@ -1635,83 +1684,178 @@ namespace SlimeEscape
         ///
         /// 네 마디로 되풀이한다 — 다가감 → 딱 맞음 → 빨려듦 → 핵만 남음.
         /// </summary>
-        void HowTo(float w, float h)
+        // ---- 가르치는 판의 오른쪽 안내판 ----
+        // 🔴 시안 A (08-31 사장님). 판을 왼쪽으로 몰고 오른쪽에 안내판을 **세운다**.
+        //    카메라 자체를 왼쪽 72%만 쓰게 해서 **겹칠 수가 없게** 만든다 —
+        //    지난번엔 판 위에 겹쳐 그려서 안내가 판 밑동에 잘려 나갔다.
+        //    여섯 장이 저절로 넘어가며 키 넷과 홈 넣는 법을 전부 보여준다.
+        const float GuideW = 0.28f;      // 안내판이 차지하는 가로 비율
+        const float SlideSecs = 3.6f;    // 한 장이 머무는 시간
+        const int Slides = 6;
+        int _slide;               // 지금 보고 있는 장
+        float _slideAt = -99f;    // 그 장이 뜬 시각
+
+        /// 안내판 한 칸을 그린다 (작은 격자용)
+        void Cell(Rect r, Color c) { GUI.color = c; GUI.DrawTexture(r, Solid(Color.white)); GUI.color = Color.white; }
+
+        /// <summary>
+        /// 🔴 여섯 장을 돌려 보여준다 — → ← ↓ ↑ · 조각 · 홈.
+        /// 글로만 쓰면 안 읽힌다. 작더라도 **움직이는 걸** 봐야 안다.
+        /// </summary>
+        void Guide(float w, float h)
         {
-            const float LOOP = 4.4f;
-            float u = (Time.time % LOOP) / LOOP;
+            float pw = w * GuideW;
+            var box = new Rect(w - pw, 0, pw, h);
+            GUI.DrawTexture(box, Solid(PanelBg));
+            Cell(new Rect(box.x, 0, 1.5f, h), new Color(1, 1, 1, 0.10f));   // 왼쪽 경계선
 
-            float cell = Mathf.Clamp(Mathf.Min(w * 0.055f, h * 0.085f), 22f, 54f);
-            float gw = cell * 7f, gh = cell * 2.6f;
-            var box = new Rect(w * 0.5f - gw * 0.5f, h - gh - 62f * _uiScale, gw, gh);
+            float pad = pw * 0.09f;
 
-            GUI.color = new Color(1, 1, 1, 0.90f);
-            GUI.DrawTexture(box, Solid(new Color(0.06f, 0.09f, 0.08f, 0.96f)));
-            GUI.color = Color.white;
+            // 🔴 저절로 넘어가되, 손으로도 넘길 수 있다. 손으로 넘기면 그 장부터 다시 잰다.
+            if (_slideAt < 0f) _slideAt = Time.time;
+            if (Time.time - _slideAt > SlideSecs) { _slide = (_slide + 1) % Slides; _slideAt = Time.time; }
+            int slide = _slide;
+            float u = Mathf.Clamp01((Time.time - _slideAt) / SlideSecs);
 
-            float y = box.y + gh * 0.52f;
-            float x0 = box.x + cell * 0.7f;          // 홈 세 칸이 놓이는 자리
-            float slotX = x0 + cell * 3f;
+            // ---- 제목 ----
+            var ts = new GUIStyle(_sMid) { alignment = TextAnchor.UpperCenter, wordWrap = true,
+                                           fontSize = Mathf.RoundToInt(Mathf.Clamp(pw * 0.075f, 13f, 22f)) };
+            ts.normal.textColor = new Color(1, 1, 1, 0.92f);
+            GUI.Label(new Rect(box.x + pad, h * 0.06f, pw - pad * 2, h * 0.10f), "튜토리얼", ts);
 
-            // ---- 홈 세 칸 (민트 테두리 · 어두운 속) ----
-            for (int k = 0; k < 3; k++)
+            // ---- 무대 ----
+            float st = Mathf.Min(pw - pad * 2, h * 0.30f);
+            var stage = new Rect(box.x + (pw - st) * 0.5f, h * 0.20f, st, st * 0.62f);
+            GUI.DrawTexture(stage, Solid(StageBg));
+
+            float c = stage.height / 3f;                  // 칸 크기 (3줄짜리 작은 격자)
+            float gx = stage.x + (stage.width - c * 5f) * 0.5f;
+            float gy = stage.y;
+            Rect at(int cx, int cy) => new Rect(gx + cx * c, gy + cy * c, c - 1f, c - 1f);
+
+            // 바닥 한 줄은 늘 돌
+            for (int k = 0; k < 5; k++) Cell(at(k, 2), Rock);
+
+            float e = Mathf.Clamp01((u - 0.15f) / 0.55f);      // 움직이는 구간
+            switch (slide)
             {
-                var r = new Rect(slotX + k * cell, y, cell, cell);
-                GUI.DrawTexture(r, Solid(HoleEdge));
-                GUI.DrawTexture(new Rect(r.x + 2, r.y + 2, r.width - 4, r.height - 4), Solid(HoleCol));
-            }
-            // 심 — 머리가 와야 하는 칸
-            var coreR = new Rect(slotX + 2 * cell, y, cell, cell);
-            GUI.DrawTexture(new Rect(coreR.x + cell * 0.28f, coreR.y + cell * 0.28f,
-                                     cell * 0.44f, cell * 0.44f), Solid(CoreCol));
-
-            // ---- 마디 셋 ----
-            // 0~0.42 다가감 · 0.42~0.60 딱 맞음 · 0.60~0.80 빨려듦 · 0.80~1 핵만
-            float slide = Mathf.Clamp01(u / 0.42f);
-            float ease = 1f - (1f - slide) * (1f - slide);
-            float from = x0 - cell * 2.2f;
-            float headX = Mathf.Lerp(from, slotX + 2 * cell, ease);
-
-            float suck = Mathf.Clamp01((u - 0.60f) / 0.20f);
-            bool gone = u >= 0.80f;
-
-            for (int k = 0; k < 3; k++)
-            {
-                if (gone && k > 0) continue;                     // 핵만 남는다
-                float bx = headX - k * cell;
-                float s = 1f;
-                if (suck > 0f && k > 0)
-                {
-                    // 심 쪽으로 딸려가며 쪼그라든다
-                    float v = Mathf.Clamp01((suck - (2 - k) * 0.12f) / 0.7f);
-                    bx = Mathf.Lerp(bx, slotX + 2 * cell, v * v);
-                    s = 1f - v * 0.85f;
+                case 0: {                                       // →
+                    float x = Mathf.Lerp(0.6f, 3.4f, e);
+                    Cell(new Rect(gx + x * c, gy + c, c - 1f, c - 1f), HeadCol);
+                    break;
                 }
-                float pad = cell * (1f - s) * 0.5f;
-                var col = k == 0 ? HeadCol : Color.Lerp(BodyCol, SpentTop, suck);
-                GUI.color = col;
-                GUI.DrawTexture(new Rect(bx + pad + cell * 0.06f, y + pad + cell * 0.06f,
-                                         cell * s - cell * 0.12f, cell * s - cell * 0.12f),
-                                Solid(Color.white));
-                GUI.color = Color.white;
-            }
-            // 다 빨려들면 홈이 굳은 색이 된다
-            if (suck > 0.5f)
-                for (int k = 0; k < 3; k++)
-                {
-                    GUI.color = new Color(1, 1, 1, (suck - 0.5f) * 2f);
-                    GUI.DrawTexture(new Rect(slotX + k * cell + 2, y + 2, cell - 4, cell - 4),
-                                    Solid(SpentCol));
-                    GUI.color = Color.white;
+                case 1: {                                       // ←
+                    float x = Mathf.Lerp(3.4f, 0.6f, e);
+                    Cell(new Rect(gx + x * c, gy + c, c - 1f, c - 1f), HeadCol);
+                    break;
                 }
+                case 2: {                                       // ↓ 떨어진다
+                    Cell(at(0, 1), Rock); Cell(at(1, 1), Rock);
+                    float y = Mathf.Lerp(0f, 1f, e * e);
+                    Cell(new Rect(gx + 2.6f * c, gy + y * c, c - 1f, c - 1f), HeadCol);
+                    break;
+                }
+                case 3: {                                       // ↑ 몸이 길어야 오른다
+                    Cell(at(3, 1), Rock); Cell(at(4, 1), Rock);
+                    float x = Mathf.Lerp(0.6f, 2.4f, Mathf.Clamp01(e * 1.6f));
+                    float up = Mathf.Clamp01((e - 0.62f) / 0.38f);
+                    Cell(new Rect(gx + (x + up) * c, gy + (1f - up) * c, c - 1f, c - 1f), HeadCol);
+                    Cell(new Rect(gx + x * c, gy + c, c - 1f, c - 1f), BodyCol);
+                    break;
+                }
+                case 4: {                                       // 조각을 먹으면 길어진다
+                    bool ate = e > 0.55f;
+                    if (!ate) Cell(at(3, 1), FoodCol);
+                    float x = Mathf.Lerp(0.6f, 3f, Mathf.Clamp01(e / 0.55f));
+                    Cell(new Rect(gx + x * c, gy + c, c - 1f, c - 1f), HeadCol);
+                    if (ate) Cell(new Rect(gx + (x - 1f) * c, gy + c, c - 1f, c - 1f), BodyCol);
+                    break;
+                }
+                default: {                                      // 홈에 몸을 포갠다
+                    for (int k = 0; k < 3; k++)
+                    {
+                        Cell(at(2 + k, 1), HoleEdge);
+                        var q = at(2 + k, 1);
+                        Cell(new Rect(q.x + 2, q.y + 2, q.width - 4, q.height - 4), HoleCol);
+                    }
+                    var core = at(4, 1);
+                    Cell(new Rect(core.x + c * 0.3f, core.y + c * 0.3f, c * 0.4f, c * 0.4f), CoreCol);
+
+                    float slid = Mathf.Clamp01(u / 0.45f);
+                    float suck = Mathf.Clamp01((u - 0.62f) / 0.22f);
+                    float hx = Mathf.Lerp(-0.6f, 4f, 1f - (1f - slid) * (1f - slid));
+                    for (int k = 0; k < 3; k++)
+                    {
+                        if (suck >= 1f && k > 0) continue;
+                        float bx = hx - k;
+                        float s = 1f;
+                        if (suck > 0f && k > 0) { float v = Mathf.Clamp01(suck * 1.4f - k * 0.2f); bx = Mathf.Lerp(bx, 4f, v); s = 1f - v * 0.8f; }
+                        float p = c * (1f - s) * 0.5f;
+                        Cell(new Rect(gx + bx * c + p, gy + c + p, (c - 1f) * s, (c - 1f) * s),
+                             k == 0 ? HeadCol : Color.Lerp(BodyCol, SpentTop, suck));
+                    }
+                    break;
+                }
+            }
 
             // ---- 한 줄 설명 ----
-            var cs = new GUIStyle(_sSmall) { alignment = TextAnchor.MiddleCenter };
-            cs.normal.textColor = new Color(1, 1, 1, 0.62f);
-            string line = u < 0.42f ? "조각을 먹어 몸을 홈과 같은 칸수로"
-                        : u < 0.60f ? "홈 위에 정확히 포갠다 — 머리는 노란 칸에"
-                        : u < 0.80f ? "몸이 홈으로 빨려든다"
-                                    : "핵만 남는다";
-            GUI.Label(new Rect(box.x, box.yMax - cell * 0.62f, box.width, cell * 0.6f), line, cs);
+            string[] LINE = {
+                "→  오른쪽 화살표 키",
+                "←  왼쪽 화살표 키",
+                "↓  아래로 — 떨어지면 못 돌아옵니다",
+                "↑  위로 — 몸이 길어야 오릅니다",
+                "주황 조각을 먹으면 몸이 한 칸 길어집니다",
+                "몸을 홈에 정확히 포개세요\n머리가 노란 칸에서 끝나야 합니다",
+            };
+            var ls = new GUIStyle(_sSmall) { alignment = TextAnchor.UpperCenter, wordWrap = true,
+                                             fontSize = Mathf.RoundToInt(Mathf.Clamp(pw * 0.062f, 11f, 17f)) };
+            ls.normal.textColor = new Color(1, 1, 1, 0.80f);
+            GUI.Label(new Rect(box.x + pad, stage.yMax + h * 0.035f, pw - pad * 2, h * 0.22f),
+                      LINE[slide], ls);
+
+            // ---- 몇 번째 장인지 ----
+            float dot = Mathf.Clamp(pw * 0.022f, 4f, 9f), gap = dot * 1.9f;
+            float row = h * 0.60f;
+            float span = Slides * gap - (gap - dot);
+            float dx = box.x + pw * 0.5f - span * 0.5f;
+            for (int k = 0; k < Slides; k++)
+            {
+                var dr = new Rect(dx + k * gap, row, dot, dot);
+                Cell(dr, k == slide ? StarLit : new Color(1, 1, 1, 0.18f));
+                // 점을 눌러 그 장으로 바로
+                if (GUI.Button(new Rect(dr.x - 4, dr.y - 8, dr.width + 8, dr.height + 16),
+                               GUIContent.none, GUIStyle.none))
+                { _slide = k; _slideAt = Time.time; }
+            }
+
+            // 🔴 손으로 넘기는 단추 — 기다리기 싫은 사람이 있다
+            var ns = new GUIStyle(_sMid)
+            {
+                alignment = TextAnchor.MiddleCenter,
+                fontSize = Mathf.RoundToInt(Mathf.Clamp(pw * 0.09f, 16f, 28f)),
+            };
+            ns.normal.textColor = new Color(1, 1, 1, 0.55f);
+            ns.hover.textColor = StarLit;
+            float bw = Mathf.Clamp(pw * 0.14f, 26f, 48f);
+            var prev = new Rect(dx - span * 0.16f - bw, row - bw * 0.42f, bw, bw * 0.9f);
+            var next = new Rect(dx + span + span * 0.16f, row - bw * 0.42f, bw, bw * 0.9f);
+            if (GUI.Button(prev, "‹", ns)) { _slide = (_slide + Slides - 1) % Slides; _slideAt = Time.time; }
+            if (GUI.Button(next, "›", ns)) { _slide = (_slide + 1) % Slides; _slideAt = Time.time; }
+
+            // ---- 지금 해야 할 것 (상태를 보고) ----
+            string coach = Coach();
+            if (coach != null)
+            {
+                var cs = new GUIStyle(_sMid) { alignment = TextAnchor.LowerCenter, wordWrap = true,
+                                               fontSize = Mathf.RoundToInt(Mathf.Clamp(pw * 0.068f, 12f, 19f)) };
+                cs.normal.textColor = StarLit;
+                GUI.Label(new Rect(box.x + pad, h * 0.66f, pw - pad * 2, h * 0.24f), coach, cs);
+            }
+
+            var ks = new GUIStyle(_sSmall) { alignment = TextAnchor.LowerCenter, wordWrap = true };
+            ks.normal.textColor = new Color(1, 1, 1, 0.40f);
+            GUI.Label(new Rect(box.x + pad, h * 0.90f, pw - pad * 2, h * 0.08f),
+                      Touchy ? "화면을 밀어서 움직입니다" : "← ↑ ↓ →     Z 되돌리기", ks);
         }
 
         /// 판 번호로 늘 같은 흔들림을 만든다 — 손으로 놓은 듯하되 켤 때마다 안 바뀌게
@@ -1918,8 +2062,14 @@ namespace SlimeEscape
                 return;
             }
 
-            // ---- 플레이어가 보는 것 : 이름 · 남은 홈 · 조작. 그게 전부다 ----
-            GUI.Label(new Rect(0, 12, w, 28), def.name, _sBig);
+            // 🔴 가르치는 판은 **오른쪽 안내판이 전부**다. 판 위에는 아무것도 안 얹는다.
+            //    제목·남은 홈·걸음·커트가 네 줄로 쌓여 어디를 볼지 몰랐다 (08-31).
+            if (def.tutorial) { Guide(w, h); return; }
+
+            // ---- 플레이어가 보는 것 : 번호 · 남은 홈 · 조작. 그게 전부다 ----
+            // 🔴 판 이름은 없앴다. 생성기가 붙인 이름은 열네 판이 전부 "홈 하나"라
+            //    되풀이되는 이름은 없느니만 못했다 (08-31 사장님: "너무 다 짜쳐서").
+            GUI.Label(new Rect(0, 12, w, 28), def.id, _sBig);
 
             // 남은 홈을 점으로 — 숫자보다 한눈에 들어온다
             string dots = "";
@@ -2000,7 +2150,7 @@ namespace SlimeEscape
                     GUI.Label(new Rect(0, Def.tutorial ? 96f * _uiScale : h - 62, w, 30), coach, cs);
                 }
                 // 🔴 가르치는 판에서는 "홈에 어떻게 들어가는가"를 계속 보여준다
-                if (Def.tutorial) HowTo(w, h);
+
             }
 
             if (_replay)

@@ -1,0 +1,287 @@
+<title>튜토리얼 화면 시안</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Black+Han+Sans&family=Gothic+A1:wght@400;500;700&family=IBM+Plex+Mono:wght@400;600&display=swap">
+<style>
+/* 게임이 쓰는 색을 그대로 */
+:root{
+  --ground:#0d1311; --panel:#151d1a; --panel2:#1b2620; --line:#2f4037;
+  --ink:#e2ebe4; --muted:#87998f; --dim:#5f7168;
+  --rock:#36473f; --rocktop:#627e70; --air:#11191 6; --air:#111916;
+  --slime:#a8e6cf; --body:#8dceb0; --gold:#f0c96b; --ember:#f38a04;
+  --sign:#6fb0f0; --signbg:#243a58; --signframe:#dce6f2;
+  --good:#7fd6a2; --bad:#e07a5f;
+}
+*{box-sizing:border-box}
+body{
+  background:var(--ground); color:var(--ink);
+  font-family:"Gothic A1",system-ui,-apple-system,"Malgun Gothic",sans-serif;
+  font-size:16px; line-height:1.75; margin:0; padding:0 20px 90px;
+}
+.wrap{max-width:82ch; margin:0 auto}
+code{font-family:"IBM Plex Mono",monospace; font-size:.9em; color:var(--slime)}
+
+header{padding:64px 0 32px; border-bottom:1px solid var(--line)}
+.eyebrow{
+  font-family:"IBM Plex Mono",monospace; font-size:12px; letter-spacing:.18em;
+  text-transform:uppercase; color:var(--gold); margin:0 0 16px;
+}
+h1{
+  font-family:"Black Han Sans",sans-serif; font-weight:400;
+  font-size:clamp(30px,5.4vw,50px); line-height:1.15; margin:0 0 18px; text-wrap:balance;
+}
+.lede{font-size:17px; color:var(--muted); margin:0; max-width:58ch}
+.lede b{color:var(--ink); font-weight:700}
+
+section{padding:44px 0; border-bottom:1px solid var(--line)}
+h2{
+  font-family:"Black Han Sans",sans-serif; font-weight:400;
+  font-size:clamp(21px,3.2vw,27px); margin:0 0 6px; text-wrap:balance;
+}
+h2+.sub{color:var(--muted); margin:0 0 24px; font-size:15px}
+p{margin:0 0 14px; max-width:64ch}
+.hi{color:var(--gold); font-weight:700}
+
+/* ---- 지금 뭐가 잘못됐나 ---- */
+.bad{list-style:none; padding:0; margin:0}
+.bad li{
+  position:relative; padding-left:26px; margin:0 0 9px; font-size:15px; color:var(--muted);
+}
+.bad li::before{
+  content:"×"; position:absolute; left:4px; top:0; color:var(--bad); font-weight:700;
+  font-family:"IBM Plex Mono",monospace;
+}
+.bad strong{color:var(--ink)}
+
+/* ---- 시안 ---- */
+.opt{border:1px solid var(--line); background:var(--panel); margin:0 0 22px}
+.opt.pick{border-color:var(--gold)}
+.opt>.head{padding:18px 22px 12px}
+.tag{
+  display:inline-block; font-family:"IBM Plex Mono",monospace; font-size:10.5px;
+  letter-spacing:.12em; text-transform:uppercase; padding:3px 9px;
+  border:1px solid var(--line); color:var(--muted); margin:0 0 10px;
+}
+.opt.pick .tag{border-color:var(--gold); color:var(--gold)}
+.opt h3{margin:0 0 6px; font-size:19px; font-family:"Black Han Sans",sans-serif; font-weight:400}
+.opt p{margin:0; font-size:14.5px; color:var(--muted); max-width:62ch}
+.opt p b{color:var(--ink)}
+
+/* 화면 흉내 */
+.screen{
+  margin:14px 22px 0; border:1px solid var(--line); background:#080c0a;
+  aspect-ratio:16/9; position:relative; overflow:hidden;
+}
+.board{
+  position:absolute; background:var(--rock);
+  background-image:
+    linear-gradient(var(--line) 1px,transparent 1px),
+    linear-gradient(90deg,var(--line) 1px,transparent 1px);
+  background-size:7% 12%;
+}
+.board::after{
+  content:""; position:absolute; inset:22% 30% 30% 18%;
+  background:var(--air); box-shadow:0 -2px 0 var(--rocktop);
+}
+.hole{position:absolute; border:2px solid var(--slime); background:#050807}
+.chip{position:absolute; background:var(--ember)}
+.star{position:absolute; background:var(--gold); transform:rotate(45deg)}
+.sign{
+  position:absolute; background:var(--signbg); border:2px solid var(--signframe);
+  display:grid; place-items:center; color:var(--sign); font-size:11px; font-weight:700;
+}
+
+.bar{position:absolute; background:var(--panel2); border:1px solid var(--line)}
+.bar .t{
+  position:absolute; inset:0; display:grid; place-items:center;
+  font-size:11px; color:var(--muted); text-align:center; padding:0 8px;
+}
+.demo{position:absolute; background:#0a0f0d; border:1px solid var(--line)}
+.demo .cells{position:absolute; display:flex; gap:2px}
+.demo .cells i{width:10px; height:10px; border:1px solid var(--slime); background:#050807}
+.demo .cells i.b{background:var(--body); border-color:var(--body)}
+.demo .cap{
+  position:absolute; left:0; right:0; bottom:3px; text-align:center;
+  font-size:9px; color:var(--dim);
+}
+.title{
+  position:absolute; left:0; right:0; text-align:center;
+  font-size:12px; color:var(--ink); font-weight:700;
+}
+
+.facts{display:flex; flex-wrap:wrap; border-top:1px solid var(--line); background:var(--panel2); margin:16px 0 0}
+.facts>div{flex:1 1 130px; padding:11px 18px; border-right:1px solid var(--line)}
+.facts>div:last-child{border-right:0}
+.facts dt{
+  font-family:"IBM Plex Mono",monospace; font-size:10.5px; letter-spacing:.11em;
+  color:var(--dim); text-transform:uppercase; margin:0 0 3px;
+}
+.facts dd{margin:0; font-size:14px; font-weight:700}
+.facts .g dd{color:var(--good)} .facts .b dd{color:var(--bad)}
+
+.rec{border:1px solid var(--gold); padding:26px 26px; margin:0;
+     background:linear-gradient(180deg,rgba(240,201,107,.08),rgba(240,201,107,0) 60%)}
+.rec ol{margin:0; padding-left:20px}
+.rec li{margin:0 0 10px; max-width:60ch}
+
+footer{padding:34px 0 0; color:var(--dim); font-size:13px; font-family:"IBM Plex Mono",monospace}
+@media (max-width:640px){ .screen{aspect-ratio:4/3} }
+</style>
+
+<div class="wrap">
+
+<header>
+  <p class="eyebrow">SlimeEscape &middot; 1-0 &middot; 2026-08-31</p>
+  <h1>튜토리얼 화면 시안</h1>
+  <p class="lede">지금은 글이 네 줄로 쌓이고, 아래 안내판이 판에 잘려 나가고, 표지판 넷이 퍼즐과 자리를 다툽니다. <b>화면에 한 번에 하나만</b> 두는 쪽으로 네 가지를 그려봤습니다.</p>
+</header>
+
+<section>
+  <h2>지금 뭐가 잘못됐나</h2>
+  <p class="sub">보내주신 전체화면에서 보이는 것들입니다.</p>
+  <ul class="bad">
+    <li><strong>안내판이 잘립니다.</strong> 판이 화면을 꽉 채우는데 안내판을 그 아래에 그려서, "핵만 남는다" 글이 판 밑동에 물립니다</li>
+    <li><strong>글이 네 줄</strong>입니다 — 제목 · 남은 홈 · 걸음/커트 · 안내. 처음 켠 사람이 어디를 봐야 할지 모릅니다</li>
+    <li><strong>표지판이 넷</strong>이라 조각·홈과 섞여 화면이 시끄럽습니다</li>
+    <li><strong>커트 23</strong> 같은 건 튜토리얼에 필요 없습니다. 아직 별을 모르는 사람에게 점수 얘기를 합니다</li>
+  </ul>
+</section>
+
+<section>
+  <h2>네 가지 시안</h2>
+  <p class="sub">회색 = 돌 · 검정 = 빈 곳 · 민트 테두리 = 홈 · 주황 = 조각 · 파랑 = 표지판</p>
+
+  <!-- A -->
+  <div class="opt">
+    <div class="head">
+      <span class="tag">A</span>
+      <h3>옆에 세운 안내판</h3>
+      <p>판을 왼쪽으로 몰고 오른쪽에 <b>세로 안내판</b>을 세웁니다. 판과 글이 절대 안 겹칩니다.</p>
+    </div>
+    <div class="screen">
+      <div class="board" style="left:2%;top:6%;width:66%;height:88%"></div>
+      <div class="hole" style="left:22%;top:60%;width:9%;height:16%"></div>
+      <div class="chip" style="left:38%;top:38%;width:3%;height:5%"></div>
+      <div class="sign" style="left:14%;top:36%;width:5%;height:9%">→</div>
+      <div class="sign" style="left:46%;top:56%;width:5%;height:9%">↓</div>
+      <div class="bar" style="right:2%;top:6%;width:28%;height:88%">
+        <div class="title" style="top:8%">화살표를 따라가 보세요</div>
+        <div class="demo" style="left:8%;right:8%;top:22%;height:26%">
+          <div class="cells" style="left:14%;top:34%"><i class="b"></i><i class="b"></i><i></i></div>
+          <div class="cap">몸을 홈에 포갠다</div>
+        </div>
+        <div class="t" style="top:56%;height:20%">화살표 키로 움직입니다</div>
+      </div>
+    </div>
+    <dl class="facts">
+      <div class="g"><dt>겹침</dt><dd>없음</dd></div>
+      <div><dt>글</dt><dd>2줄</dd></div>
+      <div class="b"><dt>판 크기</dt><dd>28% 줄어듦</dd></div>
+      <div class="g"><dt>만드는 값</dt><dd>작음</dd></div>
+    </dl>
+  </div>
+
+  <!-- B -->
+  <div class="opt pick">
+    <div class="head">
+      <span class="tag">추천 · B</span>
+      <h3>아래 띠 하나</h3>
+      <p>판을 위로 올리고 아래에 <b>띠 하나</b>를 깝니다. 띠 안에 움직이는 그림과 <b>한 줄</b>만. 판은 띠를 절대 안 넘습니다.</p>
+    </div>
+    <div class="screen">
+      <div class="title" style="top:4%">화살표를 따라가 보세요</div>
+      <div class="board" style="left:12%;top:13%;width:76%;height:60%"></div>
+      <div class="hole" style="left:28%;top:52%;width:10%;height:13%"></div>
+      <div class="chip" style="left:52%;top:32%;width:3%;height:5%"></div>
+      <div class="sign" style="left:22%;top:28%;width:4.5%;height:7%">→</div>
+      <div class="sign" style="left:60%;top:46%;width:4.5%;height:7%">↓</div>
+      <div class="bar" style="left:12%;right:12%;bottom:5%;height:20%">
+        <div class="demo" style="left:2%;top:12%;width:30%;height:76%">
+          <div class="cells" style="left:16%;top:30%"><i class="b"></i><i class="b"></i><i></i></div>
+          <div class="cap">홈에 포갠다</div>
+        </div>
+        <div class="t" style="left:34%">주황 조각을 먹으면 몸이 길어집니다</div>
+      </div>
+    </div>
+    <dl class="facts">
+      <div class="g"><dt>겹침</dt><dd>없음</dd></div>
+      <div class="g"><dt>글</dt><dd>1줄</dd></div>
+      <div><dt>판 크기</dt><dd>20% 줄어듦</dd></div>
+      <div class="g"><dt>만드는 값</dt><dd>작음</dd></div>
+    </dl>
+  </div>
+
+  <!-- C -->
+  <div class="opt">
+    <div class="head">
+      <span class="tag">C</span>
+      <h3>글 없이 표지판만</h3>
+      <p>글을 전부 없애고 <b>맵 안 표지판</b>만 남깁니다. 판이 화면을 꽉 씁니다. 대신 "홈에 포개라"를 말로 못 해줍니다.</p>
+    </div>
+    <div class="screen">
+      <div class="board" style="left:3%;top:5%;width:94%;height:90%"></div>
+      <div class="hole" style="left:26%;top:62%;width:11%;height:16%"></div>
+      <div class="chip" style="left:56%;top:34%;width:3%;height:5%"></div>
+      <div class="sign" style="left:18%;top:30%;width:5%;height:9%">→</div>
+      <div class="sign" style="left:64%;top:50%;width:5%;height:9%">↓</div>
+      <div class="sign" style="left:33%;top:52%;width:5%;height:9%">↑</div>
+    </div>
+    <dl class="facts">
+      <div class="g"><dt>겹침</dt><dd>없음</dd></div>
+      <div class="g"><dt>글</dt><dd>0줄</dd></div>
+      <div class="g"><dt>판 크기</dt><dd>그대로</dd></div>
+      <div class="b"><dt>가르치는 힘</dt><dd>약함</dd></div>
+    </dl>
+  </div>
+
+  <!-- D -->
+  <div class="opt">
+    <div class="head">
+      <span class="tag">D</span>
+      <h3>한 장씩 뜨는 쪽지</h3>
+      <p>필요한 순간에 <b>쪽지 하나</b>가 떴다가 사라집니다. 조각 앞에 오면 "먹으면 길어집니다", 홈 앞에 오면 그림이 뜨는 식입니다.</p>
+    </div>
+    <div class="screen">
+      <div class="board" style="left:3%;top:5%;width:94%;height:90%"></div>
+      <div class="hole" style="left:26%;top:62%;width:11%;height:16%"></div>
+      <div class="chip" style="left:56%;top:34%;width:3%;height:5%"></div>
+      <div class="sign" style="left:18%;top:30%;width:5%;height:9%">→</div>
+      <div class="bar" style="left:30%;right:14%;top:14%;height:26%">
+        <div class="demo" style="left:3%;top:14%;width:26%;height:72%">
+          <div class="cells" style="left:12%;top:32%"><i class="b"></i><i class="b"></i><i></i></div>
+        </div>
+        <div class="t" style="left:32%">몸이 3칸 · 홈도 3칸<br>정확히 포개세요</div>
+      </div>
+    </div>
+    <dl class="facts">
+      <div><dt>겹침</dt><dd>판 위에 뜸</dd></div>
+      <div class="g"><dt>글</dt><dd>필요할 때만</dd></div>
+      <div class="g"><dt>판 크기</dt><dd>그대로</dd></div>
+      <div class="b"><dt>만드는 값</dt><dd>중간</dd></div>
+    </dl>
+  </div>
+</section>
+
+<section>
+  <div class="rec">
+    <h2>추천 &mdash; B, 아래 띠 하나</h2>
+    <ol>
+      <li><strong>겹칠 수가 없습니다.</strong> 카메라가 잡는 높이를 띠 위까지로 못박으면 판이 아무리 커도 띠를 안 넘습니다. 지금 사고가 바로 이거였습니다</li>
+      <li><strong>보는 자리가 하나로 모입니다.</strong> 그림과 글이 같은 띠 안에 나란히 있어서 눈이 왔다 갔다 안 합니다</li>
+      <li><strong>1-0 에서만 쓰고 접으면 됩니다.</strong> 다른 판에서는 띠를 없애고 판을 꽉 채우면 됩니다</li>
+    </ol>
+  </div>
+
+  <h3 style="font-size:17px;margin:26px 0 8px">어느 시안이든 같이 고칠 것</h3>
+  <ul class="bad">
+    <li><strong>표지판 넷 → 둘.</strong> 첫 꺾임과 마지막 꺾임에만. 나머지는 걸어보면 압니다</li>
+    <li><strong>튜토리얼에선 커트·별을 감춥니다.</strong> 아직 별이 뭔지 모르는 사람에게 점수를 보여줄 이유가 없습니다</li>
+    <li><strong>남은 홈 점(○○○)도 감춥니다.</strong> 홈이 하나뿐인 판이라 셀 게 없습니다</li>
+  </ul>
+</section>
+
+<footer>
+  화면 흉내는 게임이 실제로 쓰는 색으로 그렸습니다 — 돌 #36473f · 빈 곳 #111916 · 홈 #a8e6cf · 조각 #f38a04 · 표지판 #6fb0f0
+</footer>
+
+</div>
