@@ -415,7 +415,9 @@ def gem():
             m = abs(x - c) / 6.0 + abs(y - c) / 9.0
             if m > 1.0:
                 continue
-            g[y][x] = 'l' if m > 0.58 else 'm'
+            #  🔴 틀보다 눈에 띄면 안 된다. 모서리를 찍어주는 정도로 낮췄다
+            #     (09-02 화면: 주황 마름모가 틀보다 많이 띄었다)
+            g[y][x] = 'k' if m > 0.58 else 'l'
             if m > 0.88:
                 g[y][x] = 'j'
     return g

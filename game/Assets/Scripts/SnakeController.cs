@@ -896,7 +896,9 @@ namespace SlimeEscape
                 if (!nR) Rail(c, dr, 3);
 
                 //  꾺이는 모서리에 장식을 박는다 — 참고 그림에서 틀을 틀로 만드는 것이 이것이다.
-                float g = 0.5f - GemW * 0.55f;
+                //  🔴 모서리 밖으로 반쯤 나가 있으면 핀처럼 보인다.
+                //     틀 **위에** 얙히는 자리로 당긴다 (09-02 화면).
+                float g = 0.5f - GemW * 0.80f;
                 if (!nU && !nL) Gem(c, dr, new Vector2(-g,  g));
                 if (!nU && !nR) Gem(c, dr, new Vector2( g,  g));
                 if (!nD && !nL) Gem(c, dr, new Vector2(-g, -g));
@@ -1063,7 +1065,7 @@ namespace SlimeEscape
 
                 var sr = NewSprite("Food", 1, "food");
                 sr.transform.position = CellPos(c);
-                sr.transform.localScale = Vector3.one * 0.42f;
+                sr.transform.localScale = Vector3.one * 0.34f;
                 sr.sprite = PixelSprites.Disc();
                 sr.color = FoodCol;
                 _foodViews.Add(sr);
@@ -1163,7 +1165,7 @@ namespace SlimeEscape
             {
                 sr.transform.position = CellPos(cell) + off;
                 //  ⬛ 칸을 꽉 채우면 모서리 넷이 겹쳐 칸 하나가 통째로 놋쇠 상자가 된다 (09-02 화면).
-                sr.transform.localScale = Vector3.one * 0.55f;
+                sr.transform.localScale = Vector3.one * 0.42f;
             }
             else
             {
@@ -1552,15 +1554,19 @@ namespace SlimeEscape
                 if (cv.ring == null || cv.core == null) continue;
                 bool done = (_st.Dm & (1 << cv.door)) != 0;
                 float a = done ? 1f - SuckT : 1f;
-                cv.ring.enabled = a > 0.02f;
+                //  그림에 테가 이미 들어 있다 — 코드 테를 같이 그리면 노란 네모가 샐져나온다
+                cv.ring.enabled = !Art.Has("core") && a > 0.02f;
                 cv.core.enabled = a > 0.02f;
                 if (a > 0.02f)
                 {
                     //  머리가 들어와 있으면 구멍 속이 찬다 = 열쇠가 꿂혔다
                     bool inKey = _st.Head >= 0 && _L.Doors[cv.door].Core == _st.Head;
-                    cv.ring.enabled = !Art.Has("core") && a > 0.02f;
                     var rc = CoreCol; rc.a = a; cv.ring.color = rc;
-                    var cc = inKey ? CoreCol : HoleCol; cc.a = a; cv.core.color = cc;
+                    //  그림이 있으면 덧칠하지 않는다. 머리가 꿂혔을 때만 한 단 밝혀준다.
+                    var cc = Art.Has("core")
+                        ? (inKey ? Color.white : new Color(0.82f, 0.82f, 0.82f))
+                        : (inKey ? CoreCol : HoleCol);
+                    cc.a = a; cv.core.color = cc;
                 }
             }
 
@@ -1881,7 +1887,11 @@ namespace SlimeEscape
                 //    꼬리를 조각 색으로 물들여 "여기서 길어진다"를 미리 보여준다.
                 // 🔴 머리도 몸과 **같은 색**. 얼굴은 색이 아니라 눈이 알려준다 (09-02 사장님).
                 //    머리만 밝으면 이어진 관이 아니라 마디가 나뉜 것으로 보인다.
-                var col = BodyCol;
+                //  🔴 그림이 있으면 **안 덧칠한다.** 몸만 덧칠하고 이음매는 안 했더니
+                //     이음매만 허예게 떠서, 이어진 관이 아니라 밝은 막대가 얹힌 꼴이 됐다
+                //     (09-02 밤, 화면을 잘라 확대해서 찾았다).
+                var col = Art.Tint(i == 0 ? "head" : "body", BodyCol);
+                //  새로 붙을 마디는 조각 색으로 뛴다 — 이건 상태라 그림이 있어도 입힌다
                 if (_st.Pg > 0 && i == _st.Length - 1)
                 {
                     float beat = 0.5f + 0.5f * Mathf.Sin(Time.time * 9f);
