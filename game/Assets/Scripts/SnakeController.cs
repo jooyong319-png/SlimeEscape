@@ -2106,7 +2106,9 @@ namespace SlimeEscape
         static string NodeLabel(SnakeLevelJson d, int i)
         {
             if (d == null) return (i + 1).ToString();
-            if (d.tutorial) return "※";                       // ※ - 가르치는 판
+            //  ⚠️ 가르치는 판을 `※` 로 둔 적이 있는데, 글꼴에서 흰 동그라미로 나왔다.
+            //     판 이름이 1-0 이니 그냥 "0" 으로 둔다 — 나머지와 규칙도 같아지고
+            //     글꼴에 있는 글자만 쓰니 **글꼴에 기대는 것이 하나 줄어든다** (09-02).
             if (string.IsNullOrEmpty(d.id)) return (i + 1).ToString();
             int dash = d.id.LastIndexOf('-');
             return dash >= 0 && dash + 1 < d.id.Length ? d.id.Substring(dash + 1) : d.id;
