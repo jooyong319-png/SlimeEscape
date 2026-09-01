@@ -2277,7 +2277,17 @@ namespace SlimeEscape
         float _slideAt = -99f;    // 그 장이 뜬 시각
 
         /// 안내판 한 칸을 그린다 (작은 격자용)
-        void Cell(Rect r, Color c) { GUI.color = c; GUI.DrawTexture(r, Solid(Color.white)); GUI.color = Color.white; }
+        /// <summary>
+        /// 안내판의 한 칸. <paramref name="art"/> 를 주면 그림으로, 없으면 색으로.
+        /// 🔴 게임 화면은 도트인데 안내판만 네모를 칠하면,
+        ///    **같은 것을 두 가지로** 보여주는 꼴이 된다 — 배우는 사람이 제일 헷갈리는 자리다.
+        /// </summary>
+        void Cell(Rect r, Color c, string art = null)
+        {
+            var s = Art.Frame(art, 6f);
+            if (s != null) { GUI.DrawTexture(r, s.texture); return; }
+            GUI.color = c; GUI.DrawTexture(r, Solid(Color.white)); GUI.color = Color.white;
+        }
 
         /// <summary>
         /// 🔴 여섯 장을 돌려 보여준다 — → ← ↓ ↑ · 조각 · 홈.
@@ -2317,38 +2327,38 @@ namespace SlimeEscape
             Rect at(int cx, int cy) => new Rect(gx + cx * c + 1f, gy + cy * c + 1f, c - 2f, c - 2f);
 
             // 바닥 한 줄은 늘 돌
-            for (int k = 0; k < 5; k++) Cell(at(k, 2), Rock);
+            for (int k = 0; k < 5; k++) Cell(at(k, 2), Rock, "wall");
 
             float e = Mathf.Clamp01((u - 0.15f) / 0.55f);      // 움직이는 구간
             switch (slide)
             {
                 case 0: {                                       // →
                     float x = Mathf.Lerp(0.6f, 3.4f, e);
-                    Cell(new Rect(gx + x * c + 1f, gy + c + 1f, c - 2f, c - 2f), BodyCol);
+                    Cell(new Rect(gx + x * c + 1f, gy + c + 1f, c - 2f, c - 2f), BodyCol, "head");
                     break;
                 }
                 case 1: {                                       // ←
                     float x = Mathf.Lerp(3.4f, 0.6f, e);
-                    Cell(new Rect(gx + x * c + 1f, gy + c + 1f, c - 2f, c - 2f), BodyCol);
+                    Cell(new Rect(gx + x * c + 1f, gy + c + 1f, c - 2f, c - 2f), BodyCol, "head");
                     break;
                 }
                 case 2: {                                       // ↓ 떨어진다
-                    Cell(at(0, 1), Rock); Cell(at(1, 1), Rock);
+                    Cell(at(0, 1), Rock, "wall"); Cell(at(1, 1), Rock, "wall");
                     float y = Mathf.Lerp(0f, 1f, e * e);
-                    Cell(new Rect(gx + 2.6f * c + 1f, gy + y * c + 1f, c - 2f, c - 2f), BodyCol);
+                    Cell(new Rect(gx + 2.6f * c + 1f, gy + y * c + 1f, c - 2f, c - 2f), BodyCol, "head");
                     break;
                 }
                 case 3: {                                       // ↑ 몸이 길어야 오른다
-                    Cell(at(3, 1), Rock); Cell(at(4, 1), Rock);
+                    Cell(at(3, 1), Rock, "wall"); Cell(at(4, 1), Rock, "wall");
                     float x = Mathf.Lerp(0.6f, 2.4f, Mathf.Clamp01(e * 1.6f));
                     float up = Mathf.Clamp01((e - 0.62f) / 0.38f);
-                    Cell(new Rect(gx + (x + up) * c + 1f, gy + (1f - up) * c + 1f, c - 2f, c - 2f), BodyCol);
-                    Cell(new Rect(gx + x * c + 1f, gy + c + 1f, c - 2f, c - 2f), BodyCol);
+                    Cell(new Rect(gx + (x + up) * c + 1f, gy + (1f - up) * c + 1f, c - 2f, c - 2f), BodyCol, "head");
+                    Cell(new Rect(gx + x * c + 1f, gy + c + 1f, c - 2f, c - 2f), BodyCol, "head");
                     break;
                 }
                 case 4: {                                       // 조각을 먹으면 길어진다
                     bool ate = e > 0.55f;
-                    if (!ate) Cell(at(3, 1), FoodCol);
+                    if (!ate) Cell(at(3, 1), FoodCol, "food");
                     float x = Mathf.Lerp(0.6f, 3f, Mathf.Clamp01(e / 0.55f));
                     Cell(new Rect(gx + x * c + 1f, gy + c + 1f, c - 2f, c - 2f), BodyCol);
                     if (ate) Cell(new Rect(gx + (x - 1f) * c + 1f, gy + c + 1f, c - 2f, c - 2f), BodyCol);
@@ -2357,12 +2367,13 @@ namespace SlimeEscape
                 default: {                                      // 홈에 몸을 포갠다
                     for (int k = 0; k < 3; k++)
                     {
-                        Cell(at(2 + k, 1), HoleEdge);
+                        //  홈은 놋쇠 틀 + 어두운 속. 게임 화면과 같은 규칙이어야 한다
+                        Cell(at(2 + k, 1), FrameCol);
                         var q = at(2 + k, 1);
-                        Cell(new Rect(q.x + 2, q.y + 2, q.width - 4, q.height - 4), HoleCol);
+                        Cell(new Rect(q.x + 2, q.y + 2, q.width - 4, q.height - 4), HoleCol, "slot");
                     }
                     var core = at(4, 1);
-                    Cell(new Rect(core.x + c * 0.3f, core.y + c * 0.3f, c * 0.4f, c * 0.4f), CoreCol);
+                    Cell(core, CoreCol, "core");
 
                     float slid = Mathf.Clamp01(u / 0.45f);
                     float suck = Mathf.Clamp01((u - 0.62f) / 0.22f);

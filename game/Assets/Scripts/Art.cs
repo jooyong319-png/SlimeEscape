@@ -61,8 +61,14 @@ namespace SlimeEscape
         /// 움직임은 작게 둔다 — 퍼즐에서 배경이 크게 흔들리면 판을 읽는 눈이 흩어진다.
         /// "살아 있다"만 알려주면 된다.
         /// </summary>
+        static readonly Sprite[] None = new Sprite[0];
+
         public static Sprite[] Frames(string name)
         {
+            //  🔴 이름이 없으면 빈손으로 돌려보낸다.
+            //     사전 열쇠에 null 을 넣으면 ArgumentNullException 으로 죽는다 —
+            //     안내판을 그림으로 바꾸면서 그림 이름 없이 부르는 자리가 생겼다 (09-02).
+            if (string.IsNullOrEmpty(name)) return None;
             Load();
             if (_anim == null) _anim = new Dictionary<string, Sprite[]>();
             if (_anim.TryGetValue(name, out var got)) return got;
