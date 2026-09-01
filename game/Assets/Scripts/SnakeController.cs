@@ -751,10 +751,44 @@ namespace SlimeEscape
             float size = Mathf.Max(whole ? refFit : 0f, fit);
             if (Screen.height / (2f * size) < 30f) size = fit;
 
+            size = SnapSize(size);
             _camWant = new Vector3(cx, cy, -10);
             _camSizeWant = size;
             _room = r;
-            if (snap) { _cam.transform.position = _camWant; _cam.orthographicSize = _camSizeWant; }
+            if (snap) { _cam.transform.position = SnapPos(_camWant); _cam.orthographicSize = _camSizeWant; }
+        }
+
+        /// <summary>
+        /// 🔴 도트 한 점이 화면에서 **정수 픽셀**이 되게 배율을 떨어뜨린다.
+        ///
+        /// 그림 한 장이 한 칸(1 월드 단위)이고 그게 32도트다.
+        /// 화면에서 한 칸이 몇 픽셀이냐 = Screen.height / (2 × 배율).
+        /// 이걸 32로 나눈 값이 정수가 아니면 어떤 도트는 3픽셀,
+        /// 어떤 건 4픽셀로 나와 **모서리가 울퍼불퍼해진다.**
+        ///
+        /// 배율을 내림반즌(floor)하므로 카메라가 조금 **더 넓게** 보게 된다 —
+        /// 판이 잘리는 쪽으로는 절대 안 간다.
+        /// 화면이 너무 작아 배율이 1도 안 되면 그냥 둔다 — 그때는 읽히는 게 먼저다.
+        /// </summary>
+        static float SnapSize(float want)
+        {
+            const float Dots = 32f;                       // 그림 한 장의 도트 수
+            if (Screen.height < 2) return want;
+            float k = Mathf.Floor(Screen.height / (2f * Dots * Mathf.Max(0.001f, want)));
+            if (k < 1f) return want;                      // 너무 작은 창 — 읽히는 것을 택한다
+            return Screen.height / (2f * Dots * k);
+        }
+
+        /// <summary>
+        /// 카메라 자리를 **도트 격자**에 맞춰 떨어뜨린다.
+        /// 배율만 맞춰도 자리가 반 픽셀 어긋나면 그림이 번진다.
+        /// 따라가는 동안에도 매 프레임 맞춰야 한다.
+        /// </summary>
+        static Vector3 SnapPos(Vector3 p)
+        {
+            const float Dots = 32f;
+            return new Vector3(Mathf.Round(p.x * Dots) / Dots,
+                               Mathf.Round(p.y * Dots) / Dots, p.z);
         }
 
         void AddBridge(int a, int b, Vector3 scale, Vector2 offset)
@@ -1128,7 +1162,8 @@ namespace SlimeEscape
             if (Art.Has("gem"))
             {
                 sr.transform.position = CellPos(cell) + off;
-                sr.transform.localScale = Vector3.one;
+                //  ⬛ 칸을 꽉 채우면 모서리 넷이 겹쳐 칸 하나가 통째로 놋쇠 상자가 된다 (09-02 화면).
+                sr.transform.localScale = Vector3.one * 0.55f;
             }
             else
             {
@@ -1781,7 +1816,9 @@ namespace SlimeEscape
                 int r = _roomOf[_st.Head];
                 if (r != _room) AimCamera(false);
                 float k = 1f - Mathf.Exp(-CamEase * dt);
-                _cam.transform.position = Vector3.Lerp(_cam.transform.position, _camWant, k);
+                //  따라가는 동안에도 도트 격자에 떨어뜨린다 — 안 그러면 움직일 때마다 번진다
+                _cam.transform.position =
+                    SnapPos(Vector3.Lerp(_cam.transform.position, _camWant, k));
                 _cam.orthographicSize = Mathf.Lerp(_cam.orthographicSize, _camSizeWant, k);
             }
 
