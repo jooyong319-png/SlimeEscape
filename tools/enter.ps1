@@ -36,14 +36,18 @@ for ($i = 0; $i -lt 90; $i++) {
 $err = (Tail) -split "`n" | Select-String -Pattern "error CS"
 if ($err) { Write-Output "🔴 컴파일 오류:"; $err | Select-Object -First 4; exit 1 }
 
-# 4) Play 는 AutoPlay 가 저절로 켜준다 (깃발 tools/autoplay.on 이 있을 때만).
-#    여기서는 판이 열렸는지만 확인한다.
+# 4) Play 를 켜다. Ctrl+P 는 **토글**이라 이미 켜져 있으면 꺼진다 —
+#    새 [LV] 로그가 날 때까지 번갈아 누른다.
 $ok = $false
-for ($i = 0; $i -lt 20; $i++) {
-  Start-Sleep -Seconds 2
-  if ((Tail) -match "\[LV\] ") { $ok = $true; break }
+for ($try = 1; $try -le 4; $try++) {
+  & "$PSScriptRoot\play.ps1" | Out-Null
+  for ($i = 0; $i -lt 8; $i++) {
+    Start-Sleep -Seconds 2
+    if ((Tail) -match "\[LV\] ") { $ok = $true; break }
+  }
+  if ($ok) { break }
 }
-if (-not $ok) { Write-Output "⚠️ Play 가 안 켜졌다 (깃발이 있는지 보세요: tools/autoplay.on)"; exit 2 }
+if (-not $ok) { Write-Output "⚠️ Play 가 안 켜졌다 — 화면을 직접 보세요"; exit 2 }
 
 # 5) 개발자 모드로 판을 넘긴다 (T = F1 과 같은 뜻. 에디터가 F1 을 먹는다)
 if ($advance -gt 0) {
