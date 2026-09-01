@@ -175,8 +175,10 @@ namespace SlimeEscape
         bool Cleared(string id) => _recs.ContainsKey(id);
 
         /// 이 판에 오래 붙잡혀 있나 — 도움은 이때만 내민다
+        // 🔴 앞 두 힌트는 저장된 정답만 읽으므로 **상태 계산이 필요 없다** —
+        //    그래서 상태가 너무 커서 계산을 못 하는 큰 판에서도 뜬다.
         bool Stuck => !_won && !_replay && Time.time - _levelAt > StuckSeconds
-                      && Lost() != null && Lost().Ready;
+                      && (_hint < 2 || (Lost() != null && Lost().Ready));
 
         /// <summary>
         /// 🔴 별 셋 (08-30 사장님 규칙):
@@ -233,7 +235,17 @@ namespace SlimeEscape
         //    도움은 분량을 깎는 게 아니라, 0분이 될 뻔한 걸 살리는 것이다.
         const float StuckSeconds = 150f;   // 이만큼 못 깨면 도움을 내민다
         float _levelAt;                    // 이 판을 언제 열었나
-        int _nudges;                       // 이 판에서 민 횟수
+        int _nudges;                       // 이 판에서 민 횟수 (셋째 힌트만 센다)
+
+        // 🔴 힌트는 **종류**로 나뉜다. 횟수를 묶는 것보다 낫다 —
+        //    필요한 만큼만 열어보고, 답까지 가는 건 스스로 정한다.
+        //      1 어느 홈부터   — 저장된 정답에서 바로. 스포일러가 거의 없다
+        //      2 안 먹는 조각  — 저장된 정답에서 바로. 제일 안 보이는 실패를 막는다
+        //      3 다음 한 걸음  — 상태를 다 펼쳐야 한다. 이것만 별 셋을 못 받는다
+        int _hint;                         // 지금까지 연 힌트 단계 (0~3)
+        bool _tooBig;                      // 판이 너무 커서 다음 걸음을 못 알려준다
+        int _hintDoor = -1;                // 먼저 채워야 할 홈
+        readonly HashSet<int> _skipFood = new HashSet<int>();   // 먹으면 안 되는 조각 칸
         float _nudgeShow;                  // 민 방향을 화면에 띄워둘 시각
         SnakeEngine.Dir _nudgeDir;
         bool _menu;      // 판 고르기 화면
@@ -393,6 +405,8 @@ namespace SlimeEscape
             _lostSet = null; _lostTried = false;
             _slide = 0; _slideAt = -99f;
             _levelAt = Time.time; _nudges = 0; _nudgeShow = -9f;
+            _hint = 0; _hintDoor = -1; _tooBig = false; _skipFood.Clear();
+            ReadSolution();   // 무엇을 알려줄 수 있는지 미리 안다 (정답 되짚기라 값이 싸다)
             StartRun();
 
             Restart();
@@ -465,12 +479,75 @@ namespace SlimeEscape
         void Nudge()
         {
             var ls = Lost();
-            if (ls == null || !ls.Ready) return;
+            if (ls == null || !ls.Ready) { _nudgeDir = SnakeEngine.Dir.Up; _nudgeShow = -1f; _tooBig = true; return; }
+            _tooBig = false;
             if (ls.IsLost(_st)) { _nudgeShow = Time.time; _nudges++; return; }
             if (!ls.Nudge(_L, _st, out var dir)) return;
             _nudges++;
             _nudgeDir = dir;
             _nudgeShow = Time.time;
+        }
+
+        /// <summary>
+        /// 🔴 저장된 정답을 되짚어 **두 가지**를 알아낸다 —
+        /// 어느 홈을 먼저 채우는가, 그리고 어느 조각을 안 먹는가.
+        /// 상태를 펼치지 않으므로 아무리 큰 판에서도 된다.
+        /// </summary>
+        void ReadSolution()
+        {
+            _hintDoor = -1; _skipFood.Clear();
+            string sol = Def.sol;
+            if (string.IsNullOrEmpty(sol)) return;
+
+            var st = SnakeEngine.StartState(_L);
+            int dm = 0;
+            foreach (char ch in sol)
+            {
+                SnakeEngine.Dir d;
+                switch (ch)
+                {
+                    case '↑': d = SnakeEngine.Dir.Up; break;
+                    case '↓': d = SnakeEngine.Dir.Down; break;
+                    case '←': d = SnakeEngine.Dir.Left; break;
+                    case '→': d = SnakeEngine.Dir.Right; break;
+                    case '↧': d = SnakeEngine.Dir.Drop; break;
+                    default: continue;
+                }
+                if (!SnakeEngine.Step(_L, st, d, out var ns)) break;
+                if (_hintDoor < 0 && ns.Dm != dm)
+                    for (int i = 0; i < _L.Doors.Count; i++)
+                        if ((dm & (1 << i)) == 0 && (ns.Dm & (1 << i)) != 0) { _hintDoor = i; break; }
+                dm = ns.Dm; st = ns;
+            }
+            // 정답이 끝까지 안 먹은 조각 = 먹으면 안 되는 조각
+            for (int i = 0; i < _L.Foods.Count; i++)
+                if (!SnakeEngine.IsEaten(st, i)) _skipFood.Add(_L.Foods[i]);
+        }
+
+        /// <summary>
+        /// 🔴 그 판에서 **실제로 알려줄 게 있는** 단계만 센다.
+        ///    홈이 하나면 "어느 홈부터"가 뜻이 없고, 조각을 다 먹어야 하는 판이면
+        ///    "먹으면 안 되는 조각"이 뜻이 없다. 없는 걸 단추로 내밀면 안 된다 —
+        ///    눌렀다가 조용히 셋째 단계로 떨어져 별 셋을 잃는다 (08-31 사장님 지적).
+        /// </summary>
+        bool HasHint(int lv) => lv == 1 ? _L.Doors.Count >= 2
+                              : lv == 2 ? _skipFood.Count > 0
+                              : true;      // 셋째는 눌렀을 때 되는지 본다
+
+        /// 다음에 열 수 있는 단계. 없으면 0.
+        int NextHint()
+        {
+            for (int lv = _hint + 1; lv <= 3; lv++) if (HasHint(lv)) return lv;
+            return _hint >= 3 ? 3 : 0;     // 이미 셋째면 계속 한 걸음씩
+        }
+
+        /// 다음 힌트를 연다. 단계가 올라갈수록 알려주는 게 많아진다.
+        void OpenHint()
+        {
+            int lv = NextHint();
+            if (lv == 0) return;
+            _hint = lv;
+            if (lv == 3) Nudge();          // 셋째 단계부터는 누를 때마다 한 걸음
         }
 
         void StartReplay()
@@ -1000,7 +1077,14 @@ namespace SlimeEscape
                 _segs.Add(sr);
             }
             for (int i = 0; i < _segs.Count; i++) _segs[i].enabled = i < _st.Length;
-            for (int i = 0; i < _foodViews.Count; i++) _foodViews[i].enabled = !SnakeEngine.IsEaten(_st, i);
+            for (int i = 0; i < _foodViews.Count; i++)
+            {
+                _foodViews[i].enabled = !SnakeEngine.IsEaten(_st, i);
+                // 🔴 힌트 2 — 먹으면 안 되는 조각은 잿빛으로 죽인다.
+                //    이 게임에서 제일 안 보이는 실패가 "너무 먹은 것"이다.
+                bool skip = _hint >= 2 && i < _L.Foods.Count && _skipFood.Contains(_L.Foods[i]);
+                _foodViews[i].color = skip ? new Color(0.42f, 0.40f, 0.36f, 0.55f) : FoodCol;
+            }
 
             // 목표 홈에 몸이 들어간 칸은 밝아진다 — "몇 칸 남았는지"가 눈에 보이게
             // 🔴 별 — 안 주웠으면 천천히 돈다. 주우면 사라진다.
@@ -1067,6 +1151,9 @@ namespace SlimeEscape
                 if (_holeEdges.TryGetValue(kv.Key, out var e))
                 {
                     var ec = EdgeOf(door);
+                    // 🔴 힌트 1 — 먼저 채울 홈만 깜빡인다. 글로 "왼쪽 아래요" 하는 것보다 빠르다
+                    if (_hint >= 1 && door == _hintDoor && !spent)
+                        ec = Color.Lerp(ec, Color.white, 0.35f + 0.35f * Mathf.Sin(Time.time * 4f));
                     // 🔴 굳으면 테두리도 같은 돌색이 된다 — 홈이 아니라 **지형**이 된 것이다
                     e.color = spent
                         ? Color.Lerp(new Color(ec.r, ec.g, ec.b, 0.30f), SpentCol, SuckT)
@@ -1154,7 +1241,7 @@ namespace SlimeEscape
             if (_menu) { Animate(Time.deltaTime); return; }
 
             // 🔴 H — 한 걸음 밀기. 오래 막혔을 때만 열린다.
-            if (Input.GetKeyDown(KeyCode.H) && Stuck) { Nudge(); return; }
+            if (Input.GetKeyDown(KeyCode.H) && Stuck) { OpenHint(); return; }
 
             // Esc 로 목록으로 — 언제든 나갈 데가 있어야 갇힌 느낌이 안 든다
             if (Input.GetKeyDown(KeyCode.Escape)) { _menu = true; return; }
@@ -2108,10 +2195,16 @@ namespace SlimeEscape
                 {
                     bool dead = _lostSet.IsLost(_st);
                     var hs = new GUIStyle(GUI.skin.button) { fontSize = Mathf.RoundToInt(13 * _uiScale) };
-                    float hw = 168f * _uiScale, hh = 30f * _uiScale;
+                    float hw = 210f * _uiScale, hh = 30f * _uiScale;
                     var hr = new Rect(w - hw - 12f, h - hh - 12f, hw, hh);
-                    if (GUI.Button(hr, dead ? "되돌리세요 (Z)" : "한 걸음 알려줘 (H)", hs) && !dead)
-                        Nudge();
+                    // 🔴 단계마다 다른 도움. 필요한 만큼만 열어보게 한다.
+                    int nx = NextHint();
+                    string label = dead ? "되돌리세요 (Z)"
+                        : nx == 1 ? "어느 홈부터? (H)"
+                        : nx == 2 ? "먹으면 안 되는 조각은? (H)"
+                        : nx == 3 ? "다음 한 걸음 (H) — 별 셋 포기"
+                        : null;
+                    if (label != null && GUI.Button(hr, label, hs) && !dead) OpenHint();
 
                     // 민 방향을 잠깐 크게 보여준다 — 답이 아니라 **다음 한 수**다
                     if (Time.time - _nudgeShow < 2.2f)
@@ -2123,9 +2216,12 @@ namespace SlimeEscape
                         ns2.normal.textColor = StarLit;
                         GUI.Label(new Rect(0, h * 0.5f - 24f, w, 44f), face, ns2);
                     }
-                    if (_nudges > 0)
-                        GUI.Label(new Rect(0, h - 62, w, 20),
-                                  "도움 " + _nudges + "번 — 이 판은 별 셋을 못 받습니다", _sSmall);
+                    string note = _tooBig ? "이 판은 너무 커서 다음 걸음은 못 알려드립니다"
+                                : _hint == 1 ? "먼저 채울 홈이 깜빡입니다"
+                                : _hint == 2 ? "잿빛 조각은 먹으면 안 됩니다"
+                                : _nudges > 0 ? "다음 걸음을 " + _nudges + "번 봤습니다 — 이 판은 별 셋을 못 받습니다"
+                                : null;
+                    if (note != null) GUI.Label(new Rect(0, h - 62, w, 20), note, _sSmall);
                 }
 
                 if (!Touchy)
