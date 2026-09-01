@@ -1540,9 +1540,12 @@ namespace SlimeEscape
                 }
                 if (_holeEdges.TryGetValue(kv.Key, out var e))
                 {
-                    //  틀 안 바닥. 덤으면 가라앉고, 굳으면 돌이 된다.
+                    //  🔴 굳으면 **마디 모양 그대로 돌이 된다.** 납작한 네모로 바뀌면
+                    //     "몸이 지형이 됐다"는 규칙이 끊긴다 — 딛고 설 수 있다는 신호도 약해진다.
+                    var want = Art.Get(spent ? "spent" : "slot");
+                    if (want != null && e.sprite != want) e.sprite = want;
                     e.color = spent
-                        ? Color.Lerp(SlotLine, SpentCol, SuckT)
+                        ? (Art.Has("spent") ? Color.white : Color.Lerp(SlotLine, SpentCol, SuckT))
                         : covered ? Color.Lerp(SlotLine, fill, 0.55f) : SlotLine;
                 }
             }
