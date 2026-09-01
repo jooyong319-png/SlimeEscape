@@ -22,8 +22,10 @@ namespace SlimeEscape
         // 🔴 빈 칸은 **어둡게**, 벽은 **밝은 덩어리**로. 예전엔 둘이 #18221e / #25322c 라
         //    거의 같아서 넓은 판에서 굴 모양이 아예 안 읽혔다 (08-30 사장님 전체화면).
         static readonly Color Floor   = new Color32(0x11, 0x19, 0x16, 0xff);   // 빈 칸 = 공기
-        static readonly Color Rock    = new Color32(0x36, 0x47, 0x3f, 0xff);   // 벽 = 돌
+        static readonly Color Rock    = new Color32(0x2f, 0x3e, 0x37, 0xff);   // 벽 = 돌
         static readonly Color RockTop = new Color32(0x62, 0x7e, 0x70, 0xff);   // 딛고 설 수 있는 윗면
+        static readonly Color RockDeep= new Color32(0x25, 0x31, 0x2b, 0xff);   // 돌 속 — 겉보다 어둡다
+        static readonly Color RockRim = new Color32(0x45, 0x58, 0x4e, 0xff);   // 옆·아랫면의 옅은 테
         static readonly Color Grid    = new Color32(0x1c, 0x27, 0x22, 0xff);
         static readonly Color HeadCol = new Color32(0xb8, 0xeb, 0xd3, 0xff);
         static readonly Color BodyCol = new Color32(0x8d, 0xce, 0xb0, 0xff);
@@ -76,6 +78,9 @@ namespace SlimeEscape
         // 🔴 출구 — 맵을 넘는 자리. 동작만 넣고 **그리는 걸 빼먹어서** 아무것도 안 보였다(08-30).
         //    문(홈)과 헷갈리면 안 되니 색을 아예 다르게 — 따뜻한 빛으로 둔다.
         static readonly Color StarLit   = new Color32(0xf0, 0xc9, 0x6b, 0xff);  // 딴 별
+        static readonly Color EyeWhite  = new Color32(0xf2, 0xfb, 0xf6, 0xff);
+        static readonly Color EyeDark   = new Color32(0x14, 0x22, 0x1c, 0xff);
+        Vector2 _lookDir = Vector2.right;   // 마지막으로 간 쪽 — 눈이 그쪽을 본다
         static readonly Color PanelBg   = new Color32(0x14, 0x1c, 0x19, 0xff);  // 안내판 바탕
         static readonly Color StageBg   = new Color32(0x0a, 0x0f, 0x0d, 0xff);  // 안내판 속 무대
         // 표지판 — 맵에 떠 있는 화살표. 지형과 안 섞이게 푸른빛으로 둔다.
@@ -94,6 +99,8 @@ namespace SlimeEscape
         readonly Dictionary<int, SpriteRenderer> _padViews = new Dictionary<int, SpriteRenderer>();
         readonly Dictionary<int, SpriteRenderer> _padTops = new Dictionary<int, SpriteRenderer>();
         SpriteRenderer _starView, _starGlow;
+        readonly List<SpriteRenderer> _foodExtra = new List<SpriteRenderer>();   // 조각의 빛·반짝임
+        readonly List<SpriteRenderer> _links = new List<SpriteRenderer>();       // 마디를 잇는 이음매
 
         // 🔴 홈을 채우면 **홈이 곧 출구다.** 슬라임이 심 쪽으로 줄줄이 빨려든다.
         //    문을 따로 두고 걸어 나가게 했더니 지루하기만 했다 (08-30 사장님).
@@ -126,7 +133,7 @@ namespace SlimeEscape
             /// 뒷마디가 얼마나 늦게 출발하나. 1이면 머리와 동시, 0에 가까울수록 채찍처럼 끌린다.
             /// 🔴 위치를 어긋내는 게 아니라 **시간차**다 — 끝나면 마디는 정확히 자기 칸에 앉는다.
             public float follow = 0.72f;
-            public float segmentSize = 0.86f; // 마디를 칸보다 얼마나 작게 그리나
+            public float segmentSize = 0.94f; // 마디를 칸보다 얼마나 작게 그리나
             public float growPop = 0.25f;     // 길어질 때 꼬리가 한 번 부푸는 정도
 
             /// 🔴 한 칸 떨어지는 데 걸리는 시간. 여러 칸이면 √칸수로 늘어난다.
@@ -169,7 +176,10 @@ namespace SlimeEscape
         // 🔴 "깼다"만 저장하던 걸 **판마다 최소 걸음**으로 바꿨다.
         //    별을 걸음 수로 주기로 했으니 기록 자체가 진행 상황이 된다 (08-30).
         //    id 에는 ':' 가 안 들어가므로 "id:걸음" 을 쉼표로 잇는다.
-        const string ProgressKey = "snakeRecords_rev1";
+        // 🔴 판을 갈아치우면 이 이름을 올린다. 번호(1-1, 1-2…)가 같아서
+        //    옛 기록이 **전혀 다른 판**에 그대로 붙어 버린다 —
+        //    안 깬 판에 별 셋이 달려 있었다 (08-31 화면).
+        const string ProgressKey = "snakeRecords_rev2";
         readonly Dictionary<string, int> _recs = new Dictionary<string, int>();
 
         bool Cleared(string id) => _recs.ContainsKey(id);
@@ -357,6 +367,8 @@ namespace SlimeEscape
             _cam.clearFlags = CameraClearFlags.SolidColor;
             _cam.backgroundColor = BgCol;
             _cam.rect = new Rect(0f, 0f, 1f, 1f);
+            // 🔴 듣는 귀가 없으면 소리가 안 난다. 별 딸 때 "땅!" 이 안 들리고 있었다 (08-31).
+            if (_cam.GetComponent<AudioListener>() == null) _cam.gameObject.AddComponent<AudioListener>();
 
             _set = SnakeLevels.Load();
             _gravity = _set.gravity;
@@ -704,7 +716,7 @@ namespace SlimeEscape
         {
             if (_root != null) Destroy(_root.gameObject);
             _root = new GameObject("Board").transform;
-            _segs.Clear(); _foodViews.Clear();
+            _segs.Clear(); _foodViews.Clear(); _foodExtra.Clear(); _links.Clear();
 
             for (int y = 0; y < _L.H; y++)
                 for (int x = 0; x < _L.W; x++)
@@ -715,14 +727,28 @@ namespace SlimeEscape
                     sr.transform.position = CellPos(c);
                     sr.color = wall ? Rock : Floor;
 
-                    // 🔴 벽 **윗면**만 밝게. "여기 딛고 설 수 있다"가 한눈에 읽힌다.
-                    //    두고 온 몸의 윗면과 같은 신호라 규칙이 하나로 이어진다.
-                    if (wall && y > 0 && !_L.IsWall(c - _L.W))
+                    if (wall)
                     {
-                        var top = NewSprite("WallTop", -2);
-                        top.transform.position = CellPos(c) + new Vector2(0f, 0.42f);
-                        top.transform.localScale = new Vector3(1f, 0.16f, 1);
-                        top.color = RockTop;
+                        // 🔴 돌을 **덩어리**로 보이게 — 공기와 닿는 겉면은 밝고 속은 어둡다.
+                        //    평평한 한 색이면 아무리 칠해도 판때기로 보인다.
+                        bool up    = y > 0        && !_L.IsWall(c - _L.W);
+                        bool down  = y < _L.H - 1 && !_L.IsWall(c + _L.W);
+                        bool left  = x > 0        && !_L.IsWall(c - 1);
+                        bool right = x < _L.W - 1 && !_L.IsWall(c + 1);
+                        if (!up && !down && !left && !right) sr.color = RockDeep;   // 속
+
+                        // 윗면 — "여기 딛고 설 수 있다". 두고 온 몸의 윗면과 같은 신호다.
+                        if (up)
+                        {
+                            var e = NewSprite("WallTop", -2);
+                            e.transform.position = CellPos(c) + new Vector2(0f, 0.42f);
+                            e.transform.localScale = new Vector3(1f, 0.16f, 1);
+                            e.color = RockTop;
+                        }
+                        // 🔴 옆·아랫면 테는 **뺐다.** 돌마다 테가 둘리니 다시 타일로 보였고,
+                        //    밝은 면이 너무 많아 빈 곳보다 돌이 밝아졌다 (08-31 화면).
+                        //    밝은 건 윗면 하나뿐 — 그래야 "설 수 있다"가 신호로 남는다.
+                        _ = left; _ = right; _ = down;
                     }
                 }
 
@@ -850,16 +876,51 @@ namespace SlimeEscape
                 _coreViews.Add((di, ring, core));
             }
 
-            for (int x = 1; x < _L.W; x++) GridLine(x, true);
-            for (int y = 1; y < _L.H; y++) GridLine(y, false);
+            // 🔴 격자선을 판 전체에 그으면 굴이 아니라 **모눈종이**로 보인다 (08-31 화면).
+            //    빈 칸에만, 그것도 아주 옅게 — 칸을 세는 데만 쓰이면 된다.
+            for (int y = 1; y < _L.H - 1; y++)
+                for (int x = 1; x < _L.W - 1; x++)
+                {
+                    int c = y * _L.W + x;
+                    if (_L.IsWall(c)) continue;
+                    if (x + 1 < _L.W && !_L.IsWall(c + 1))
+                    {
+                        var v = NewSprite("GridV", -2);
+                        v.transform.position = CellPos(c) + new Vector2(0.5f, 0f);
+                        v.transform.localScale = new Vector3(0.03f, 1f, 1);
+                        v.color = Grid;
+                    }
+                    if (y + 1 < _L.H && !_L.IsWall(c + _L.W))
+                    {
+                        var hh = NewSprite("GridH", -2);
+                        hh.transform.position = CellPos(c) + new Vector2(0f, -0.5f);
+                        hh.transform.localScale = new Vector3(1f, 0.03f, 1);
+                        hh.color = Grid;
+                    }
+                }
 
             foreach (int c in _L.Foods)
             {
+                // 🔴 주황 네모는 "블록"이다. 둥글게 하고 위에 반짝임을 얹으면 **먹는 것**이 된다.
+                var halo = NewSprite("FoodHalo", 0);
+                halo.transform.position = CellPos(c);
+                halo.transform.localScale = Vector3.one * 0.68f;
+                halo.sprite = PixelSprites.Disc();
+                halo.color = new Color(FoodCol.r, FoodCol.g, FoodCol.b, 0.16f);
+
                 var sr = NewSprite("Food", 1);
                 sr.transform.position = CellPos(c);
-                sr.transform.localScale = Vector3.one * 0.4f;
+                sr.transform.localScale = Vector3.one * 0.42f;
+                sr.sprite = PixelSprites.Disc();
                 sr.color = FoodCol;
                 _foodViews.Add(sr);
+
+                var shine = NewSprite("FoodShine", 2);
+                shine.transform.position = CellPos(c) + new Vector2(-0.07f, 0.08f);
+                shine.transform.localScale = Vector3.one * 0.13f;
+                shine.sprite = PixelSprites.Disc();
+                shine.color = new Color(1f, 1f, 1f, 0.55f);
+                _foodExtra.Add(halo); _foodExtra.Add(shine);
             }
 
             // 🔴 카메라는 AimCamera가 잡는다 — 방이 여럿이면 **지금 방만** 비춘다.
@@ -888,9 +949,11 @@ namespace SlimeEscape
             _starView = _starGlow = null;
             if (_L.Star >= 0)
             {
+                // 🔴 뒤의 빛이 네모라 갈색 상자처럼 보였다 (08-31 화면). 둥글게 바꾼다.
                 _starGlow = NewSprite("StarGlow", -1);
                 _starGlow.transform.position = CellPos(_L.Star);
-                _starGlow.transform.localScale = new Vector3(0.86f, 0.86f, 1);
+                _starGlow.transform.localScale = new Vector3(1.05f, 1.05f, 1);
+                _starGlow.sprite = PixelSprites.Disc();
 
                 _starView = NewSprite("Star", 1);
                 _starView.transform.position = CellPos(_L.Star);
@@ -898,6 +961,15 @@ namespace SlimeEscape
             }
 
             SplitRooms();
+        }
+
+        /// 돌 가장자리의 옅은 테. 윗면(설 수 있다)과 헷갈리지 않게 훨씬 어둡다.
+        void AddRim(int cell, Vector2 off, Vector3 scale)
+        {
+            var sr = NewSprite("Rim", -2);
+            sr.transform.position = CellPos(cell) + off;
+            sr.transform.localScale = scale;
+            sr.color = RockRim;
         }
 
         void GridLine(int i, bool vertical)
@@ -1073,10 +1145,24 @@ namespace SlimeEscape
         {
             while (_segs.Count < _st.Length)
             {
-                var sr = NewSprite("Seg", 3 - _segs.Count % 2);   // 머리가 위로
+                // 🔴 **머리가 맨 위**에 와야 한다. 예전엔 차례를 번갈아 매겨서
+                //    뒤쪽 몸이 머리를 덮었다 — 얼굴이 뒤로 밀려 보였다 (09-02 사장님).
+                //    머리 4 · 몸 3 · 이음매 2 로 못박는다.
+                var sr = NewSprite("Seg", _segs.Count == 0 ? 4 : 3);
                 _segs.Add(sr);
             }
-            for (int i = 0; i < _segs.Count; i++) _segs[i].enabled = i < _st.Length;
+            for (int i = 0; i < _segs.Count; i++)
+            {
+                _segs[i].enabled = i < _st.Length;
+                // 🔴 각진 네모는 블록으로 보인다. 모서리만 깎아도 말랑해진다.
+                if (_segs[i].sprite != PixelSprites.Round()) _segs[i].sprite = PixelSprites.Round();
+            }
+            FaceUp();
+            for (int i = 0; i < _foodExtra.Count; i++)
+            {
+                int fi = i / 2;                                   // 조각마다 빛+반짝임 둘
+                if (fi < _foodViews.Count) _foodExtra[i].enabled = !SnakeEngine.IsEaten(_st, fi);
+            }
             for (int i = 0; i < _foodViews.Count; i++)
             {
                 _foodViews[i].enabled = !SnakeEngine.IsEaten(_st, i);
@@ -1316,6 +1402,8 @@ namespace SlimeEscape
             }
             if (_run != null) _run.moves++;
             _steps++;
+            var dd = SnakeEngine.Delta[(int)dir];
+            if (dd.dx != 0 || dd.dy != 0) _lookDir = new Vector2(dd.dx, -dd.dy);
             _undo.Push(_st);
             int hadDm = _st.Dm;
             _st = ns;
@@ -1466,19 +1554,52 @@ namespace SlimeEscape
             {
                 float s = K.segmentSize;
                 if (i == _st.Length - 1) s *= 1f + _pop;               // 새로 붙은 꼬리가 한 번 부푼다
+
+                // 🔴 모양 실험(치마·그림자·돔)은 걷어냈다 — 비석·유령처럼 보였다.
+                //    사장님이 나중에 직접 그리실 자리라, 여기서는 **둥근 몸 + 눈 + 이음매**까지만 둔다.
                 _segs[i].transform.position = _segPos[i];
-                // 🔴 착지 눌림은 세로로만 — 넓히면 한 칸을 넘는다
+                // 착지 눌림은 세로로만 — 넓히면 한 칸을 넘는다
                 _segs[i].transform.localScale = new Vector3(s, s * (1f - _land * 0.35f), 1);
                 // 🔴 떨어지며 먹으면 다음 걸음에 길어진다 — 그 사이에 아무 표시가 없으면
                 //    "먹었는데 사라졌다"로 보인다. 사람이 실제로 그렇게 헤맸다 (2026-08-29).
                 //    꼬리를 조각 색으로 물들여 "여기서 길어진다"를 미리 보여준다.
-                var col = i == 0 ? HeadCol : BodyCol;
+                // 🔴 머리도 몸과 **같은 색**. 얼굴은 색이 아니라 눈이 알려준다 (09-02 사장님).
+                //    머리만 밝으면 이어진 관이 아니라 마디가 나뉜 것으로 보인다.
+                var col = BodyCol;
                 if (_st.Pg > 0 && i == _st.Length - 1)
                 {
                     float beat = 0.5f + 0.5f * Mathf.Sin(Time.time * 9f);
                     col = Color.Lerp(col, FoodCol, 0.45f + 0.35f * beat);
                 }
                 _segs[i].color = col;
+            }
+
+            // 🔴 마디 사이를 **잇는다.** 안 이으면 몸이 길어질 때 따로 떨어진 네모 여럿으로
+            //    보인다 — 한 마리가 아니라 세 마리로 보였다 (08-31 사장님).
+            //    이음매는 마디보다 얇게 해서 슬라임처럼 잘록하게 만든다.
+            while (_links.Count < Mathf.Max(0, _st.Length - 1))
+            {
+                var lk = NewSprite("Link", 2);   // 이음매는 몸 아래 — 몸이 이음매를 덮는다
+                lk.sprite = PixelSprites.Round();
+                _links.Add(lk);
+            }
+            for (int i = 0; i < _links.Count; i++)
+            {
+                bool on = i + 1 < _st.Length && i + 1 < _segPos.Count;
+                _links[i].enabled = on;
+                if (!on) continue;
+                Vector2 a2 = _segPos[i], b2 = _segPos[i + 1];
+                Vector2 mid = (a2 + b2) * 0.5f;
+                Vector2 d2 = b2 - a2;
+                float len = d2.magnitude;
+                // 🔴 이음매는 몸통과 **같은 두께**여야 이어진 한 덩어리로 보인다.
+                //    얇게 하면 구슬 목걸이가 된다 (08-31 사장님 그림: 굵기가 일정한 관).
+                float thick = K.segmentSize * (1f - _land * 0.35f);
+                _links[i].transform.position = mid;
+                _links[i].transform.localScale = Mathf.Abs(d2.x) > Mathf.Abs(d2.y)
+                    ? new Vector3(len + 0.02f, thick, 1)
+                    : new Vector3(thick, len + 0.02f, 1);
+                _links[i].color = BodyCol;
             }
         }
 
@@ -1811,14 +1932,16 @@ namespace SlimeEscape
             GUI.Label(new Rect(box.x + pad, h * 0.06f, pw - pad * 2, h * 0.10f), "튜토리얼", ts);
 
             // ---- 무대 ----
-            float st = Mathf.Min(pw - pad * 2, h * 0.30f);
-            var stage = new Rect(box.x + (pw - st) * 0.5f, h * 0.20f, st, st * 0.62f);
+            // 🔴 무대는 **격자에 딱 맞춰야** 한다. 상자만 크고 칸이 작으면
+            //    격자로 안 읽히고 그냥 빈 검은 상자로 보인다 (08-31 화면).
+            float c = Mathf.Floor(Mathf.Min((pw - pad * 2f) / 5f, h * 0.30f / 3f));
+            var stage = new Rect(box.x + (pw - c * 5f) * 0.5f, h * 0.20f, c * 5f, c * 3f);
+            GUI.DrawTexture(new Rect(stage.x - 4, stage.y - 4, stage.width + 8, stage.height + 8),
+                            Solid(new Color(1, 1, 1, 0.07f)));
             GUI.DrawTexture(stage, Solid(StageBg));
 
-            float c = stage.height / 3f;                  // 칸 크기 (3줄짜리 작은 격자)
-            float gx = stage.x + (stage.width - c * 5f) * 0.5f;
-            float gy = stage.y;
-            Rect at(int cx, int cy) => new Rect(gx + cx * c, gy + cy * c, c - 1f, c - 1f);
+            float gx = stage.x, gy = stage.y;
+            Rect at(int cx, int cy) => new Rect(gx + cx * c + 1f, gy + cy * c + 1f, c - 2f, c - 2f);
 
             // 바닥 한 줄은 늘 돌
             for (int k = 0; k < 5; k++) Cell(at(k, 2), Rock);
@@ -1828,34 +1951,34 @@ namespace SlimeEscape
             {
                 case 0: {                                       // →
                     float x = Mathf.Lerp(0.6f, 3.4f, e);
-                    Cell(new Rect(gx + x * c, gy + c, c - 1f, c - 1f), HeadCol);
+                    Cell(new Rect(gx + x * c + 1f, gy + c + 1f, c - 2f, c - 2f), HeadCol);
                     break;
                 }
                 case 1: {                                       // ←
                     float x = Mathf.Lerp(3.4f, 0.6f, e);
-                    Cell(new Rect(gx + x * c, gy + c, c - 1f, c - 1f), HeadCol);
+                    Cell(new Rect(gx + x * c + 1f, gy + c + 1f, c - 2f, c - 2f), HeadCol);
                     break;
                 }
                 case 2: {                                       // ↓ 떨어진다
                     Cell(at(0, 1), Rock); Cell(at(1, 1), Rock);
                     float y = Mathf.Lerp(0f, 1f, e * e);
-                    Cell(new Rect(gx + 2.6f * c, gy + y * c, c - 1f, c - 1f), HeadCol);
+                    Cell(new Rect(gx + 2.6f * c + 1f, gy + y * c + 1f, c - 2f, c - 2f), HeadCol);
                     break;
                 }
                 case 3: {                                       // ↑ 몸이 길어야 오른다
                     Cell(at(3, 1), Rock); Cell(at(4, 1), Rock);
                     float x = Mathf.Lerp(0.6f, 2.4f, Mathf.Clamp01(e * 1.6f));
                     float up = Mathf.Clamp01((e - 0.62f) / 0.38f);
-                    Cell(new Rect(gx + (x + up) * c, gy + (1f - up) * c, c - 1f, c - 1f), HeadCol);
-                    Cell(new Rect(gx + x * c, gy + c, c - 1f, c - 1f), BodyCol);
+                    Cell(new Rect(gx + (x + up) * c + 1f, gy + (1f - up) * c + 1f, c - 2f, c - 2f), HeadCol);
+                    Cell(new Rect(gx + x * c + 1f, gy + c + 1f, c - 2f, c - 2f), BodyCol);
                     break;
                 }
                 case 4: {                                       // 조각을 먹으면 길어진다
                     bool ate = e > 0.55f;
                     if (!ate) Cell(at(3, 1), FoodCol);
                     float x = Mathf.Lerp(0.6f, 3f, Mathf.Clamp01(e / 0.55f));
-                    Cell(new Rect(gx + x * c, gy + c, c - 1f, c - 1f), HeadCol);
-                    if (ate) Cell(new Rect(gx + (x - 1f) * c, gy + c, c - 1f, c - 1f), BodyCol);
+                    Cell(new Rect(gx + x * c + 1f, gy + c + 1f, c - 2f, c - 2f), HeadCol);
+                    if (ate) Cell(new Rect(gx + (x - 1f) * c + 1f, gy + c + 1f, c - 2f, c - 2f), BodyCol);
                     break;
                 }
                 default: {                                      // 홈에 몸을 포갠다
@@ -1878,8 +2001,8 @@ namespace SlimeEscape
                         float s = 1f;
                         if (suck > 0f && k > 0) { float v = Mathf.Clamp01(suck * 1.4f - k * 0.2f); bx = Mathf.Lerp(bx, 4f, v); s = 1f - v * 0.8f; }
                         float p = c * (1f - s) * 0.5f;
-                        Cell(new Rect(gx + bx * c + p, gy + c + p, (c - 1f) * s, (c - 1f) * s),
-                             k == 0 ? HeadCol : Color.Lerp(BodyCol, SpentTop, suck));
+                        Cell(new Rect(gx + bx * c + p + 1f, gy + c + p + 1f, (c - 2f) * s, (c - 2f) * s),
+                             Color.Lerp(BodyCol, SpentTop, suck));
                     }
                     break;
                 }
@@ -1971,8 +2094,8 @@ namespace SlimeEscape
             {
                 // 🔴 맵에 박아둔 화살표를 따라가게 한다. 글은 거들 뿐이다.
                 if (_steps == 0)
-                    return Touchy ? "화면을 밀어서 움직입니다 — 화살표 쪽으로"
-                                  : "화살표 키로 움직입니다 — 파란 표지판 쪽으로";
+                    return Touchy ? "화면을 밀어 움직여 보세요"
+                                  : "화살표 키로 움직여 보세요";
                 int ate = 0;
                 for (int i = 0; i < _L.Foods.Count; i++) if (SnakeEngine.IsEaten(_st, i)) ate++;
                 if (ate == 0) return "주황 조각을 먹으면 몸이 길어집니다";
@@ -2010,6 +2133,58 @@ namespace SlimeEscape
             if (door.Core >= 0 && _st.Head != door.Core)
                 return "다 맞았다 — 머리가 노란 칸에서 끝나야 한다";
             return null;
+        }
+
+        // ---- 얼굴 ----
+        // 🔴 눈 하나로 네모가 **캐릭터**가 된다. 이 게임에서 값이 제일 싼 인상 개선이다.
+        //    가는 쪽을 본다 · 가끔 깜빡인다 · 떨어질 때 커진다.
+        SpriteRenderer _eyeL, _eyeR, _pupL, _pupR;
+        float _blinkAt = -9f;
+
+        void FaceUp()
+        {
+            if (_segs.Count == 0) return;
+            if (_eyeL == null)
+            {
+                _eyeL = NewSprite("EyeL", 5); _eyeR = NewSprite("EyeR", 5);
+                _pupL = NewSprite("PupL", 6); _pupR = NewSprite("PupR", 6);
+                foreach (var e in new[] { _eyeL, _eyeR }) { e.sprite = PixelSprites.Disc(); e.color = EyeWhite; }
+                foreach (var p in new[] { _pupL, _pupR }) { p.sprite = PixelSprites.Disc(); p.color = EyeDark; }
+            }
+
+            var head = _segs[0];
+            if (!head.enabled) { SetEyes(false); return; }
+            SetEyes(true);
+
+            // 가는 쪽을 본다 — 마지막으로 움직인 방향
+            Vector2 look = _lookDir;
+            Vector3 hp = head.transform.position;
+            float s = Mathf.Min(head.transform.localScale.x, head.transform.localScale.y);
+
+            // 가끔 깜빡인다 (판마다 다른 박자로)
+            if (Time.time > _blinkAt) _blinkAt = Time.time + 2.2f + (Mathf.PerlinNoise(Time.time * 0.3f, 0f) * 3f);
+            float since = _blinkAt - Time.time;
+            float open = since < 0.12f ? Mathf.Abs(since - 0.06f) / 0.06f : 1f;
+
+            float gap = 0.19f * s, up = 0.07f * s;
+            float ew = 0.20f * s, eh = 0.20f * s * Mathf.Max(0.08f, open);
+            for (int k = 0; k < 2; k++)
+            {
+                var eye = k == 0 ? _eyeL : _eyeR;
+                var pup = k == 0 ? _pupL : _pupR;
+                float side = k == 0 ? -1f : 1f;
+                Vector3 at = hp + new Vector3(side * gap + look.x * 0.05f * s, up + look.y * 0.04f * s, 0);
+                eye.transform.position = at;
+                eye.transform.localScale = new Vector3(ew, eh, 1);
+                pup.transform.position = at + new Vector3(look.x * 0.055f * s, look.y * 0.05f * s, 0);
+                pup.transform.localScale = new Vector3(ew * 0.52f, eh * 0.52f, 1);
+            }
+        }
+
+        void SetEyes(bool on)
+        {
+            if (_eyeL == null) return;
+            _eyeL.enabled = _eyeR.enabled = _pupL.enabled = _pupR.enabled = on;
         }
 
         void CloseIntro()

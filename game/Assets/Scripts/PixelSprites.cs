@@ -35,6 +35,7 @@ namespace SlimeEscape
         }
 
         static Sprite _solid, _disc;
+        static Sprite _round;
 
         /// 벽·바닥용 1×1 흰 사각형 (색은 SpriteRenderer.color로 준다)
         public static Sprite Solid()
@@ -62,6 +63,29 @@ namespace SlimeEscape
             t.Apply();
             _disc = Sprite.Create(t, new Rect(0, 0, size, size), new Vector2(0.5f, 0.5f), size, 0, SpriteMeshType.FullRect);
             return _disc;
+        }
+
+        /// <summary>
+        /// 🔴 몸통용 **둥근 네모**. 각진 네모는 아무리 색을 잘 써도 블록으로 보인다.
+        /// 모서리만 깎아도 "말랑한 것"이 된다 — 슬라임에게는 그게 전부다.
+        /// </summary>
+        public static Sprite Round(int size = 48, float radius = 0.30f)
+        {
+            if (_round != null) return _round;
+            var t = new Texture2D(size, size, TextureFormat.RGBA32, false) { filterMode = FilterMode.Bilinear };
+            float r = size * radius;
+            for (int y = 0; y < size; y++)
+                for (int x = 0; x < size; x++)
+                {
+                    // 모서리에서만 원으로 깎는다
+                    float dx = Mathf.Max(0f, Mathf.Max(r - (x + 0.5f), (x + 0.5f) - (size - r)));
+                    float dy = Mathf.Max(0f, Mathf.Max(r - (y + 0.5f), (y + 0.5f) - (size - r)));
+                    float d = Mathf.Sqrt(dx * dx + dy * dy);
+                    t.SetPixel(x, y, new Color(1, 1, 1, Mathf.Clamp01(r - d + 0.5f)));
+                }
+            t.Apply();
+            _round = Sprite.Create(t, new Rect(0, 0, size, size), new Vector2(0.5f, 0.5f), size, 0, SpriteMeshType.FullRect);
+            return _round;
         }
     }
 }
