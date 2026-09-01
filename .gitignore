@@ -55,3 +55,6 @@ tools/doors.json
 tools/rec-*.txt
 tools/make40-pool*.json
 tools/*.log
+
+# 밤 작업용 깃발 — 있으면 컴파일 뒤 Play 가 저절로 켜진다. 올리지 않는다
+tools/autoplay.on

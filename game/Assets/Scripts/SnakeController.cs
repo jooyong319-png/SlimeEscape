@@ -449,6 +449,11 @@ namespace SlimeEscape
         void Load(int i)
         {
             _index = Mathf.Clamp(i, 0, _set.levels.Length - 1);
+            //  🔴 밖에서 상태를 알 수 있게 한 줄 남긴다. 화면을 눈으로 확인하지 않고도
+            //     "지금 어느 판이 열렸는가"를 로그로 알 수 있어야 자동 확인이 된다 (09-02).
+            //  🔴 표는 **아스키**로 둔다. 밖에서 로그를 찾을 때 한글 패턴은
+            //     기기마다 글자판이 어긋나 안 잡힌다 (09-02에 이것 때문에 한참 헤맬다).
+            Debug.Log("[LV] " + _set.levels[_index].id);
             _wonBy = -1;
             if (_trail.Count == 0 || _trail[_trail.Count - 1] != _set.levels[_index].id)
                 _trail.Add(_set.levels[_index].id);
@@ -979,6 +984,9 @@ namespace SlimeEscape
                 //     머리에 박힌 열쇠가 꽉 찬 것이니, 구멍은 비어 있어야 짝이 맞는다.
                 ring.transform.localScale = Vector3.one * 0.52f;
                 ring.color = CoreCol;
+                //  🔴 그림에는 테가 이미 들어 있다. 코드 테를 같이 그리면
+                //     노란 네모가 샐져나와 홈 한 칸이 크림색 상자로 보였다 (09-02 화면).
+                ring.enabled = !Art.Has("core");
 
                 var core = NewSprite("Core", 2, "core");
                 core.transform.position = CellPos(dd.Core);
@@ -1115,9 +1123,19 @@ namespace SlimeEscape
         void Gem(int cell, int door, Vector2 off)
         {
             var sr = NewSprite("Gem", 2, "gem");
-            if (!Art.Has("gem")) sr.sprite = PixelSprites.Diamond();
-            sr.transform.position = CellPos(cell) + off;
-            sr.transform.localScale = new Vector3(GemW, GemW, 1);
+            //  🔴 그림이 있으면 **크기를 그림에 맡긴다.** 코드가 또 줄이면
+            //     두 번 줄어들어 보이지도 않는 점이 된다.
+            if (Art.Has("gem"))
+            {
+                sr.transform.position = CellPos(cell) + off;
+                sr.transform.localScale = Vector3.one;
+            }
+            else
+            {
+                sr.sprite = PixelSprites.Diamond();
+                sr.transform.position = CellPos(cell) + off;
+                sr.transform.localScale = new Vector3(GemW, GemW, 1);
+            }
             sr.color = Art.Tint("gem", RailOf(door));
             _frame.Add((door, sr, true));
         }
@@ -1505,6 +1523,7 @@ namespace SlimeEscape
                 {
                     //  머리가 들어와 있으면 구멍 속이 찬다 = 열쇠가 꿂혔다
                     bool inKey = _st.Head >= 0 && _L.Doors[cv.door].Core == _st.Head;
+                    cv.ring.enabled = !Art.Has("core") && a > 0.02f;
                     var rc = CoreCol; rc.a = a; cv.ring.color = rc;
                     var cc = inKey ? CoreCol : HoleCol; cc.a = a; cv.core.color = cc;
                 }
@@ -1571,7 +1590,19 @@ namespace SlimeEscape
             }
 
             // 목록 화면에서도 뒤의 판은 계속 숨쉰다. 입력만 OnGUI가 받는다.
-            if (_menu) { Animate(Time.deltaTime); return; }
+            if (_menu)
+            {
+                //  🔴 목록에서도 개발자 키(F1 · N · P)는 먹게 둔다.
+                //     마우스 없이 판에 들어갈 수 있어야 자동 확인이 돌아간다 (09-02).
+                //  🔴 유니티 에디터가 F1 을 먹어서 게임까지 안 온다 (09-02).
+                //     T 를 같은 뜻으로 둔다 — 혼자 확인할 때 필요하다.
+                if (Input.GetKeyDown(KeyCode.F1) || Input.GetKeyDown(KeyCode.T))
+                { _dev = !_dev; if (!_dev) _showPanel = false; }
+                if (_dev && Input.GetKeyDown(KeyCode.N)) { _menu = false; _allDone = false; Load(_index + 1); return; }
+                if (_dev && Input.GetKeyDown(KeyCode.P)) { _menu = false; _allDone = false; Load(_index - 1); return; }
+                Animate(Time.deltaTime);
+                return;
+            }
 
             // 🔴 H — 한 걸음 밀기. 오래 막혔을 때만 열린다.
             if (Input.GetKeyDown(KeyCode.H) && Stuck) { OpenHint(); return; }
@@ -1579,7 +1610,8 @@ namespace SlimeEscape
             // Esc 로 목록으로 — 언제든 나갈 데가 있어야 갇힌 느낌이 안 든다
             if (Input.GetKeyDown(KeyCode.Escape)) { _menu = true; return; }
 
-            if (Input.GetKeyDown(KeyCode.F1)) { _dev = !_dev; if (!_dev) _showPanel = false; }
+            if (Input.GetKeyDown(KeyCode.F1) || Input.GetKeyDown(KeyCode.T))
+            { _dev = !_dev; if (!_dev) _showPanel = false; }
 
             if (_dev && Input.GetKeyDown(KeyCode.F3)) { StartReplay(); return; }
             if (_replay)
@@ -1826,8 +1858,12 @@ namespace SlimeEscape
             //    이음매는 마디보다 얇게 해서 슬라임처럼 잘록하게 만든다.
             while (_links.Count < Mathf.Max(0, _st.Length - 1))
             {
-                var lk = NewSprite("Link", 2, "link");   // 이음매는 몸 아래 — 몸이 이음매를 덮는다
-                lk.sprite = PixelSprites.Round();
+                // 🔴 이음매를 몸(3·4)보다 **위**에 그린다.
+                //    마디마다 옆면에 어두운 윤곽이 있어서 붙는 자리에 두 겹으로 곹쳐
+                //    세로줄이 생겼다 — 이어진 관이 아니라 블록 여럿으로 보였다 (09-02).
+                //    이음매가 그 자리를 가리면 윤곽은 관의 **바깥선에만** 남는다.
+                var lk = NewSprite("Link", 5, "link");
+                if (!Art.Has("link")) lk.sprite = PixelSprites.Round();
                 _links.Add(lk);
             }
             for (int i = 0; i < _links.Count; i++)
@@ -1842,11 +1878,24 @@ namespace SlimeEscape
                 // 🔴 이음매는 몸통과 **같은 두께**여야 이어진 한 덩어리로 보인다.
                 //    얇게 하면 구슬 목걸이가 된다 (08-31 사장님 그림: 굵기가 일정한 관).
                 float thick = K.segmentSize * (1f - _land * 0.35f);
+                bool horiz = Mathf.Abs(d2.x) > Mathf.Abs(d2.y);
                 _links[i].transform.position = mid;
-                _links[i].transform.localScale = Mathf.Abs(d2.x) > Mathf.Abs(d2.y)
-                    ? new Vector3(len + 0.02f, thick, 1)
-                    : new Vector3(thick, len + 0.02f, 1);
-                _links[i].color = BodyCol;
+                if (Art.Has("link"))
+                {
+                    //  그림은 **가로 막대 한 장**만 있고 여기서 돌려 쓴다.
+                    //  세로 폭은 그림이 이미 몸통과 맞추어 놓았다 — 눌러 찌그러뜨지 않는다.
+                    _links[i].transform.rotation = Quaternion.Euler(0, 0, horiz ? 0f : 90f);
+                    _links[i].transform.localScale =
+                        new Vector3(len + 0.06f, 1f - _land * 0.30f, 1);
+                }
+                else
+                {
+                    _links[i].transform.rotation = Quaternion.identity;
+                    _links[i].transform.localScale = horiz
+                        ? new Vector3(len + 0.02f, thick, 1)
+                        : new Vector3(thick, len + 0.02f, 1);
+                }
+                _links[i].color = Art.Tint("link", BodyCol);
             }
         }
 
@@ -1987,6 +2036,19 @@ namespace SlimeEscape
             return _solid;
         }
 
+        /// <summary>
+        /// 🔴 IMGUI(판 고르기 · 안내판)에도 도트를 쓴다.
+        /// 그림이 없으면 예전처럼 색을 칠한다 — 한 장씩 갈아끼울 수 있어야 한다.
+        /// 돌아오는 값은 "그림으로 그렸는가" — 부르는 쪽이 덤어질 것을 정한다.
+        /// </summary>
+        bool Tex(Rect r, string art, Color fallback)   // Solid() 가 인스턴스 것이라 static 못 씀
+        {
+            var s = Art.Get(art);
+            if (s == null) { GUI.DrawTexture(r, Solid(fallback)); return false; }
+            GUI.DrawTexture(r, s.texture);
+            return true;
+        }
+
         Vector2 _menuScroll;
 
         /// 마디에 찍을 이름. 판 이름 "1-6" 에서 뒤쪽만 뗀다 — 자리 번호가 아니다.
@@ -2078,10 +2140,11 @@ namespace SlimeEscape
                 var r = new Rect(pos[i].x - node * 0.5f, pos[i].y - node * 0.5f, node, node);
 
                 // 굴 입구처럼 — 어두운 돌에 위쪽만 밝다
-                GUI.color = open ? new Color(1, 1, 1, 1) : new Color(1, 1, 1, 0.34f);
-                GUI.DrawTexture(r, Solid(open ? NodeStone : NodeLock));
-                GUI.DrawTexture(new Rect(r.x, r.y, r.width, Mathf.Max(2f, node * 0.13f)),
-                                Solid(open ? NodeTop : NodeLock));
+                GUI.color = open ? Color.white : new Color(1, 1, 1, 0.55f);
+                //  그림에는 윗면이 이미 들어 있다 — 따로 덮지 않는다
+                if (!Tex(r, open ? "node" : "node_lock", open ? NodeStone : NodeLock))
+                    GUI.DrawTexture(new Rect(r.x, r.y, r.width, Mathf.Max(2f, node * 0.13f)),
+                                    Solid(open ? NodeTop : NodeLock));
                 GUI.color = Color.white;
 
                 // 🔴 마디에 **판 이름**을 찍는다. 자리 번호를 찍고 있어서
@@ -2109,9 +2172,11 @@ namespace SlimeEscape
             float beat = 0.5f + 0.5f * Mathf.Sin(Time.time * 3f);
             float mk = node * 0.30f;
             GUI.color = new Color(1, 1, 1, 0.75f + 0.25f * beat);
-            GUI.DrawTexture(new Rect(pos[at].x - mk * 0.5f,
-                                     pos[at].y - node * 0.72f - beat * 3f, mk, mk * 0.7f),
-                            Solid(HeadCol));
+            var here = new Rect(pos[at].x - mk * 0.5f,
+                                pos[at].y - node * 0.78f - beat * 3f, mk, mk);
+            if (Art.Get("head") == null)
+                here.height = mk * 0.7f;
+            Tex(here, "head", HeadCol);
             GUI.color = Color.white;
 
             // ---- 머리글 ----
@@ -2435,9 +2500,9 @@ namespace SlimeEscape
         {
             if (_keyRing == null)
             {
-                _keyGlow = NewSprite("KeyGlow", 4, "key_glow");   // 뒤에 번지는 빛
-                _keyRing = NewSprite("KeyRing", 5);      // 마름모 테
-                _keyCore = NewSprite("KeyCore", 6, "key");      // 마름모 속 — 제일 밝다
+                _keyGlow = NewSprite("KeyGlow", 6, "key_glow");   // 뒤에 번지는 빛
+                _keyRing = NewSprite("KeyRing", 7);      // 마름모 테
+                _keyCore = NewSprite("KeyCore", 8, "key");      // 마름모 속 — 제일 밝다
                 _keyGlow.sprite = PixelSprites.Disc();
                 _keyRing.sprite = PixelSprites.Diamond();
                 _keyCore.sprite = PixelSprites.Diamond();

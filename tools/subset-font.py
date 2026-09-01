@@ -25,9 +25,21 @@ levels = 'game/Assets/Resources/levels.json'
 if os.path.exists(levels):
     chars |= set(io.open(levels, encoding='utf-8').read())
 
+# 🔴 소스에 `"※"` 처럼 **이스케이프로 적힌 글자**도 찾아낸다.
+#    글자를 그냥 긁으면 이런 건 안 잡힌다 — 소스에는 \ u 2 0 3 b 라는
+#    아스키 여섯 자로만 있기 때문이다. 실제로 판 고르기의 ※ 가 이래서
+#    글꼴에 안 들어갔고, 게임에서 **흰 동그라미**로 나왔다 (2026-09-02).
+#    컴파일도 통과하고 에디터에서도 안 드러난다. 빌드해야 보인다.
+import re
+for path in (glob.glob('game/Assets/Scripts/**/*.cs', recursive=True)
+             + glob.glob('game/Assets/Editor/**/*.cs', recursive=True)):
+    src = io.open(path, encoding='utf-8', errors='ignore').read()
+    for m in re.findall(r'\\u([0-9a-fA-F]{4})', src):
+        chars.add(chr(int(m, 16)))
+
 # 항상 넣는 것 — 기록 표와 숫자 서식이 쓴다
 chars |= set('0123456789.,:;/%()[]-+*=#·×…?! ')
-chars |= set('← → ↑ ↓ ●○')
+chars |= set('← → ↑ ↓ ●○※★☆')
 chars = {c for c in chars if ord(c) > 31}
 
 from fontTools import subset

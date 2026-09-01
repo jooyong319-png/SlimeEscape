@@ -1,4 +1,4 @@
-# Unity 창만 찍는다. 화면 전체가 아니라 그 창만 — 다른 게 안 찍히게.
+﻿# Unity 창만 찍는다. 화면 전체가 아니라 그 창만 — 다른 게 안 찍히게.
 #   쓰기:  powershell -ExecutionPolicy Bypass -File tools\shot.ps1
 #   나오는 곳: tools\shot.png
 Add-Type -AssemblyName System.Drawing
