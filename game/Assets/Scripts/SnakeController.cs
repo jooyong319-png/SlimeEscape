@@ -21,7 +21,15 @@ namespace SlimeEscape
         static readonly Color BgCol   = new Color32(0x0d, 0x13, 0x11, 0xff);
         // 🔴 빈 칸은 **어둡게**, 벽은 **밝은 덩어리**로. 예전엔 둘이 #18221e / #25322c 라
         //    거의 같아서 넓은 판에서 굴 모양이 아예 안 읽혔다 (08-30 사장님 전체화면).
-        static readonly Color Floor   = new Color32(0x11, 0x19, 0x16, 0xff);   // 빈 칸 = 공기
+        // 🔴 빈 칸이 한 색이라 굴 안이 **평평한 판**으로 보였다.
+        //    빛이 위에서 들어온다고 치고 위아래로 기울인다. 규칙과 맞는 거짓말이다 —
+        //    이 게임은 중력이 있고, 위가 곧 "올라가야 할 쪽"이다.
+        //  🔴 아래쪽을 너무 어둡게 깎았더니 **빈 칸이 홈 속과 같은 색**이 됐다(09-02 화면).
+        //     기울기는 위를 밝히는 쪽으로 준다 — 바닥은 홈보다 확실히 밝게 남긴다.
+        static readonly Color Floor    = new Color32(0x11, 0x19, 0x16, 0xff);  // 빈 칸 = 공기 (중간)
+        static readonly Color FloorLit = new Color32(0x1c, 0x28, 0x23, 0xff);  // 굴 위쪽 — 빛이 닿는다
+        static readonly Color FloorDim = new Color32(0x10, 0x17, 0x14, 0xff);  // 굴 바닥 — 가라앉는다
+        static readonly Color Overhang = new Color32(0x06, 0x0a, 0x09, 0x90);  // 처마 밑 그늘
         static readonly Color Rock    = new Color32(0x2f, 0x3e, 0x37, 0xff);   // 벽 = 돌
         static readonly Color RockTop = new Color32(0x62, 0x7e, 0x70, 0xff);   // 딛고 설 수 있는 윗면
         static readonly Color RockDeep= new Color32(0x25, 0x31, 0x2b, 0xff);   // 돌 속 — 겉보다 어둡다
@@ -32,7 +40,8 @@ namespace SlimeEscape
         static readonly Color FoodCol = new Color32(0xf3, 0x8a, 0x04, 0xff);
         // 🔴 목표 홈 — 바닥(0x18221e)과 색이 거의 같아 안 보였다.
         //    속은 훨씬 어둡게 파고, 민트 테두리를 둘러 확실히 띄운다.
-        static readonly Color HoleCol   = new Color32(0x0a, 0x11, 0x0e, 0xff);  // 파인 속
+        //  🔴 홈 속은 **어느 빈 칸보다도 어두워야** 한다. 그래야 파인 것으로 읽힌다.
+        static readonly Color HoleCol   = new Color32(0x04, 0x08, 0x06, 0xff);  // 파인 속
         static readonly Color HoleEdge  = new Color32(0x7c, 0xc0, 0x9f, 0xff);  // 테두리(민트)
         static readonly Color HoleFill  = new Color32(0x35, 0x5c, 0x49, 0xff);  // 몸이 덮은 칸
         static readonly Color CoreCol   = new Color32(0xf0, 0xc0, 0x5a, 0xff);  // 심
@@ -155,12 +164,16 @@ namespace SlimeEscape
         readonly List<SpriteRenderer> _foodViews = new List<SpriteRenderer>();
         readonly Dictionary<int, SpriteRenderer> _holes = new Dictionary<int, SpriteRenderer>();
         readonly Dictionary<int, SpriteRenderer> _holeEdges = new Dictionary<int, SpriteRenderer>();
+        readonly Dictionary<int, SpriteRenderer> _holeLips = new Dictionary<int, SpriteRenderer>();  // 홈 **아래 안쪽**의 빛
+        readonly HashSet<int> _seated = new HashSet<int>();          // 지금 몸이 덮고 있는 홈 칸
+        readonly Dictionary<int, float> _seatAt = new Dictionary<int, float>();  // 그 칸이 덮인 시각
         /// 이웃한 목표 칸의 속을 이어 붙이는 조각. (칸 두 개, 그림 하나)
         readonly List<(int a, int b, SpriteRenderer sr)> _bridges = new List<(int, int, SpriteRenderer)>();
         readonly Dictionary<int, int> _doorOf = new Dictionary<int, int>();   // 칸 -> 문 번호
         /// 굳은 몸의 윗면. 문이 열린 뒤에만 보인다.
         readonly Dictionary<int, SpriteRenderer> _spentTop = new Dictionary<int, SpriteRenderer>();
         const float SlotInner = 0.82f;   // 홈 속의 크기. 나머지가 테두리로 보인다
+        const float SeatFlash = 0.30f;   // 홈 한 칸이 채워질 때 밝아졌다 가라앉는 시간
         bool _won;
         float _wonAt;
 
@@ -725,7 +738,19 @@ namespace SlimeEscape
                     bool wall = _L.IsWall(c);
                     var sr = NewSprite(wall ? "Wall" : "Floor", -3);
                     sr.transform.position = CellPos(c);
-                    sr.color = wall ? Rock : Floor;
+                    //  빈 칸은 높이에 따라 밝기가 다르다 — 위가 밝고 아래가 가라앉는다
+                    sr.color = wall ? Rock
+                             : Color.Lerp(FloorLit, FloorDim, _L.H < 2 ? 0f : (float)y / (_L.H - 1));
+
+                    // 🔴 돌 **바로 밑**의 빈 칸에 그늘. 굴이 파인 것처럼 보이는 건
+                    //    거의 이것 하나가 한다 — 처마 밑은 어둡다.
+                    if (!wall && y > 0 && _L.IsWall(c - _L.W))
+                    {
+                        var ao = NewSprite("Overhang", -2);   // 바닥(-3)보다 확실히 위로
+                        ao.transform.position = CellPos(c) + new Vector2(0f, 0.33f);
+                        ao.transform.localScale = new Vector3(1f, 0.34f, 1);
+                        ao.color = Overhang;
+                    }
 
                     if (wall)
                     {
@@ -755,6 +780,8 @@ namespace SlimeEscape
             // 🔴 목표 홈 — 바닥보다 어둡게 파인 것처럼. 몸이 덮으면 한 칸씩 빛이 찬다
             _holes.Clear();
             _holeEdges.Clear();
+            _holeLips.Clear();
+            _seated.Clear(); _seatAt.Clear();
             _bridges.Clear();
 
             // 🔴 목표는 칸 여럿이 아니라 **몸이 들어갈 한 덩어리 홈**이다.
@@ -778,6 +805,18 @@ namespace SlimeEscape
                 inner.transform.position = CellPos(c);
                 inner.transform.localScale = new Vector3(SlotInner, SlotInner, 1);
                 inner.color = HoleCol;
+
+                // 🔴 홈이 **칠해놓은 네모**로 보였다. 파인 구멍처럼 보이게 한다.
+                //    빛은 위에서 온다 — 파인 구멍은 **아래 안쪽 벽이 빛을 받는다.**
+                //    (위쪽에 그림자를 넣는 게 정석이지만 속이 이미 거의 검어서 안 보인다.)
+                //    돌 윗면만 밝게 두는 것과 같은 신호 체계다 — 밝은 면이 곧 방향이다.
+                var lip = NewSprite("HoleLip", 1);
+                lip.transform.position = CellPos(c) + new Vector2(0f, -0.37f);
+                lip.transform.localScale = new Vector3(SlotInner, 0.15f, 1);
+                lip.color = Color.Lerp(HoleCol, EdgeOf(kvDoor.Value), 0.44f);
+                //  아래에 홈이 또 있으면 거긴 벽이 아니라 속이다 — 안 그린다
+                lip.enabled = !_doorOf.ContainsKey(c + _L.W);
+                _holeLips[c] = lip;
 
                 _holes[c] = inner;
                 _holeEdges[c] = edge;
@@ -1222,10 +1261,30 @@ namespace SlimeEscape
                 int door = _doorOf.TryGetValue(kv.Key, out var dn) ? dn : 0;
                 // 🔴 이미 연 문은 몸을 두고 온 자리다 — 굳은 색으로 남긴다
                 bool spent = (_st.Dm & (1 << door)) != 0;
+
+                // 🔴 칸 하나가 **앉는 순간** 짧게 밝아진다. 판이 클수록 한 칸씩
+                //    맞춰 넣게 되는데, 그때마다 "이 칸 됐다"가 손에 잡혀야 한다.
+                //    되돌리면 기록도 지운다 — 다시 넣으면 또 반응한다.
+                if (covered) { if (_seated.Add(kv.Key)) _seatAt[kv.Key] = Time.time; }
+                else if (_seated.Remove(kv.Key)) _seatAt.Remove(kv.Key);
+
+                var fill = FillOf(door);
+                if (!spent && _seatAt.TryGetValue(kv.Key, out var sat))
+                {
+                    float k = (Time.time - sat) / SeatFlash;
+                    if (k < 1f) fill = Color.Lerp(EdgeOf(door), fill, k);
+                }
+
                 // 🔴 굳는 것도 한 번에 안 한다 — 빨려드는 동안 서서히 돌이 된다
                 kv.Value.color = spent
-                    ? Color.Lerp(FillOf(door), SpentCol, SuckT)
-                    : covered ? FillOf(door) : HoleCol;
+                    ? Color.Lerp(fill, SpentCol, SuckT)
+                    : covered ? fill : HoleCol;
+
+                // 아래 안쪽의 빛 — 굳으면 지형이 되므로 끈다
+                if (_holeLips.TryGetValue(kv.Key, out var lipSr))
+                    lipSr.color = spent
+                        ? Color.Lerp(Color.Lerp(HoleCol, EdgeOf(door), 0.44f), SpentCol, SuckT)
+                        : Color.Lerp(HoleCol, EdgeOf(door), covered ? 0.20f : 0.44f);
 
                 // 윗면은 **덩어리의 맨 위 칸**에만 켠다. 속에까지 그리면 줄무늬가 된다.
                 if (_spentTop.TryGetValue(kv.Key, out var topSr))
@@ -1237,6 +1296,11 @@ namespace SlimeEscape
                 if (_holeEdges.TryGetValue(kv.Key, out var e))
                 {
                     var ec = EdgeOf(door);
+                    // 🔴 **아직 안 채운 홈만 아주 천천히 숨을 쉰다.** 채운 칸은 멈춘다 —
+                    //    그래서 남은 칸이 저절로 눈에 띈다. 세라고 시키지 않아도 세어진다.
+                    if (!covered && !spent)
+                        ec = Color.Lerp(ec, Color.white,
+                                        0.20f * (0.5f + 0.5f * Mathf.Sin(Time.time * 1.6f)));
                     // 🔴 힌트 1 — 먼저 채울 홈만 깜빡인다. 글로 "왼쪽 아래요" 하는 것보다 빠르다
                     if (_hint >= 1 && door == _hintDoor && !spent)
                         ec = Color.Lerp(ec, Color.white, 0.35f + 0.35f * Mathf.Sin(Time.time * 4f));
@@ -1742,6 +1806,17 @@ namespace SlimeEscape
 
         Vector2 _menuScroll;
 
+        /// 마디에 찍을 이름. 판 이름 "1-6" 에서 뒤쪽만 뗀다 — 자리 번호가 아니다.
+        /// 가르치는 판은 수가 아니라 표로 둔다. 세는 판이 아니니까.
+        static string NodeLabel(SnakeLevelJson d, int i)
+        {
+            if (d == null) return (i + 1).ToString();
+            if (d.tutorial) return "※";                       // ※ - 가르치는 판
+            if (string.IsNullOrEmpty(d.id)) return (i + 1).ToString();
+            int dash = d.id.LastIndexOf('-');
+            return dash >= 0 && dash + 1 < d.id.Length ? d.id.Substring(dash + 1) : d.id;
+        }
+
         /// <summary>
         /// 🔴 판 고르기. 별이 있을 자리이고, "내가 어디까지 왔나"가 보이는 유일한 화면이다.
         /// 진행은 여전히 한 줄 — 앞 판을 깨야 다음 판이 열린다. 깬 판은 다시 들어갈 수 있다.
@@ -1826,8 +1901,11 @@ namespace SlimeEscape
                                 Solid(open ? NodeTop : NodeLock));
                 GUI.color = Color.white;
 
+                // 🔴 마디에 **판 이름**을 찍는다. 자리 번호를 찍고 있어서
+                //    1-6 판이 "7"로, 튜토리얼이 "1"로 불리고 있었다 — 판 전부가 한 칸씩 어긋났다.
+                //    힌트나 공략을 주고받을 때 서로 다른 판을 가리키게 된다.
                 numS.normal.textColor = open ? new Color(1, 1, 1, 0.92f) : new Color(1, 1, 1, 0.4f);
-                GUI.Label(new Rect(r.x, r.y + node * 0.10f, r.width, node * 0.5f), (i + 1).ToString(), numS);
+                GUI.Label(new Rect(r.x, r.y + node * 0.10f, r.width, node * 0.5f), NodeLabel(d, i), numS);
 
                 if (open)
                 {
@@ -1951,25 +2029,25 @@ namespace SlimeEscape
             {
                 case 0: {                                       // →
                     float x = Mathf.Lerp(0.6f, 3.4f, e);
-                    Cell(new Rect(gx + x * c + 1f, gy + c + 1f, c - 2f, c - 2f), HeadCol);
+                    Cell(new Rect(gx + x * c + 1f, gy + c + 1f, c - 2f, c - 2f), BodyCol);
                     break;
                 }
                 case 1: {                                       // ←
                     float x = Mathf.Lerp(3.4f, 0.6f, e);
-                    Cell(new Rect(gx + x * c + 1f, gy + c + 1f, c - 2f, c - 2f), HeadCol);
+                    Cell(new Rect(gx + x * c + 1f, gy + c + 1f, c - 2f, c - 2f), BodyCol);
                     break;
                 }
                 case 2: {                                       // ↓ 떨어진다
                     Cell(at(0, 1), Rock); Cell(at(1, 1), Rock);
                     float y = Mathf.Lerp(0f, 1f, e * e);
-                    Cell(new Rect(gx + 2.6f * c + 1f, gy + y * c + 1f, c - 2f, c - 2f), HeadCol);
+                    Cell(new Rect(gx + 2.6f * c + 1f, gy + y * c + 1f, c - 2f, c - 2f), BodyCol);
                     break;
                 }
                 case 3: {                                       // ↑ 몸이 길어야 오른다
                     Cell(at(3, 1), Rock); Cell(at(4, 1), Rock);
                     float x = Mathf.Lerp(0.6f, 2.4f, Mathf.Clamp01(e * 1.6f));
                     float up = Mathf.Clamp01((e - 0.62f) / 0.38f);
-                    Cell(new Rect(gx + (x + up) * c + 1f, gy + (1f - up) * c + 1f, c - 2f, c - 2f), HeadCol);
+                    Cell(new Rect(gx + (x + up) * c + 1f, gy + (1f - up) * c + 1f, c - 2f, c - 2f), BodyCol);
                     Cell(new Rect(gx + x * c + 1f, gy + c + 1f, c - 2f, c - 2f), BodyCol);
                     break;
                 }
@@ -1977,7 +2055,7 @@ namespace SlimeEscape
                     bool ate = e > 0.55f;
                     if (!ate) Cell(at(3, 1), FoodCol);
                     float x = Mathf.Lerp(0.6f, 3f, Mathf.Clamp01(e / 0.55f));
-                    Cell(new Rect(gx + x * c + 1f, gy + c + 1f, c - 2f, c - 2f), HeadCol);
+                    Cell(new Rect(gx + x * c + 1f, gy + c + 1f, c - 2f, c - 2f), BodyCol);
                     if (ate) Cell(new Rect(gx + (x - 1f) * c + 1f, gy + c + 1f, c - 2f, c - 2f), BodyCol);
                     break;
                 }
