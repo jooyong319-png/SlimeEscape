@@ -36,6 +36,7 @@ namespace SlimeEscape
 
         static Sprite _solid, _disc;
         static Sprite _round;
+        static Sprite _diamond;
 
         /// 벽·바닥용 1×1 흰 사각형 (색은 SpriteRenderer.color로 준다)
         public static Sprite Solid()
@@ -69,6 +70,28 @@ namespace SlimeEscape
         /// 🔴 몸통용 **둥근 네모**. 각진 네모는 아무리 색을 잘 써도 블록으로 보인다.
         /// 모서리만 깎아도 "말랑한 것"이 된다 — 슬라임에게는 그게 전부다.
         /// </summary>
+        /// <summary>
+        /// 🔴 마름모. 머리에 박힌 **열쇠**를 그린다 (09-02 사장님).
+        /// 세로로 길게 쓰려고 만든 것이라 가로세로는 localScale 로 따로 준다 —
+        /// 네모를 45도 돌려 쓰면 비스듬히 눌려서 마름모가 안 나온다.
+        /// </summary>
+        public static Sprite Diamond(int size = 64)
+        {
+            if (_diamond != null) return _diamond;
+            var t = new Texture2D(size, size, TextureFormat.RGBA32, false) { filterMode = FilterMode.Bilinear };
+            float h = size * 0.5f;
+            for (int y = 0; y < size; y++)
+                for (int x = 0; x < size; x++)
+                {
+                    //  |x| + |y| <= 1 이 마름모다. 가장자리만 한 픽셀 부드럽게.
+                    float d = (Mathf.Abs(x + 0.5f - h) + Mathf.Abs(y + 0.5f - h)) / h;
+                    t.SetPixel(x, y, new Color(1, 1, 1, Mathf.Clamp01((1f - d) * h * 0.5f)));
+                }
+            t.Apply();
+            _diamond = Sprite.Create(t, new Rect(0, 0, size, size), new Vector2(0.5f, 0.5f), size, 0, SpriteMeshType.FullRect);
+            return _diamond;
+        }
+
         public static Sprite Round(int size = 48, float radius = 0.30f)
         {
             if (_round != null) return _round;

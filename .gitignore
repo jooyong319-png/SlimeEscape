@@ -30,13 +30,15 @@ Thumbs.db
 # 빌드 산출물 — 18MB가 넘고, 소스에서 다시 만들 수 있다
 build/
 
-# 🔴 폰트는 저장소에 올리지 않는다.
-#    kr.ttf 는 윈도우 기본 폰트(malgun.ttf)를 자른 것이라 **재배포 불가**다.
-#    공개 저장소에 올리는 것은 재배포에 해당하고, git 기록에서 지우기도 어렵다.
-#    다시 만들려면:  python tools/subset-font.py "C:/Windows/Fonts/malgun.ttf"
-#    출시할 때는 자유 라이선스(SIL OFL) 폰트로 갈아야 한다 — Fonts/README.md 참고
-game/Assets/Resources/Fonts/kr.ttf
-game/Assets/Resources/Fonts/kr.ttf.meta
+# 폰트는 이제 올려도 된다 (2026-09-02).
+#    🔴 예전 kr.ttf 는 윈도우 기본 폰트(malgun.ttf)를 자른 것이라 재배포 불가였고,
+#       그래서 여기서 빼놨었다. 지금은 **갈무리11(SIL OFL 1.1)** 을 자른 것이라 올려도 된다.
+#       빼놓으면 오히려 남이 받아서 빌드할 때 한글이 깨진다.
+#    다시 만들려면:  python tools/subset-font.py <원본.ttf>
+#    ⚠️ OFL 은 배포할 때 라이선스 전문을 같이 넣으라고 요구한다 — Fonts/OFL.txt
+
+# 옛 맑은고딕 사본 — 절대 올리면 안 된다
+tools/kr-malgun-backup.ttf
 
 # 생성기가 뱉는 중간 산출물 — 결과만 levels.json 에 들어간다
 tools/*.txt

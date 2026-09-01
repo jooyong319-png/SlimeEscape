@@ -18,6 +18,17 @@ namespace SlimeEscape
         //    이 상수는 판이 없을 때의 기본값으로만 쓴다.
         public const int BoardW = 20, BoardH = 12;
 
+        // ⚠️ 색 컨셉은 **아직 안 정해졌다** (09-02).
+        //
+        //    브리프 §86은 *"버려진 기계 유적 · 차가운 회청색 돌 + 놋쇠빛 홈 ·
+        //    슬라임만 따뜻한 색"*이라고 적어둔 상태다. 그대로 한번 칠해보았고,
+        //    사장님이 보신 뒤 **전 색(초록 굴)으로 되돌리셨다.** 지금 값이 그것이다.
+        //
+        //    🔴 다만 칠해보면서 찾은 문제는 그대로 남아 있다 —
+        //    **돌·홈·슬라임이 전부 초록이라 색이 아무 일도 안 한다.**
+        //    목표와 나를 가르는 일을 테두리 굵기가 혼자 떠맡고 있다.
+        //    컨셉을 정할 때 이걸 먼저 풀 것 — 유적이든 굴이든,
+        //    **지형·목표·나 셋은 서로 다른 색이어야 한다.**
         static readonly Color BgCol   = new Color32(0x0d, 0x13, 0x11, 0xff);
         // 🔴 빈 칸은 **어둡게**, 벽은 **밝은 덩어리**로. 예전엔 둘이 #18221e / #25322c 라
         //    거의 같아서 넓은 판에서 굴 모양이 아예 안 읽혔다 (08-30 사장님 전체화면).
@@ -30,21 +41,30 @@ namespace SlimeEscape
         static readonly Color FloorLit = new Color32(0x1c, 0x28, 0x23, 0xff);  // 굴 위쪽 — 빛이 닿는다
         static readonly Color FloorDim = new Color32(0x10, 0x17, 0x14, 0xff);  // 굴 바닥 — 가라앉는다
         static readonly Color Overhang = new Color32(0x06, 0x0a, 0x09, 0x90);  // 처마 밑 그늘
-        static readonly Color Rock    = new Color32(0x2f, 0x3e, 0x37, 0xff);   // 벽 = 돌
+        static readonly Color Rock    = new Color32(0x2f, 0x3e, 0x37, 0xff);   // 벽 = 차가운 회청색 돌
         static readonly Color RockTop = new Color32(0x62, 0x7e, 0x70, 0xff);   // 딛고 설 수 있는 윗면
         static readonly Color RockDeep= new Color32(0x25, 0x31, 0x2b, 0xff);   // 돌 속 — 겉보다 어둡다
         static readonly Color RockRim = new Color32(0x45, 0x58, 0x4e, 0xff);   // 옆·아랫면의 옅은 테
         static readonly Color Grid    = new Color32(0x1c, 0x27, 0x22, 0xff);
-        static readonly Color HeadCol = new Color32(0xb8, 0xeb, 0xd3, 0xff);
-        static readonly Color BodyCol = new Color32(0x8d, 0xce, 0xb0, 0xff);
-        static readonly Color FoodCol = new Color32(0xf3, 0x8a, 0x04, 0xff);
+        static readonly Color HeadCol = new Color32(0xb8, 0xeb, 0xd3, 0xff);   // 지도 위 "여기 있다" 표시
+        static readonly Color BodyCol = new Color32(0x8d, 0xce, 0xb0, 0xff);   // 나
+        static readonly Color FoodCol = new Color32(0xf3, 0x8a, 0x04, 0xff);   // 조각
         // 🔴 목표 홈 — 바닥(0x18221e)과 색이 거의 같아 안 보였다.
         //    속은 훨씬 어둡게 파고, 민트 테두리를 둘러 확실히 띄운다.
         //  🔴 홈 속은 **어느 빈 칸보다도 어두워야** 한다. 그래야 파인 것으로 읽힌다.
         static readonly Color HoleCol   = new Color32(0x04, 0x08, 0x06, 0xff);  // 파인 속
         static readonly Color HoleEdge  = new Color32(0x7c, 0xc0, 0x9f, 0xff);  // 테두리(민트)
-        static readonly Color HoleFill  = new Color32(0x35, 0x5c, 0x49, 0xff);  // 몸이 덮은 칸
-        static readonly Color CoreCol   = new Color32(0xf0, 0xc0, 0x5a, 0xff);  // 심
+        // 🔴 홈을 두르는 **놋쇠 틀** — 참고 그림의 그 틀이다.
+        //    돌도 초록 · 슬라임도 초록인데 홈만 놋쇠라서 **목표가 색으로 뛰어나온다.**
+        static readonly Color FrameCol  = new Color32(0xc9, 0x9a, 0x46, 0xff);  // 놋쇠 레일
+        static readonly Color FrameDim  = new Color32(0x6f, 0x53, 0x22, 0xff);  // 그늘진 놋쇠
+        static readonly Color SlotLine  = new Color32(0x25, 0x33, 0x2b, 0xff);  // 틀 안 칸을 나누는 선
+        static readonly Color Frame2Col = new Color32(0x8f, 0xa8, 0xc4, 0xff);  // 둘째 틀 — 식은 은빛
+        static readonly Color Frame2Dim = new Color32(0x4a, 0x5a, 0x70, 0xff);
+        Color RailOf(int door) => door == 0 ? FrameCol : Frame2Col;
+        Color RailDimOf(int door) => door == 0 ? FrameDim : Frame2Dim;
+        static readonly Color HoleFill  = new Color32(0x35, 0x5c, 0x49, 0xff);  // 몸이 덮인 칸 — 자물쇠에 불이 든다
+        static readonly Color CoreCol   = new Color32(0xf0, 0xc0, 0x5a, 0xff);  // 심 = 열쇠 구멍
         static readonly Color CoreRing  = new Color32(0x8a, 0x66, 0x22, 0xff);
         readonly List<(int door, SpriteRenderer ring, SpriteRenderer core)> _coreViews
             = new List<(int, SpriteRenderer, SpriteRenderer)>();
@@ -81,14 +101,12 @@ namespace SlimeEscape
         float _drainAt, _drainDone;
         float _lastGulp = -1f;           // 마지막으로 삼킨 시각
 
-        static readonly Color SpentCol = new Color32(0x3a, 0x4a, 0x43, 0xff);   // 굳은 몸
+        static readonly Color SpentCol = new Color32(0x3a, 0x4a, 0x43, 0xff);   // 굳은 몸 — 돌이 됐다
         static readonly Color SpentTop = new Color32(0x66, 0x7d, 0x72, 0xff);   // 윗면 — 여기 설 수 있다
 
         // 🔴 출구 — 맵을 넘는 자리. 동작만 넣고 **그리는 걸 빼먹어서** 아무것도 안 보였다(08-30).
         //    문(홈)과 헷갈리면 안 되니 색을 아예 다르게 — 따뜻한 빛으로 둔다.
-        static readonly Color StarLit   = new Color32(0xf0, 0xc9, 0x6b, 0xff);  // 딴 별
-        static readonly Color EyeWhite  = new Color32(0xf2, 0xfb, 0xf6, 0xff);
-        static readonly Color EyeDark   = new Color32(0x14, 0x22, 0x1c, 0xff);
+        static readonly Color StarLit   = new Color32(0xf0, 0xc9, 0x6b, 0xff);  // 땡 별  ⚠️ 심(CoreCol #f0c05a)과 거의 같은 금빛이다
         Vector2 _lookDir = Vector2.right;   // 마지막으로 간 쪽 — 눈이 그쪽을 본다
         static readonly Color PanelBg   = new Color32(0x14, 0x1c, 0x19, 0xff);  // 안내판 바탕
         static readonly Color StageBg   = new Color32(0x0a, 0x0f, 0x0d, 0xff);  // 안내판 속 무대
@@ -102,8 +120,8 @@ namespace SlimeEscape
         static readonly Color NodeLock  = new Color32(0x21, 0x2c, 0x27, 0xff);
 
         // 🔴 받침대 — **홈이 아니다.** 여기 놓은 몸은 점수가 안 되고 계단만 된다.
-        //    홈(민트)과 색을 확실히 갈라놔야 사람이 헷갈리지 않는다.
-        static readonly Color PadCol  = new Color32(0x4e, 0x5a, 0x6b, 0xff);   // 빈 받침대
+        //    홈(민트)과 색을 확실히 갈라놓아야 사람이 헷갈리지 않는다.
+        static readonly Color PadCol  = new Color32(0x4e, 0x5a, 0x6b, 0xff);   // 빈 받침대 — 돌보다 확실히 푸르게
         static readonly Color PadEdge = new Color32(0x8e, 0x9e, 0xb5, 0xff);
         readonly Dictionary<int, SpriteRenderer> _padViews = new Dictionary<int, SpriteRenderer>();
         readonly Dictionary<int, SpriteRenderer> _padTops = new Dictionary<int, SpriteRenderer>();
@@ -165,6 +183,9 @@ namespace SlimeEscape
         readonly Dictionary<int, SpriteRenderer> _holes = new Dictionary<int, SpriteRenderer>();
         readonly Dictionary<int, SpriteRenderer> _holeEdges = new Dictionary<int, SpriteRenderer>();
         readonly Dictionary<int, SpriteRenderer> _holeLips = new Dictionary<int, SpriteRenderer>();  // 홈 **아래 안쪽**의 빛
+        /// 놋쇠 틀 조각들. (문번호, 그림, 장식인가)
+        readonly List<(int door, SpriteRenderer sr, bool gem)> _frame
+            = new List<(int, SpriteRenderer, bool)>();
         readonly HashSet<int> _seated = new HashSet<int>();          // 지금 몸이 덮고 있는 홈 칸
         readonly Dictionary<int, float> _seatAt = new Dictionary<int, float>();  // 그 칸이 덮인 시각
         /// 이웃한 목표 칸의 속을 이어 붙이는 조각. (칸 두 개, 그림 하나)
@@ -174,6 +195,7 @@ namespace SlimeEscape
         readonly Dictionary<int, SpriteRenderer> _spentTop = new Dictionary<int, SpriteRenderer>();
         const float SlotInner = 0.82f;   // 홈 속의 크기. 나머지가 테두리로 보인다
         const float SeatFlash = 0.30f;   // 홈 한 칸이 채워질 때 밝아졌다 가라앉는 시간
+        const float KeyBlink  = 1.7f;    // 머리 열쇠가 번쎍이는 간격(초)
         bool _won;
         float _wonAt;
 
@@ -353,6 +375,23 @@ namespace SlimeEscape
         Vector2 _swipeFrom;
         bool _swiping;
         float _uiScale = 1f;
+
+        /// <summary>
+        /// 🔴 글자 크기를 **11의 배수**로 떨어뜨린다.
+        ///
+        /// 갈무리11은 11픽셀에 맞춰 그려진 도트 글꼴이다. 13px·20px 처럼
+        /// 어중간하게 쓰면 획 하나가 1.2픽셀이 되어 **글자만 흐릿해진다** —
+        /// 화면 전체를 도트로 맞춰놨는데 글자에서 티가 나면 다 무너진다.
+        ///
+        /// 그래서 원하는 크기에서 가장 가까운 배수로 내린다. 22 아래는 11로 둔다
+        /// (11픽셀이 한글 최소 크기다 — 더 줄이면 받침이 뭉갠다).
+        /// </summary>
+        static int Px(float want)
+        {
+            const int Base = 11;
+            int k = Mathf.RoundToInt(want / Base);
+            return Mathf.Max(1, k) * Base;
+        }
         int _styledAt = -1;          // 화면 높이가 바뀌면 글씨 크기를 다시 잡는다
         int _replayAt;
         float _replayNext;
@@ -736,11 +775,12 @@ namespace SlimeEscape
                 {
                     int c = y * _L.W + x;
                     bool wall = _L.IsWall(c);
-                    var sr = NewSprite(wall ? "Wall" : "Floor", -3);
+                    var sr = NewSprite(wall ? "Wall" : "Floor", -3, wall ? "wall" : "floor");
                     sr.transform.position = CellPos(c);
                     //  빈 칸은 높이에 따라 밝기가 다르다 — 위가 밝고 아래가 가라앉는다
-                    sr.color = wall ? Rock
-                             : Color.Lerp(FloorLit, FloorDim, _L.H < 2 ? 0f : (float)y / (_L.H - 1));
+                    sr.color = Art.Tint(wall ? "wall" : "floor",
+                             wall ? Rock
+                             : Color.Lerp(FloorLit, FloorDim, _L.H < 2 ? 0f : (float)y / (_L.H - 1)));
 
                     // 🔴 돌 **바로 밑**의 빈 칸에 그늘. 굴이 파인 것처럼 보이는 건
                     //    거의 이것 하나가 한다 — 처마 밑은 어둡다.
@@ -765,10 +805,10 @@ namespace SlimeEscape
                         // 윗면 — "여기 딛고 설 수 있다". 두고 온 몸의 윗면과 같은 신호다.
                         if (up)
                         {
-                            var e = NewSprite("WallTop", -2);
+                            var e = NewSprite("WallTop", -2, "wall_top");
                             e.transform.position = CellPos(c) + new Vector2(0f, 0.42f);
                             e.transform.localScale = new Vector3(1f, 0.16f, 1);
-                            e.color = RockTop;
+                            e.color = Art.Tint("wall_top", RockTop);
                         }
                         // 🔴 옆·아랫면 테는 **뺐다.** 돌마다 테가 둘리니 다시 타일로 보였고,
                         //    밝은 면이 너무 많아 빈 곳보다 돌이 밝아졌다 (08-31 화면).
@@ -781,6 +821,7 @@ namespace SlimeEscape
             _holes.Clear();
             _holeEdges.Clear();
             _holeLips.Clear();
+            _frame.Clear();
             _seated.Clear(); _seatAt.Clear();
             _bridges.Clear();
 
@@ -796,11 +837,39 @@ namespace SlimeEscape
             foreach (var kvDoor in _doorOf)
             {
                 int c = kvDoor.Key;
-                var edge = NewSprite("HoleEdge", -1);
+                int dr = kvDoor.Value;
+                //  틀 안 바닥. 칸 가득 깔아 이웃과 붙게 한다 — 한 덩어리로 보여야 한다.
+                var edge = NewSprite("HoleEdge", -1, "slot");
                 edge.transform.position = CellPos(c);
-                edge.transform.localScale = new Vector3(1f, 1f, 1);   // 칸 가득 — 이웃과 붙는다
-                edge.color = EdgeOf(kvDoor.Value);
+                edge.transform.localScale = new Vector3(1f, 1f, 1);
+                edge.color = SlotLine;
 
+                //  🔴 **덩어리 바깥선에만** 레일을 둔다. 칸마다 두르면
+                //     이어진 모양이 "구멍 여럿 개"로 보인다 (08-29에 사람이 61초 동안 못 읽음).
+                bool nU = _doorOf.TryGetValue(c - _L.W, out int du) && du == dr;
+                bool nD = _doorOf.TryGetValue(c + _L.W, out int dd2) && dd2 == dr;
+                bool nL = _doorOf.TryGetValue(c - 1, out int dl) && dl == dr;
+                bool nR = _doorOf.TryGetValue(c + 1, out int drr) && drr == dr;
+
+                if (!nU) Rail(c, dr, 0);
+                if (!nD) Rail(c, dr, 1);
+                if (!nL) Rail(c, dr, 2);
+                if (!nR) Rail(c, dr, 3);
+
+                //  꾺이는 모서리에 장식을 박는다 — 참고 그림에서 틀을 틀로 만드는 것이 이것이다.
+                float g = 0.5f - GemW * 0.55f;
+                if (!nU && !nL) Gem(c, dr, new Vector2(-g,  g));
+                if (!nU && !nR) Gem(c, dr, new Vector2( g,  g));
+                if (!nD && !nL) Gem(c, dr, new Vector2(-g, -g));
+                if (!nD && !nR) Gem(c, dr, new Vector2( g, -g));
+
+                //  틀 안을 칸으로 나눈다 — "몇 칸을 채우는가"가 저절로 세어진다
+                if (nR) Seam(c, new Vector2(0.5f, 0f), new Vector3(0.035f, 0.86f, 1));
+                if (nD) Seam(c, new Vector2(0f, -0.5f), new Vector3(0.86f, 0.035f, 1));
+
+                // ⚠️ 한번 슬라임 모양의 **거푸집**으로 파봤다가 되돌렸다 (09-02).
+                //    바깥은 네모 틀인데 안은 둥근 덩어리가 되어 **모양 언어가 둘로 싸웠다** —
+                //    까만 얼룩처럼 보였다. 바꿀 거면 틀과 속을 **같은 모양으로** 바꿔야 한다.
                 var inner = NewSprite("HoleInner", 0);
                 inner.transform.position = CellPos(c);
                 inner.transform.localScale = new Vector3(SlotInner, SlotInner, 1);
@@ -823,7 +892,7 @@ namespace SlimeEscape
 
                 // 🔴 굳은 몸의 윗면 — 평소엔 숨어 있다가 문이 열리면 나타난다.
                 //    벽의 윗면과 같은 신호라, 여기 설 수 있다는 게 바로 읽힌다.
-                var top = NewSprite("SpentTop", 1);
+                var top = NewSprite("SpentTop", 1, "wall_top");
                 top.transform.position = CellPos(c) + new Vector2(0f, 0.42f);
                 top.transform.localScale = new Vector3(1f, 0.16f, 1);
                 top.color = SpentTop;
@@ -868,13 +937,13 @@ namespace SlimeEscape
             _padViews.Clear(); _padTops.Clear();
             foreach (int c in _L.Pads)
             {
-                var pad = NewSprite("Pad", -1);
+                var pad = NewSprite("Pad", -1, "pad");
                 pad.transform.position = CellPos(c) + new Vector2(0f, -0.22f);
                 pad.transform.localScale = new Vector3(0.96f, 0.5f, 1);
                 pad.color = PadCol;
                 _padViews[c] = pad;
 
-                var lip = NewSprite("PadTop", 1);
+                var lip = NewSprite("PadTop", 1, "pad_top");
                 lip.transform.position = CellPos(c) + new Vector2(0f, 0.02f);
                 lip.transform.localScale = new Vector3(0.96f, 0.1f, 1);
                 lip.color = PadEdge;
@@ -905,13 +974,16 @@ namespace SlimeEscape
                 if (dd.Core < 0) continue;
                 var ring = NewSprite("CoreRing", 1);
                 ring.transform.position = CellPos(dd.Core);
+                //  🔴 **구멍처럼** 그린다 — 밝은 테 + 어두운 속.
+                //     전에는 밝은 알맹이라 "구멍"이 아니라 놓여 있는 **물건**으로 보였다.
+                //     머리에 박힌 열쇠가 꽉 찬 것이니, 구멍은 비어 있어야 짝이 맞는다.
                 ring.transform.localScale = Vector3.one * 0.52f;
-                ring.color = CoreRing;
+                ring.color = CoreCol;
 
-                var core = NewSprite("Core", 2);
+                var core = NewSprite("Core", 2, "core");
                 core.transform.position = CellPos(dd.Core);
                 core.transform.localScale = Vector3.one * 0.30f;
-                core.color = CoreCol;
+                core.color = HoleCol;
                 _coreViews.Add((di, ring, core));
             }
 
@@ -947,7 +1019,7 @@ namespace SlimeEscape
                 halo.sprite = PixelSprites.Disc();
                 halo.color = new Color(FoodCol.r, FoodCol.g, FoodCol.b, 0.16f);
 
-                var sr = NewSprite("Food", 1);
+                var sr = NewSprite("Food", 1, "food");
                 sr.transform.position = CellPos(c);
                 sr.transform.localScale = Vector3.one * 0.42f;
                 sr.sprite = PixelSprites.Disc();
@@ -989,12 +1061,12 @@ namespace SlimeEscape
             if (_L.Star >= 0)
             {
                 // 🔴 뒤의 빛이 네모라 갈색 상자처럼 보였다 (08-31 화면). 둥글게 바꾼다.
-                _starGlow = NewSprite("StarGlow", -1);
+                _starGlow = NewSprite("StarGlow", -1, "star_glow");
                 _starGlow.transform.position = CellPos(_L.Star);
                 _starGlow.transform.localScale = new Vector3(1.05f, 1.05f, 1);
                 _starGlow.sprite = PixelSprites.Disc();
 
-                _starView = NewSprite("Star", 1);
+                _starView = NewSprite("Star", 1, "star");
                 _starView.transform.position = CellPos(_L.Star);
                 _starView.color = StarLit;
             }
@@ -1003,6 +1075,62 @@ namespace SlimeEscape
         }
 
         /// 돌 가장자리의 옅은 테. 윗면(설 수 있다)과 헷갈리지 않게 훨씬 어둡다.
+        const float RailW = 0.10f;   // 놋쇠 레일 굵기
+        const float GemW  = 0.22f;   // 모서리 장식 크기
+
+        /// <summary>
+        /// 덩어리 바깥선을 따라 두르는 놋쇠 레일 한 조각.
+        /// <paramref name="side"/> 0윗 1아래 2왼 3오른.
+        ///
+        /// 🔴 그림은 **윗쪽 변 한 장**만 있고 여기서 돌려 쓴다.
+        ///    네 변을 따로 그리면 네 장이 되고, 조금씩 어긋나면 틀이 샐뚜려 보인다.
+        ///    그림이 없을 땐 예전처럼 얇은 막대를 놓는다.
+        /// </summary>
+        void Rail(int cell, int door, int side)
+        {
+            var sr = NewSprite("Rail", 1, "rail");
+            bool art = Art.Has("rail");
+            float d = 0.5f - RailW * 0.5f;
+            Vector2 off = side == 0 ? new Vector2(0f, art ? 0f : d)
+                        : side == 1 ? new Vector2(0f, art ? 0f : -d)
+                        : side == 2 ? new Vector2(art ? 0f : -d, 0f)
+                                    : new Vector2(art ? 0f : d, 0f);
+            sr.transform.position = CellPos(cell) + off;
+            if (art)
+            {
+                sr.transform.localScale = Vector3.one;
+                sr.transform.rotation = Quaternion.Euler(
+                    0, 0, side == 0 ? 0f : side == 1 ? 180f : side == 2 ? 270f : 90f);
+            }
+            else
+            {
+                sr.transform.localScale = side <= 1 ? new Vector3(1f, RailW, 1)
+                                                    : new Vector3(RailW, 1f, 1);
+            }
+            sr.color = Art.Tint("rail", RailOf(door));
+            _frame.Add((door, sr, false));
+        }
+
+        /// 꾺이는 모서리의 장식. 이게 있어야 선이 아니라 **틀**로 보인다.
+        void Gem(int cell, int door, Vector2 off)
+        {
+            var sr = NewSprite("Gem", 2, "gem");
+            if (!Art.Has("gem")) sr.sprite = PixelSprites.Diamond();
+            sr.transform.position = CellPos(cell) + off;
+            sr.transform.localScale = new Vector3(GemW, GemW, 1);
+            sr.color = Art.Tint("gem", RailOf(door));
+            _frame.Add((door, sr, true));
+        }
+
+        /// 틀 안에서 칸을 나누는 얇은 선. 레일보다 훨씬 약하다.
+        void Seam(int cell, Vector2 off, Vector3 scale)
+        {
+            var sr = NewSprite("Seam", 0);
+            sr.transform.position = CellPos(cell) + off;
+            sr.transform.localScale = scale;
+            sr.color = Color.Lerp(SlotLine, HoleCol, 0.55f);
+        }
+
         void AddRim(int cell, Vector2 off, Vector3 scale)
         {
             var sr = NewSprite("Rim", -2);
@@ -1019,14 +1147,51 @@ namespace SlimeEscape
             sr.color = Grid;
         }
 
-        SpriteRenderer NewSprite(string name, int order)
+        /// <param name="art">
+        /// 🔴 그림 자리 이름. `Resources/Art/&lt;이름&gt;.png` 가 있으면 그걸 쓴다.
+        /// 없으면 코드가 그린다 — **한 장씩 갈아끼울 수 있다.**
+        /// </param>
+        SpriteRenderer NewSprite(string name, int order, string art = null)
         {
             var go = new GameObject(name);
             go.transform.SetParent(_root, false);
             var sr = go.AddComponent<SpriteRenderer>();
-            sr.sprite = PixelSprites.Solid();
+            sr.sprite = Art.Get(art) ?? PixelSprites.Solid();
             sr.sortingOrder = order;
             return sr;
+        }
+
+        /// <summary>
+        /// 🔴 그림이 여러 장인 자리는 매 프레임 다음 장으로 넘긴다.
+        /// 그림이 없으면 아무 일도 안 한다 — 코드 그림이 그대로 돈다.
+        ///
+        /// 빠르기를 자리마다 다르게 둔다. 다 같은 박자로 뛰면 화면이
+        /// **한 덩어리로 깜빡여서** 판을 읽는 눈이 흩어진다.
+        /// </summary>
+        void TickArt()
+        {
+            SetAll(_foodViews, "food", 7f);
+            SetAll(_foodExtra, "food", 7f);
+            if (_starView != null) Set(_starView, "star", 9f);
+            if (_starGlow != null) Set(_starGlow, "star_glow", 6f);
+            if (_keyGlow != null) Set(_keyGlow, "key_glow", 6f);
+            foreach (var cv in _coreViews)
+                if (cv.core != null) Set(cv.core, "core", 5f);
+            foreach (var fb in _frame)
+                if (fb.gem && fb.sr != null) Set(fb.sr, "gem", 4f);
+        }
+
+        static void Set(SpriteRenderer sr, string art, float fps)
+        {
+            var s = Art.Frame(art, fps);
+            if (s != null && sr.sprite != s) sr.sprite = s;
+        }
+
+        static void SetAll(List<SpriteRenderer> list, string art, float fps)
+        {
+            var s = Art.Frame(art, fps);
+            if (s == null) return;
+            foreach (var sr in list) if (sr != null && sr.sprite != s) sr.sprite = s;
         }
 
         /// 빨려드는 진행도 0~1. 이 값으로 홈이 서서히 돌이 된다.
@@ -1187,14 +1352,18 @@ namespace SlimeEscape
                 // 🔴 **머리가 맨 위**에 와야 한다. 예전엔 차례를 번갈아 매겨서
                 //    뒤쪽 몸이 머리를 덮었다 — 얼굴이 뒤로 밀려 보였다 (09-02 사장님).
                 //    머리 4 · 몸 3 · 이음매 2 로 못박는다.
-                var sr = NewSprite("Seg", _segs.Count == 0 ? 4 : 3);
+                bool isHead = _segs.Count == 0;
+                var sr = NewSprite("Seg", isHead ? 4 : 3, isHead ? "head" : "body");
                 _segs.Add(sr);
             }
             for (int i = 0; i < _segs.Count; i++)
             {
                 _segs[i].enabled = i < _st.Length;
                 // 🔴 각진 네모는 블록으로 보인다. 모서리만 깎아도 말랑해진다.
-                if (_segs[i].sprite != PixelSprites.Round()) _segs[i].sprite = PixelSprites.Round();
+                // 🔴 그림이 꽂혀 있으면 건드리지 않는다.
+                //    예전엔 여기서 매 프레임 코드 그림으로 되돌려버렸다.
+                var want = Art.Get(i == 0 ? "head" : "body") ?? PixelSprites.Round();
+                if (_segs[i].sprite != want) _segs[i].sprite = want;
             }
             FaceUp();
             for (int i = 0; i < _foodExtra.Count; i++)
@@ -1252,9 +1421,30 @@ namespace SlimeEscape
             }
 
             TickSuck();
+            TickArt();
 
             // 🔴 안 채운 홈만 눈에 띄게 둔다 — 남은 칸이 저절로 세어진다
             var body = new HashSet<int>(_st.Body);
+
+            //  🔴 놋쇠 틀. 칸이 아니라 **문 단위**로 움직인다 — 틀은 하나니까.
+            //     안 끝난 틀만 천천히 숨을 쉬고, 끝난 틀은 멈춰 돌이 된다.
+            foreach (var fb in _frame)
+            {
+                if (fb.sr == null) continue;
+                bool fSpent = (_st.Dm & (1 << fb.door)) != 0;
+                var rc = fb.gem ? RailOf(fb.door) : RailDimOf(fb.door);
+                if (!fb.gem) rc = Color.Lerp(rc, RailOf(fb.door), 0.55f);
+                if (!fSpent)
+                {
+                    rc = Color.Lerp(rc, Color.white,
+                                    0.16f * (0.5f + 0.5f * Mathf.Sin(Time.time * 1.6f)));
+                    // 🔴 힌트 1 — 먼저 채울 틀만 깜빡인다.
+                    //    글로 "왼쪽 아래요" 하는 것보다 빠르다.
+                    if (_hint >= 1 && fb.door == _hintDoor)
+                        rc = Color.Lerp(rc, Color.white, 0.35f + 0.35f * Mathf.Sin(Time.time * 4f));
+                }
+                fb.sr.color = fSpent ? Color.Lerp(rc, SpentCol, SuckT) : rc;
+            }
             foreach (var kv in _holes)
             {
                 bool covered = body.Contains(kv.Key);
@@ -1295,19 +1485,10 @@ namespace SlimeEscape
                 }
                 if (_holeEdges.TryGetValue(kv.Key, out var e))
                 {
-                    var ec = EdgeOf(door);
-                    // 🔴 **아직 안 채운 홈만 아주 천천히 숨을 쉰다.** 채운 칸은 멈춘다 —
-                    //    그래서 남은 칸이 저절로 눈에 띈다. 세라고 시키지 않아도 세어진다.
-                    if (!covered && !spent)
-                        ec = Color.Lerp(ec, Color.white,
-                                        0.20f * (0.5f + 0.5f * Mathf.Sin(Time.time * 1.6f)));
-                    // 🔴 힌트 1 — 먼저 채울 홈만 깜빡인다. 글로 "왼쪽 아래요" 하는 것보다 빠르다
-                    if (_hint >= 1 && door == _hintDoor && !spent)
-                        ec = Color.Lerp(ec, Color.white, 0.35f + 0.35f * Mathf.Sin(Time.time * 4f));
-                    // 🔴 굳으면 테두리도 같은 돌색이 된다 — 홈이 아니라 **지형**이 된 것이다
+                    //  틀 안 바닥. 덤으면 가라앉고, 굳으면 돌이 된다.
                     e.color = spent
-                        ? Color.Lerp(new Color(ec.r, ec.g, ec.b, 0.30f), SpentCol, SuckT)
-                        : covered ? new Color(ec.r, ec.g, ec.b, 0.30f) : ec;
+                        ? Color.Lerp(SlotLine, SpentCol, SuckT)
+                        : covered ? Color.Lerp(SlotLine, fill, 0.55f) : SlotLine;
                 }
             }
             // 🔴 채워진 홈의 심 표시는 사라진다 — 몸이 빨려드는 동안 같이 흐려진다
@@ -1322,8 +1503,10 @@ namespace SlimeEscape
                 cv.core.enabled = a > 0.02f;
                 if (a > 0.02f)
                 {
-                    var rc = CoreRing; rc.a = a; cv.ring.color = rc;
-                    var cc = CoreCol;  cc.a = a; cv.core.color = cc;
+                    //  머리가 들어와 있으면 구멍 속이 찬다 = 열쇠가 꿂혔다
+                    bool inKey = _st.Head >= 0 && _L.Doors[cv.door].Core == _st.Head;
+                    var rc = CoreCol; rc.a = a; cv.ring.color = rc;
+                    var cc = inKey ? CoreCol : HoleCol; cc.a = a; cv.core.color = cc;
                 }
             }
 
@@ -1616,7 +1799,7 @@ namespace SlimeEscape
 
             for (int i = 0; i < _st.Length; i++)
             {
-                float s = K.segmentSize;
+                float s = Art.Scale(i == 0 ? "head" : "body", K.segmentSize);
                 if (i == _st.Length - 1) s *= 1f + _pop;               // 새로 붙은 꼬리가 한 번 부푼다
 
                 // 🔴 모양 실험(치마·그림자·돔)은 걷어냈다 — 비석·유령처럼 보였다.
@@ -1643,7 +1826,7 @@ namespace SlimeEscape
             //    이음매는 마디보다 얇게 해서 슬라임처럼 잘록하게 만든다.
             while (_links.Count < Mathf.Max(0, _st.Length - 1))
             {
-                var lk = NewSprite("Link", 2);   // 이음매는 몸 아래 — 몸이 이음매를 덮는다
+                var lk = NewSprite("Link", 2, "link");   // 이음매는 몸 아래 — 몸이 이음매를 덮는다
                 lk.sprite = PixelSprites.Round();
                 _links.Add(lk);
             }
@@ -1692,8 +1875,8 @@ namespace SlimeEscape
         {
             float b = Mathf.Clamp(Mathf.Min(w, h) * 0.12f, 46f, 108f);   // 버튼 한 변
             float m = b * 0.28f;                                          // 가장자리 여백
-            var big = new GUIStyle(GUI.skin.button) { fontSize = Mathf.RoundToInt(20 * _uiScale) };
-            var small = new GUIStyle(GUI.skin.button) { fontSize = Mathf.RoundToInt(13 * _uiScale) };
+            var big = new GUIStyle(GUI.skin.button) { fontSize = Px(20 * _uiScale) };
+            var small = new GUIStyle(GUI.skin.button) { fontSize = Px(13 * _uiScale) };
 
             // 왼쪽 아래 십자
             float px = m, py = h - m - b * 3f;
@@ -1749,7 +1932,7 @@ namespace SlimeEscape
             var star = new GUIStyle(_sBig)
             {
                 alignment = TextAnchor.MiddleCenter,
-                fontSize = Mathf.RoundToInt(sz * 0.86f),
+                fontSize = Px(sz * 0.86f),
             };
 
             for (int k = 0; k < 3; k++)
@@ -1878,12 +2061,12 @@ namespace SlimeEscape
             var numS = new GUIStyle(_sMid)
             {
                 alignment = TextAnchor.MiddleCenter,
-                fontSize = Mathf.RoundToInt(Mathf.Clamp(node * 0.36f, 12f, 26f)),
+                fontSize = Px(Mathf.Clamp(node * 0.36f, 11f, 26f)),
             };
             var starS = new GUIStyle(_sSmall)
             {
                 alignment = TextAnchor.MiddleCenter,
-                fontSize = Mathf.RoundToInt(Mathf.Clamp(node * 0.26f, 9f, 18f)),
+                fontSize = Px(Mathf.Clamp(node * 0.26f, 11f, 18f)),
             };
 
             int hover = -1;
@@ -1958,7 +2141,7 @@ namespace SlimeEscape
                           "판을 눌러 시작 · 게임 중 Esc 로 여기로", _sSmall);
             }
 
-            var bs = new GUIStyle(GUI.skin.button) { fontSize = Mathf.RoundToInt(13 * _uiScale) };
+            var bs = new GUIStyle(GUI.skin.button) { fontSize = Px(13 * _uiScale) };
             if (GUI.Button(new Rect(12f, h - 34f * _uiScale, 84f * _uiScale, 26f * _uiScale), "설명", bs))
             { _intro = true; _askReset = false; }
         }
@@ -2005,7 +2188,7 @@ namespace SlimeEscape
 
             // ---- 제목 ----
             var ts = new GUIStyle(_sMid) { alignment = TextAnchor.UpperCenter, wordWrap = true,
-                                           fontSize = Mathf.RoundToInt(Mathf.Clamp(pw * 0.075f, 13f, 22f)) };
+                                           fontSize = Px(Mathf.Clamp(pw * 0.075f, 11f, 22f)) };
             ts.normal.textColor = new Color(1, 1, 1, 0.92f);
             GUI.Label(new Rect(box.x + pad, h * 0.06f, pw - pad * 2, h * 0.10f), "튜토리얼", ts);
 
@@ -2096,7 +2279,7 @@ namespace SlimeEscape
                 "몸을 홈에 정확히 포개세요\n머리가 노란 칸에서 끝나야 합니다",
             };
             var ls = new GUIStyle(_sSmall) { alignment = TextAnchor.UpperCenter, wordWrap = true,
-                                             fontSize = Mathf.RoundToInt(Mathf.Clamp(pw * 0.062f, 11f, 17f)) };
+                                             fontSize = Px(Mathf.Clamp(pw * 0.062f, 11f, 17f)) };
             ls.normal.textColor = new Color(1, 1, 1, 0.80f);
             GUI.Label(new Rect(box.x + pad, stage.yMax + h * 0.035f, pw - pad * 2, h * 0.22f),
                       LINE[slide], ls);
@@ -2120,7 +2303,7 @@ namespace SlimeEscape
             var ns = new GUIStyle(_sMid)
             {
                 alignment = TextAnchor.MiddleCenter,
-                fontSize = Mathf.RoundToInt(Mathf.Clamp(pw * 0.09f, 16f, 28f)),
+                fontSize = Px(Mathf.Clamp(pw * 0.09f, 16f, 28f)),
             };
             ns.normal.textColor = new Color(1, 1, 1, 0.55f);
             ns.hover.textColor = StarLit;
@@ -2135,7 +2318,7 @@ namespace SlimeEscape
             if (coach != null)
             {
                 var cs = new GUIStyle(_sMid) { alignment = TextAnchor.LowerCenter, wordWrap = true,
-                                               fontSize = Mathf.RoundToInt(Mathf.Clamp(pw * 0.068f, 12f, 19f)) };
+                                               fontSize = Px(Mathf.Clamp(pw * 0.068f, 11f, 19f)) };
                 cs.normal.textColor = StarLit;
                 GUI.Label(new Rect(box.x + pad, h * 0.66f, pw - pad * 2, h * 0.24f), coach, cs);
             }
@@ -2214,55 +2397,85 @@ namespace SlimeEscape
         }
 
         // ---- 얼굴 ----
-        // 🔴 눈 하나로 네모가 **캐릭터**가 된다. 이 게임에서 값이 제일 싼 인상 개선이다.
-        //    가는 쪽을 본다 · 가끔 깜빡인다 · 떨어질 때 커진다.
-        SpriteRenderer _eyeL, _eyeR, _pupL, _pupR;
-        float _blinkAt = -9f;
+        // 🔴 눈은 미러 뻐다 (09-02 사장님). 얼굴에 있는 건 **열쇠 하나**다.
+        //    눈이 있으면 눈길이 눈으로 가는데, 사람이 실제로 봐야 하는 건
+        //    "내 열쇠가 어디 있나"이다. 캐릭터다움보다 **읽히는 것**을 골랐다.
+        SpriteRenderer _keyGlow, _keyRing, _keyCore;   // 🔴 머리에 박힌 열쇠
 
         void FaceUp()
         {
             if (_segs.Count == 0) return;
-            if (_eyeL == null)
-            {
-                _eyeL = NewSprite("EyeL", 5); _eyeR = NewSprite("EyeR", 5);
-                _pupL = NewSprite("PupL", 6); _pupR = NewSprite("PupR", 6);
-                foreach (var e in new[] { _eyeL, _eyeR }) { e.sprite = PixelSprites.Disc(); e.color = EyeWhite; }
-                foreach (var p in new[] { _pupL, _pupR }) { p.sprite = PixelSprites.Disc(); p.color = EyeDark; }
-            }
-
             var head = _segs[0];
             if (!head.enabled) { SetEyes(false); return; }
             SetEyes(true);
 
-            // 가는 쪽을 본다 — 마지막으로 움직인 방향
-            Vector2 look = _lookDir;
+            Vector2 look = _lookDir;                  // 마지막으로 간 쪽 — 열쇠가 그쪽으로 조금 쓸린다
             Vector3 hp = head.transform.position;
             float s = Mathf.Min(head.transform.localScale.x, head.transform.localScale.y);
-
-            // 가끔 깜빡인다 (판마다 다른 박자로)
-            if (Time.time > _blinkAt) _blinkAt = Time.time + 2.2f + (Mathf.PerlinNoise(Time.time * 0.3f, 0f) * 3f);
-            float since = _blinkAt - Time.time;
-            float open = since < 0.12f ? Mathf.Abs(since - 0.06f) / 0.06f : 1f;
-
-            float gap = 0.19f * s, up = 0.07f * s;
-            float ew = 0.20f * s, eh = 0.20f * s * Mathf.Max(0.08f, open);
-            for (int k = 0; k < 2; k++)
-            {
-                var eye = k == 0 ? _eyeL : _eyeR;
-                var pup = k == 0 ? _pupL : _pupR;
-                float side = k == 0 ? -1f : 1f;
-                Vector3 at = hp + new Vector3(side * gap + look.x * 0.05f * s, up + look.y * 0.04f * s, 0);
-                eye.transform.position = at;
-                eye.transform.localScale = new Vector3(ew, eh, 1);
-                pup.transform.position = at + new Vector3(look.x * 0.055f * s, look.y * 0.05f * s, 0);
-                pup.transform.localScale = new Vector3(ew * 0.52f, eh * 0.52f, 1);
-            }
+            KeyUp(hp, look, s);
         }
 
         void SetEyes(bool on)
         {
-            if (_eyeL == null) return;
-            _eyeL.enabled = _eyeR.enabled = _pupL.enabled = _pupR.enabled = on;
+            if (_keyRing == null) return;
+            _keyGlow.enabled = _keyRing.enabled = _keyCore.enabled = on;
+        }
+
+        /// <summary>
+        /// 🔴 머리에 박힌 **열쇠**. (09-02 사장님)
+        ///
+        /// 이게 규칙 하나를 설명 없이 만든다 — "머리가 심에서 끝나야 한다"는
+        /// 지금까지 **외워야 하는 조건**이었다. 머리에 열쇠가 보이면
+        /// 그냥 *열쇠를 열쇠 구멍에 맞추는 일*이 된다. 튜토리얼 한 장이 줄어든다.
+        /// 세계관 문장도 원래 이거였다 — **"몸이 곧 열쇠"** (brief §86).
+        ///
+        /// 열쇠 구멍 위에 서면 열쇠가 밝아지며 뛴다. 맞았다는 걸 손에 쥐여준다.
+        /// </summary>
+        void KeyUp(Vector3 hp, Vector2 look, float s)
+        {
+            if (_keyRing == null)
+            {
+                _keyGlow = NewSprite("KeyGlow", 4, "key_glow");   // 뒤에 번지는 빛
+                _keyRing = NewSprite("KeyRing", 5);      // 마름모 테
+                _keyCore = NewSprite("KeyCore", 6, "key");      // 마름모 속 — 제일 밝다
+                _keyGlow.sprite = PixelSprites.Disc();
+                _keyRing.sprite = PixelSprites.Diamond();
+                _keyCore.sprite = PixelSprites.Diamond();
+            }
+            _keyGlow.enabled = _keyRing.enabled = _keyCore.enabled = true;
+
+            //  머리가 열쇠 구멍 위인가
+            bool fit = false;
+            if (_L != null && _L.Doors != null)
+                for (int i = 0; i < _L.Doors.Count && !fit; i++)
+                    if (_L.Doors[i].Core >= 0 && _st.Head == _L.Doors[i].Core) fit = true;
+            //  🔴 **번짝번짝** (09-02 사장님). 두 박자를 겹친다 —
+            //     느린 숨(늘 살아 있다) + 짧게 터지는 섬광(눈길을 끔다).
+            //     섬광은 exp 로 떨어뜨린다. sin 으로 하면 번쎍이 아니라 출렁임이 된다.
+            float breathe = 0.5f + 0.5f * Mathf.Sin(Time.time * 2.3f);
+            float spark   = Mathf.Exp(-Mathf.Repeat(Time.time, KeyBlink) * 7f);
+            //  열쇠 구멍 위에 서면 쉬지 않고 뛴다 = 맞았다
+            float lit = fit ? 0.55f + 0.45f * Mathf.Sin(Time.time * 9f)
+                            : Mathf.Max(spark, 0.22f * breathe);
+
+            //  이마에, 가는 쪽으로 조금 — 얼굴에 붙어 있어야 "이게 내 열쇠"로 읽힌다
+            var at = hp + new Vector3(look.x * 0.07f * s, 0.26f * s + look.y * 0.03f * s, 0f);
+            //  🔴 위아래로 긴 마름모. 가로세로를 따로 준다
+            float kw = 0.30f * s * (1f + 0.06f * lit);
+            float kh = 0.52f * s * (1f + 0.10f * lit);
+
+            _keyGlow.transform.position = at;
+            _keyGlow.transform.localScale = new Vector3(kh * 1.9f, kh * 1.9f, 1f);
+            var gc = CoreCol; gc.a = 0.10f + 0.26f * lit;
+            _keyGlow.color = gc;
+
+            _keyRing.transform.position = at;
+            _keyRing.transform.localScale = new Vector3(kw, kh, 1f);
+            _keyRing.color = Color.Lerp(CoreRing, CoreCol, 0.35f + 0.65f * lit);
+
+            _keyCore.transform.position = at;
+            _keyCore.transform.localScale = new Vector3(kw * 0.52f, kh * 0.52f, 1f);
+            _keyCore.color = Color.Lerp(CoreCol, Color.white, 0.75f * lit);
         }
 
         void CloseIntro()
@@ -2317,7 +2530,7 @@ namespace SlimeEscape
                        : "← ↑ ↓ →  움직이기      Z  되돌리기      R  처음부터", _sMid);
             // 🔴 초기화 버튼은 **안내 화면에만** 둔다.
             //    게임 중에 두면 실수로 눌러 다 날린다. 여기선 ? 버튼으로만 들어온다.
-            var rs = new GUIStyle(GUI.skin.button) { fontSize = Mathf.RoundToInt(13 * _uiScale) };
+            var rs = new GUIStyle(GUI.skin.button) { fontSize = Px(13 * _uiScale) };
             float rw = 150 * _uiScale, rh = 30 * _uiScale;
             var rr = new Rect(w * 0.5f - rw * 0.5f, h - s * 3.6f, rw, rh);
             if (_askReset)
@@ -2447,7 +2660,7 @@ namespace SlimeEscape
                 if (Stuck)
                 {
                     bool dead = _lostSet.IsLost(_st);
-                    var hs = new GUIStyle(GUI.skin.button) { fontSize = Mathf.RoundToInt(13 * _uiScale) };
+                    var hs = new GUIStyle(GUI.skin.button) { fontSize = Px(13 * _uiScale) };
                     float hw = 210f * _uiScale, hh = 30f * _uiScale;
                     var hr = new Rect(w - hw - 12f, h - hh - 12f, hw, hh);
                     // 🔴 단계마다 다른 도움. 필요한 만큼만 열어보게 한다.
