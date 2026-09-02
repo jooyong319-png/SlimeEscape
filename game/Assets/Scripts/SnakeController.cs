@@ -160,8 +160,23 @@ namespace SlimeEscape
         ///   ④ 느리게 흔들린다 — 가벼운 것일수록 빠르게 떤다
         const float WobbleHz    = 2.6f;    // 흔들리는 빠르기
         const float WobbleLag   = 0.85f;   // 마디 사이 위상차 (몸을 타고 흐른다)
-        const float WobbleIdle  = 0.030f;  // 가만있을 때
-        const float WobbleKick  = 0.075f;  // 걸음 직후에 더해지는 몫
+        const float WobbleIdle  = 0.095f;  // 가만있을 때 (09-03: 터질 것처럼)
+        const float WobbleKick  = 0.100f;  // 걸음 직후에 더해지는 몫
+
+        /// <summary>
+        /// 🔴 **부푼다** — 가로세로가 **같이** 는다 (09-03 사장님: "막 터질 것같이").
+        /// 서로 반대로 가는 건 출렁임이지 **압력**이 아니다. 안에서 밀어내는 느낌은
+        /// 부피가 실제로 늘었다 줄어야 나온다.
+        ///
+        /// 🔴 밖으로는 조금, 안으로는 크게. 몸(차례 3)은 벽(-3)보다 **위**라
+        /// 칸 밖으로 크게 부풀면 돌을 뚫고 나간 것처럼 보인다.
+        /// </summary>
+        const float SwellHz     = 1.35f;   // 부풀었다 꺼지는 빠르기
+        const float SwellLag    = 1.10f;   // 마디 사이 위상차
+        const float SwellAmt    = 0.055f;  // 부푸는 몫
+        const float BulgeOut    = 0.55f;   // 밖으로 나가는 쪽은 이만큼만
+        const float BulgeIn     = 1.55f;   // 안으로 들어오는 쪽은 이만큼 (공짜다)
+        const float MaxBulge    = 1.10f;   // 🔴 이보다 크게는 절대 안 부푼다
         const float WobbleSag   = 0.040f;  // 제 무게로 퍼진 몫 (가로 +, 세로 −)
         const float WobbleDrag  = 0.60f;   // 세로가 늦는 만큼 (라디안)
 
@@ -226,7 +241,15 @@ namespace SlimeEscape
             public float t, sp, size;      // 0 = 바닥 · 1 = 꼭대기
         }
         readonly List<Bubble> _bubbles = new List<Bubble>();
-        const int BubbleCount = 11;
+
+        /// <summary>
+        /// 🔴 **삼킨 조각.** 먹었지만 아직 몸이 안 된 것 — 다음 걸음에 마디 하나가 된다.
+        /// 꼬리 **속**에서 부푼다. 마디를 통째로 물들이면 몸이 두 색이 되어
+        /// 한 마리로 안 보인다 (09-03 사장님 화면).
+        /// </summary>
+        SpriteRenderer _swallow;
+        //  🔴 끓는 것처럼 보이려면 **수**가 있어야 한다. 몇 개로는 방울이지 끓음이 아니다.
+        const int BubbleCount = 16;
         //  마디가 제 무게로 내려앉은 몫. 이음매가 같이 안 내려가면 관이 어긋난다.
         readonly List<float> _segDy = new List<float>();
         //  🔴 마디의 **지금** 가로·세로 (출렁임까지 들어간 실제 크기).
@@ -1018,8 +1041,11 @@ namespace SlimeEscape
             b.seg  = Random.Range(0, Mathf.Max(1, _st == null ? 1 : _st.Length));
             b.x    = Random.Range(-0.5f, 0.5f);
             b.t    = 0f;
-            b.sp   = Random.Range(0.35f, 0.75f);
-            b.size = Random.Range(0.10f, 0.20f);
+            b.sp   = Random.Range(0.55f, 1.30f);
+            //  🔴 크기를 **고르게 두지 않는다.** 다 같으면 규칙적인 무늬로 보인다 —
+            //     끓는 것은 작은 게 잔뜩에 가끔 큰 게 하나 올라온다.
+            b.size = Random.value < 0.16f ? Random.Range(0.11f, 0.16f)
+                                          : Random.Range(0.035f, 0.085f);
         }
 
         void TickBubbles()
@@ -1031,7 +1057,10 @@ namespace SlimeEscape
                 if (b.sr == null) continue;
                 if (hide) { b.sr.enabled = false; continue; }
 
-                b.t += dt * b.sp;
+                //  🔴 삼킨 조각이 든 마디는 **더 바쁘게** 부글거린다 — 소화 중이다
+                bool digest = _st.Pg > 0 && b.seg == _st.Length - 1;
+                //  초록 쪽이 이미 빨라졌으니 소화 중일 때는 조금만 더 올린다
+                b.t += dt * b.sp * (digest ? 1.25f : 1f);
                 if (b.t >= 1f || b.seg >= _st.Length || b.seg >= _segW.Count) BubbleFrom(b);
                 if (b.seg >= _segPos.Count || b.seg >= _segW.Count) { b.sr.enabled = false; continue; }
 
@@ -1046,13 +1075,22 @@ namespace SlimeEscape
                 b.sr.transform.position =
                     new Vector3(cx + b.x * w * 0.52f, cy + (b.t - 0.5f) * h * 0.62f, -0.01f);
 
-                //  올라오며 커졌다가 꼭대기에서 톡 꺼진다
-                float grow = Mathf.Sin(b.t * Mathf.PI);
-                float sc = b.size * (0.55f + 0.45f * grow);
+                //  🔴 **터진다.** 올라오며 커지다가 끝에서 확 부풀며 사라진다.
+                //     sin 으로 부드럽게 여닫으면 방울이 뜨는 게 아니라 숨쉬는 것으로 보인다.
+                float fin = Mathf.Clamp01(b.t / 0.12f);              // 나타나고
+                float pop = Mathf.Clamp01((b.t - 0.72f) / 0.28f);    // 끝에서 터진다
+                float grow = fin * (1f - pop);
+                float sc = b.size * (0.55f + 0.45f * Mathf.Clamp01(b.t / 0.72f))
+                                  * (1f + 0.75f * pop);
                 b.sr.transform.localScale = new Vector3(sc, sc, 1);
 
-                var bc = Color.Lerp(BodyCol, Color.white, 0.78f);
-                bc.a = 0.55f * grow;
+                //  🔴 몸보다 **어둡다.** 밝게 하면 표면 위에 얹힌 것으로 보인다 —
+                //     안쪽에 있는 것은 몸을 통과해서 보이니 한 단 가라앉아야 한다
+                //     (09-03 사장님: "안쪽에서 부글거리는 느낌이니 색이 좀 달라야").
+                //     같은 초록을 어둡게만 한다. 색을 바꾸면 다른 물건으로 보인다.
+                //  담고 있는 것보다 한 단 어둡다 — 조각이 든 마디에서는 주황이 어두워진다
+                var bc = (digest ? FoodCol : BodyCol) * 0.58f;
+                bc.a = 0.42f * grow;
                 b.sr.color = bc;
             }
         }
@@ -1367,6 +1405,11 @@ namespace SlimeEscape
             MakeMotes();
             MakePuffs();
             MakeBubbles();
+            //  꼬리 속에서 부푸는 조각. 거품(7)과 같은 차례지만 z 로 뒤에 둔다 —
+            //  거품이 덩어리 **앞에서** 떠올라야 속에 든 것으로 보인다.
+            _swallow = NewSprite("Swallow", 7);
+            _swallow.sprite = PixelSprites.Round();
+            _swallow.enabled = false;
 
             //  🔴 시작 칸에서 번지는 빛. 슬라임이 **여기서 나왔다**를 말해준다.
             //     심의 울컥임(Gulp)과 같은 말투로 둔다 — 하나는 삼키고 하나는 뱉는다.
@@ -2200,11 +2243,33 @@ namespace SlimeEscape
                 }
                 //  🔴 출렁임. 넓어지면 낮아진다 — 부피가 도는 것처럼 보여야 젤리가 된다.
                 //     걸음 직후(_stepT 가 작을 때)에 크게 흔들렸다 잦아든다.
-                float ph   = Time.time * WobbleHz - i * WobbleLag;
-                float amp  = WobbleIdle + WobbleKick * Mathf.Exp(-_stepT * 1.6f);
+                //  🔴 마디마다 **다른 씨앗**을 준다. 위상차만으로는 줄지어 흐르는
+                //     한 파도로 보인다 — 끓는 것은 마디마다 제멋대로여야 한다.
+                float salt = Hash(i * 7 + 13) * 6.2832f;
+                float ph   = Time.time * WobbleHz - i * WobbleLag + salt;
+                //  🔴 두 박자를 겹친다. 사인 하나면 기계가 떠는 것으로 보인다.
+                float wave = 0.68f * Mathf.Sin(ph) + 0.32f * Mathf.Sin(ph * 1.73f + 1.1f);
+                //  천천히 차올랐다 빠지는 **압력**. 늘 같은 세기로 떨면 살아 있는 게 아니다.
+                float press = 0.65f + 0.55f * (0.5f + 0.5f * Mathf.Sin(Time.time * 0.62f + salt));
+                float amp  = (WobbleIdle + WobbleKick * Mathf.Exp(-_stepT * 1.6f)) * press;
+
+                //  밖으로는 조금, 안으로는 크게 — 벽을 뚫고 나가면 안 된다
+                float wv = wave >= 0f ? wave * amp * BulgeOut : wave * amp * BulgeIn;
+                float hv = 0f;
+                {
+                    float w2 = 0.68f * Mathf.Sin(ph - WobbleDrag)
+                             + 0.32f * Mathf.Sin((ph - WobbleDrag) * 1.73f + 1.1f);
+                    hv = w2 >= 0f ? w2 * amp * BulgeOut : w2 * amp * BulgeIn;
+                }
+                //  🔴 부푸는 몫 — 가로세로가 **같이** 는다. 이게 압력으로 읽힌다.
+                float swell = SwellAmt * (0.5f + 0.5f * Mathf.Sin(Time.time * SwellHz
+                                                                  - i * SwellLag + salt));
                 //  세로는 가로보다 늦게 따라온다 — 무게가 뒤늦게 내려앉는 느낌
-                bw *= 1f + WobbleSag + amp * Mathf.Sin(ph);
-                bh *= 1f - WobbleSag - amp * Mathf.Sin(ph - WobbleDrag);
+                bw *= 1f + WobbleSag + wv + swell;
+                bh *= 1f - WobbleSag - hv + swell;
+                //  🔴 아무리 커도 여기까지. 벽을 뚫고 나간 것처럼 보이면 안 된다.
+                bw = Mathf.Min(bw, MaxBulge);
+                bh = Mathf.Min(bh, MaxBulge);
 
                 //  🔴 떨어지는 동안은 세로로 늘어난다. 이게 없으면 착지의 납작함이
                 //     어디서 왔는지 안 보여서 그냥 한 번 찌그러진 것으로 보인다.
@@ -2248,17 +2313,11 @@ namespace SlimeEscape
                 _segs[i].transform.localScale = new Vector3(s * bw, hNow, 1);
                 // 🔴 떨어지며 먹으면 다음 걸음에 길어진다 — 그 사이에 아무 표시가 없으면
                 //    "먹었는데 사라졌다"로 보인다. 사람이 실제로 그렇게 헤맸다 (2026-08-29).
-                //    꼬리를 조각 색으로 물들여 "여기서 길어진다"를 미리 보여준다.
-                // 🔴 머리도 몸과 **같은 색**. 얼굴은 색이 아니라 눈이 알려준다 (09-02 사장님).
-                //    머리만 밝으면 이어진 관이 아니라 마디가 나뉜 것으로 보인다.
-                var col = BodyCol;
-                //  새로 붙을 마디는 조각 색으로 뛴다 — 이건 상태라 그림이 있어도 입힌다
-                if (_st.Pg > 0 && i == _st.Length - 1)
-                {
-                    float beat = 0.5f + 0.5f * Mathf.Sin(Time.time * 9f);
-                    col = Color.Lerp(col, FoodCol, 0.45f + 0.35f * beat);
-                }
-                _segs[i].color = col;
+                // 🔴 몸은 **끝까지 한 색**이다. 머리도 꼬리도 같다 (09-02 사장님).
+                //    한 마디만 다른 색이면 이어진 관이 아니라 딴 물건이 붙은 것으로 보인다.
+                //    ⚠️ 삼킨 조각을 여기서 꼬리에 통째로 칠한 적이 있다 (09-03 사장님 화면:
+                //       "이렇게 주황색이 되는 때가 있지"). 그건 **꼬리 속 덩어리**로 옮겼다.
+                _segs[i].color = BodyCol;
             }
 
             // 🔴 마디 사이를 **잇는다.** 안 이으면 몸이 길어질 때 따로 떨어진 네모 여럿으로
@@ -2318,6 +2377,26 @@ namespace SlimeEscape
 
             TickPuffs();     // 🔴 마디 자리를 다 잡은 뒤라야 거기서 김이 난다
             TickBubbles();
+
+            //  🔴 삼킨 조각이 꼬리 속에서 숨쉰다. 다음 걸음에 이게 마디가 된다.
+            if (_swallow != null)
+            {
+                int lastI = _st.Length - 1;
+                bool sw = _st.Pg > 0 && lastI >= 0
+                          && lastI < _segPos.Count && lastI < _segW.Count && BornT >= 1f;
+                _swallow.enabled = sw;
+                if (sw)
+                {
+                    float beat = 0.5f + 0.5f * Mathf.Sin(Time.time * 5.5f);
+                    float cy = _segPos[lastI].y + (lastI < _segDy.Count ? _segDy[lastI] : 0f);
+                    _swallow.transform.position = new Vector3(_segPos[lastI].x, cy, 0f);
+                    float k = 0.46f + 0.09f * beat;
+                    _swallow.transform.localScale =
+                        new Vector3(_segW[lastI] * k, _segH[lastI] * k, 1);
+                    var sc2 = FoodCol; sc2.a = 0.70f + 0.16f * beat;
+                    _swallow.color = sc2;
+                }
+            }
         }
 
         static float Ease(float t) => 1f - Mathf.Pow(1f - Mathf.Clamp01(t), 3f);
