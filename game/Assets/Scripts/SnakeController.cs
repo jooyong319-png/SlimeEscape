@@ -78,8 +78,10 @@ namespace SlimeEscape
 
         // 🔴 문벽 — 짝이 되는 문을 열기 전엔 벽. 열면 사라진다.
         //    벽(Rock)과 색을 달리해서 "이건 열릴 수 있는 벽"으로 읽히게 한다.
-        static readonly Color GateCol  = new Color32(0x4a, 0x3f, 0x2e, 0xff);
-        static readonly Color GateEdge = new Color32(0x8a, 0x74, 0x4a, 0xff);
+        //  ⚠️ 갈색이었는데, 색이 있으면 "정보" 로 읽혀 조각(주황)과 다툰다.
+        //     열릴 수 있는 벽이라는 건 **벽보다 밝다**는 것으로 말한다.
+        static readonly Color GateCol  = new Color32(0x3c, 0x44, 0x50, 0xff);
+        static readonly Color GateEdge = new Color32(0x6e, 0x7a, 0x8a, 0xff);
         /// 🔴 두고 온 몸 — 자물쇠에 남아 굳은 것. 밟고 지나갈 수 있다.
         /// 🔴 두고 온 몸 — 자물쇠에 남아 굳은 것. **딛고 설 수 있다**(2026-08-30).
         //     그래서 홈 색이 아니라 **벽(Rock)과 같은 계열**로 그린다.
@@ -112,21 +114,25 @@ namespace SlimeEscape
         //     이게 없으면 걸음마다 마름모가 순간이동해서 눈이 아니라 표시로 보인다.
         Vector2 _lookNow = Vector2.right;
         const float KeyLead = 0.17f;        // 가는 쪽으로 쏠리는 몫 (머리 크기 대비)
-        static readonly Color PanelBg   = new Color32(0x14, 0x1c, 0x19, 0xff);  // 안내판 바탕
-        static readonly Color StageBg   = new Color32(0x0a, 0x0f, 0x0d, 0xff);  // 안내판 속 무대
-        // 표지판 — 맵에 떠 있는 화살표. 지형과 안 섞이게 푸른빛으로 둔다.
-        static readonly Color SignFrame = new Color32(0xdc, 0xe6, 0xf2, 0xff);
-        static readonly Color SignFill  = new Color32(0x24, 0x3a, 0x58, 0xff);
-        static readonly Color SignArrow = new Color32(0x6f, 0xb0, 0xf0, 0xff);
-        // 판 고르기 지도 — 굴 입구처럼 보이게
-        static readonly Color NodeStone = new Color32(0x39, 0x4a, 0x42, 0xff);
-        static readonly Color NodeTop   = new Color32(0x5e, 0x75, 0x69, 0xff);
-        static readonly Color NodeLock  = new Color32(0x21, 0x2c, 0x27, 0xff);
+        //  🔴 판 밖 화면도 같은 규칙이다 (rev.8): 초록은 슬라임만 · 나머지는 무채색.
+        //     여기가 초록빛이면 "초록 = 나" 라는 약속이 판 밖에서 깨진다.
+        static readonly Color PanelBg   = new Color32(0x14, 0x18, 0x1e, 0xff);  // 안내판 바탕
+        static readonly Color StageBg   = new Color32(0x0b, 0x0d, 0x10, 0xff);  // 안내판 속 무대 (배경과 같게)
+        // 표지판 — 맵에 떠 있는 화살표. 지형과 안 섞이게 밝은 무채색으로 둔다.
+        //  ⚠️ 푸른빛이었는데, 색이 있으면 "이건 정보다" 라는 뜻이 되어 홈·조각과 다툰다.
+        static readonly Color SignFrame = new Color32(0xe8, 0xed, 0xf2, 0xff);
+        static readonly Color SignFill  = new Color32(0x23, 0x28, 0x30, 0xff);
+        static readonly Color SignArrow = new Color32(0xc2, 0xcb, 0xd6, 0xff);
+        // 판 고르기 지도 — 굴 입구처럼 보이게. 벽(Rock)과 **같은 계열**이라야
+        // 판 목록이 판과 같은 세계로 읽힌다.
+        static readonly Color NodeStone = new Color32(0x2b, 0x32, 0x3c, 0xff);   // = Rock
+        static readonly Color NodeTop   = new Color32(0x4a, 0x55, 0x63, 0xff);   // = RockTop
+        static readonly Color NodeLock  = new Color32(0x1a, 0x1e, 0x25, 0xff);   // 아직 못 여는 것
 
         // 🔴 받침대 — **홈이 아니다.** 여기 놓은 몸은 점수가 안 되고 계단만 된다.
         //    홈(민트)과 색을 확실히 갈라놓아야 사람이 헷갈리지 않는다.
-        static readonly Color PadCol  = new Color32(0x4e, 0x5a, 0x6b, 0xff);   // 빈 받침대 — 돌보다 확실히 푸르게
-        static readonly Color PadEdge = new Color32(0x8e, 0x9e, 0xb5, 0xff);
+        static readonly Color PadCol  = new Color32(0x4a, 0x52, 0x5e, 0xff);   // 빈 받침대 — 돌보다 밝게
+        static readonly Color PadEdge = new Color32(0x8e, 0x97, 0xa3, 0xff);
         readonly Dictionary<int, SpriteRenderer> _padViews = new Dictionary<int, SpriteRenderer>();
         readonly Dictionary<int, SpriteRenderer> _padTops = new Dictionary<int, SpriteRenderer>();
         SpriteRenderer _starView, _starGlow;
@@ -525,7 +531,6 @@ namespace SlimeEscape
         /// 🔴 초기화는 되돌릴 수 없다 — 한 번 더 묻는다
         bool _askReset;
         const string IntroKey = "snakeSeenIntro";
-        readonly Dictionary<Color, Texture2D> _chips = new Dictionary<Color, Texture2D>();
 
         // ---- 손가락 조작 ----
         // 🔴 휴대폰엔 키보드가 없다. 그리고 한 판에 100걸음을 넘기기도 하므로
@@ -3282,23 +3287,24 @@ namespace SlimeEscape
             PlayerPrefs.Save();
         }
 
-        /// 설명에 쓸 색 조각. 화면에 실제로 쓰는 색을 그대로 보여준다 —
-        /// 말로 "민트색 테두리"라고 하는 것보다 그 색을 보여주는 쪽이 짧다.
-        Texture2D Chip(Color c)
+        /// <summary>
+        /// 안내 한 줄 — 색 조각 + 설명.
+        /// 🔴 조각은 게임과 **같은 모양**이어야 한다. 네모를 칠하면
+        /// 배우는 자리에서 같은 것을 두 가지로 보여주는 꼴이 된다
+        /// (09-03 에 안내판에서 똑같은 걸 걷어냈다 — rev.8-d).
+        /// </summary>
+        void Row(float x, float y, float s, Color box, Color inner, string text, GUIStyle st,
+                 bool gem = false)
         {
-            if (_chips.TryGetValue(c, out var tex) && tex != null) return tex;
-            tex = new Texture2D(1, 1);
-            tex.SetPixel(0, 0, c);
-            tex.Apply();
-            _chips[c] = tex;
-            return tex;
-        }
-
-        void Row(float x, float y, float s, Color box, Color inner, string text, GUIStyle st)
-        {
-            GUI.DrawTexture(new Rect(x, y, s, s), Chip(box));
+            Shape(new Rect(x, y, s, s), box, PixelSprites.Round().texture);
             if (inner.a > 0f)
-                GUI.DrawTexture(new Rect(x + s * 0.16f, y + s * 0.16f, s * 0.68f, s * 0.68f), Chip(inner));
+            {
+                //  마름모는 세로로 길다 — 머리·심의 것과 같은 비율(0.40 : 0.55)
+                var q = gem ? new Rect(x + s * 0.32f, y + s * 0.12f, s * 0.36f, s * 0.76f)
+                            : new Rect(x + s * 0.16f, y + s * 0.16f, s * 0.68f, s * 0.68f);
+                Shape(q, inner, gem ? PixelSprites.Diamond().texture
+                                    : PixelSprites.Round().texture);
+            }
             var t2 = new GUIStyle(st) { alignment = TextAnchor.MiddleLeft };
             GUI.Label(new Rect(x + s * 1.5f, y - 2, 620, s + 4), text, t2);
         }
@@ -3316,9 +3322,11 @@ namespace SlimeEscape
             y += gap;
             Row(x, y, s, Floor, FoodCol, "조각을 먹으면 몸이 길어진다", _sMid);
             y += gap;
-            Row(x, y, s, HoleEdge, HoleCol, "여기를 몸으로 채운다  —  남아도 모자라도 안 된다", _sMid);
+            //  🔴 홈 테두리는 **FrameCol**(형광 초록)이다. HoleEdge 는 칸이 앉을 때
+            //     한 번 번쩍이는 색이라, 여기 쓰면 게임에 없는 색을 가르치게 된다.
+            Row(x, y, s, FrameCol, HoleCol, "여기를 몸으로 채운다  —  남아도 모자라도 안 된다", _sMid);
             y += gap;
-            Row(x, y, s, CoreRing, CoreCol, "머리는 이 칸에서 끝나야 한다", _sMid);
+            Row(x, y, s, HoleCol, CoreCol, "머리의 마름모가 여기 앉아야 끝난다", _sMid, true);
             y += gap * 1.5f;
 
             GUI.Label(new Rect(0, y, w, s),

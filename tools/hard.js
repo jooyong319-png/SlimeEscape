@@ -13,7 +13,10 @@
 const E = require('./engine.js').SlimeEngine;
 
 /// 이길 수 있는 상태들을 모아둔다
-function winnable(L, cap = 400000) {
+//  🔴 밤 작업에서 높였다 (2026-09-03). 큰 판 다섯이 40만을 넘어 못 재졌다.
+//     환경 변수 CAP 으로 더 올릴 수 있다. 메모리가 모자라면 낮춘다.
+const CAP = Number(process.env.CAP || 400000);
+function winnable(L, cap = CAP) {
   const s0 = E.startState(L);
   const idx = new Map([[E.keyOf(s0), 0]]);
   const states = [s0], back = [[]], win = [];
