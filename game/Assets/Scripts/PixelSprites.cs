@@ -113,6 +113,34 @@ namespace SlimeEscape
             return _drops[level];
         }
 
+        static Sprite _fade;
+
+        /// <summary>
+        /// 🔴 **한쪽으로 사라지는 네모** (09-03 사장님: "마지막 칸만 그라데이션으로").
+        /// 왼쪽(-X)이 꽉 차고 오른쪽으로 갈수록 투명해진다.
+        /// 다른 방향은 돌려서 쓴다 — 왼 0° · 아래 90° · 오른 180° · 위 270°.
+        ///
+        /// 칸 하나 안에서 서서히 변하는 것은 단색 도형으로는 못 한다.
+        /// </summary>
+        public static Sprite Fade(int size = 48)
+        {
+            if (_fade != null) return _fade;
+            var t = new Texture2D(size, size, TextureFormat.RGBA32, false)
+                    { filterMode = FilterMode.Bilinear, wrapMode = TextureWrapMode.Clamp };
+            for (int x = 0; x < size; x++)
+            {
+                float u = (x + 0.5f) / size;              // 0 = 왼쪽(꽉 참)
+                float a = 1f - u;
+                a = a * a * (3f - 2f * a);                // 부드럽게 — 직선이면 끝이 뚝 끊긴다
+                var c = new Color(1, 1, 1, a);
+                for (int y = 0; y < size; y++) t.SetPixel(x, y, c);
+            }
+            t.Apply();
+            _fade = Sprite.Create(t, new Rect(0, 0, size, size),
+                                  new Vector2(0.5f, 0.5f), size, 0, SpriteMeshType.FullRect);
+            return _fade;
+        }
+
         public static Sprite Round(int size = 48, float radius = 0.30f)
         {
             if (_round != null) return _round;

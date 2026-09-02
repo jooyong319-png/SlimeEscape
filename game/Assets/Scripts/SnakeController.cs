@@ -42,7 +42,6 @@ namespace SlimeEscape
         static Color FloorDim = new Color32(0x0f, 0x12, 0x17, 0xff);  // 굴 바닥 — 가라앉는다
         static Color Rock    = new Color32(0x2b, 0x32, 0x3c, 0xff);   // 벽 = 차가운 회청색 돌
         static Color RockTop = new Color32(0x4a, 0x55, 0x63, 0xff);   // 딛고 설 수 있는 윗면
-        static Color RockDeep= new Color32(0x2b, 0x32, 0x3c, 0xff);   // 돌 속 — 겉보다 어둡다
         static Color HeadCol = new Color32(0x9b, 0xe8, 0xad, 0xff);   // 지도 위 "여기 있다" 표시
         static Color BodyCol = new Color32(0x6f, 0xd0, 0x8c, 0xff);   // 나
         static Color FoodCol = new Color32(0xf0, 0x87, 0x3a, 0xff);   // 조각
@@ -1172,6 +1171,37 @@ namespace SlimeEscape
             }
         }
 
+        /// <summary>
+        /// 🔴 둥근 네모 둘이 맞닿으면 이음매에 홈이 남는다 — 그 자리를 메운다.
+        /// 벽 덩어리의 **바깥선만** 둥글고 속은 메워져야 한 덩어리로 보인다.
+        /// z 를 뒤로 물려 둔다 — 칸과 같은 차례(-3)라 앞뒤를 못박아야 안 떤다.
+        /// </summary>
+        void WallBridge(int x, int y, Vector3 scale, Vector2 offset)
+        {
+            var sr = NewSprite("WallBridge", -3);
+            var p = CellXY(x, y) + offset;
+            sr.transform.position = new Vector3(p.x, p.y, 0.002f);
+            sr.transform.localScale = scale;
+            sr.color = Rock;
+        }
+
+        /// <summary>
+        /// 🔴 판 **맨 바깥 칸**을 배경으로 흘려보낸다 (09-03 사장님).
+        /// 배경색을 칸 위에 덮되, 바깥쪽이 꽉 차고 안쪽으로 갈수록 투명해진다.
+        ///
+        /// 벽 윗면 띠(-2)보다 **앞**에 둔다 — 벽만 녹고 띠가 남으면 띠만 떠 보인다.
+        /// </summary>
+        void EdgeFade(int x, int y, float turn)
+        {
+            var sr = NewSprite("EdgeFade", -2);
+            sr.sprite = PixelSprites.Fade();
+            var p = CellXY(x, y);
+            sr.transform.position = new Vector3(p.x, p.y, -0.002f);
+            sr.transform.rotation = Quaternion.Euler(0, 0, turn);
+            sr.transform.localScale = new Vector3(1.02f, 1.02f, 1);   // 이음매가 새지 않게
+            sr.color = BgCol;
+        }
+
         void AddBridge(int a, int b, Vector3 scale, Vector2 offset)
         {
             var sr = NewSprite("HoleBridge", 0);
@@ -1183,6 +1213,13 @@ namespace SlimeEscape
 
         // ---------------- 화면 ----------------
         Vector2 CellPos(int cell) => new Vector2(_L.X(cell) + 0.5f, -(_L.Y(cell) + 0.5f));
+
+        /// 🔴 **판 밖도 가리킨다.** 칸 번호로는 -1 열을 못 쓴다 (09-03: 바깥 한 겹).
+        Vector2 CellXY(int x, int y) => new Vector2(x + 0.5f, -(y + 0.5f));
+
+        /// 판 밖은 전부 돌이다 — 실제로 못 지나가니 그렇게 그리는 게 맞다.
+        bool WallAt(int x, int y)
+            => x < 0 || y < 0 || x >= _L.W || y >= _L.H || _L.IsWall(y * _L.W + x);
 
         void BuildBoard()
         {
@@ -1197,19 +1234,21 @@ namespace SlimeEscape
                     bool wall = _L.IsWall(c);
                     var sr = NewSprite(wall ? "Wall" : "Floor", -3);
                     sr.transform.position = CellPos(c);
+                    //  🔴 벽은 **둥근 네모**다 (09-03 사장님). 슬라임도 홈도 둥근데
+                    //     벽만 각지면 딴 세계처럼 보인다. 이웃 사이는 다리로 메워서
+                    //     바깥선만 둥글고 속은 한 덩어리가 되게 한다.
+                    if (wall) sr.sprite = PixelSprites.Round();
                     //  빈 칸은 높이에 따라 밝기가 다르다 — 위가 밝고 아래가 가라앉는다
                     sr.color = wall ? Rock
                              : Color.Lerp(FloorLit, FloorDim, _L.H < 2 ? 0f : (float)y / (_L.H - 1));
 
                     if (wall)
                     {
-                        // 🔴 돌을 **덩어리**로 보이게 — 공기와 닿는 겉면은 밝고 속은 어둡다.
-                        //    평평한 한 색이면 아무리 칠해도 판때기로 보인다.
-                        bool up    = y > 0        && !_L.IsWall(c - _L.W);
-                        bool down  = y < _L.H - 1 && !_L.IsWall(c + _L.W);
-                        bool left  = x > 0        && !_L.IsWall(c - 1);
-                        bool right = x < _L.W - 1 && !_L.IsWall(c + 1);
-                        if (!up && !down && !left && !right) sr.color = RockDeep;   // 속
+                        // ⚠️ 속 칸을 RockDeep 으로 덮던 줄은 뺐다 (09-03).
+                        //    가장자리는 대부분 속 칸이라, 그 줄이 **페이드를 덮어써서**
+                        //    정작 흐려져야 할 데가 안 흐려졌다. 납작한 그림에서
+                        //    RockDeep 은 어차피 Rock 과 같은 색이다.
+                        bool up = y > 0 && !_L.IsWall(c - _L.W);
 
                         // 윗면 — "여기 딛고 설 수 있다". 두고 온 몸의 윗면과 같은 신호다.
                         if (up)
@@ -1222,8 +1261,41 @@ namespace SlimeEscape
                         // 🔴 옆·아랫면 테는 **뺐다.** 돌마다 테가 둘리니 다시 타일로 보였고,
                         //    밝은 면이 너무 많아 빈 곳보다 돌이 밝아졌다 (08-31 화면).
                         //    밝은 건 윗면 하나뿐 — 그래야 "설 수 있다"가 신호로 남는다.
-                        _ = left; _ = right; _ = down;
                     }
+                }
+
+            //  🔴 **판 밖에 한 겹 더** (09-03 사장님). 판의 마지막 칸은 온전한 돌로 두고,
+            //     이 바깥 겹이 배경으로 녹는다 — 판이 네모난 상자로 끝나지 않는다.
+            //     실제로 못 지나가는 자리라, 돌로 그리는 것이 거짓말이 아니다.
+            for (int y = -1; y <= _L.H; y++)
+                for (int x = -1; x <= _L.W; x++)
+                {
+                    if (x >= 0 && y >= 0 && x < _L.W && y < _L.H) continue;   // 판 안은 이미 그렸다
+                    var sr = NewSprite("WallEdge", -3);
+                    sr.sprite = PixelSprites.Round();
+                    sr.transform.position = CellXY(x, y);
+                    sr.color = Rock;
+                    //  바깥쪽으로 흘려보낸다. 모서리 칸은 두 장이 겹쳐 더 짙어진다 — 제일 바깥이니까.
+                    if (x == -1)      EdgeFade(x, y,   0f);
+                    if (x == _L.W)    EdgeFade(x, y, 180f);
+                    if (y == -1)      EdgeFade(x, y, 270f);
+                    if (y == _L.H)    EdgeFade(x, y,  90f);
+                }
+
+            //  🔴 붙어 있는 벽을 **한 덩어리**로 잇는다. 오른쪽·아래만 보면 중복이 없다.
+            //     네 칸이 만나는 자리도 메운다 — 깎인 모서리 넷이 모여 구멍이 남는다.
+            //     🔴 **바깥 겹까지 같이** 잇는다. 판 안과 밖이 안 이어지면
+            //        마지막 칸에 금이 하나 그어져 보인다.
+            for (int y = -1; y <= _L.H; y++)
+                for (int x = -1; x <= _L.W; x++)
+                {
+                    if (!WallAt(x, y)) continue;
+                    bool wR = x + 1 <= _L.W && WallAt(x + 1, y);
+                    bool wD = y + 1 <= _L.H && WallAt(x, y + 1);
+                    if (wR) WallBridge(x, y, new Vector3(0.42f, 1f, 1), new Vector2(0.5f, 0f));
+                    if (wD) WallBridge(x, y, new Vector3(1f, 0.42f, 1), new Vector2(0f, -0.5f));
+                    if (wR && wD && WallAt(x + 1, y + 1))
+                        WallBridge(x, y, new Vector3(0.42f, 0.42f, 1), new Vector2(0.5f, -0.5f));
                 }
 
             // 🔴 목표 홈 — 바닥보다 어둡게 파인 것처럼. 몸이 덮으면 한 칸씩 빛이 찬다
