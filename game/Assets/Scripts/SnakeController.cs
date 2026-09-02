@@ -923,9 +923,16 @@ namespace SlimeEscape
                 var lip = NewSprite("HoleLip", 1);
                 lip.transform.position = CellPos(c) + new Vector2(0f, -0.37f);
                 lip.transform.localScale = new Vector3(SlotInner, 0.15f, 1);
+                //  🔴 놋쇠 틀이 생긴 뒤로는 이 민트 띄가 곉돌아 **푸른 막대**로 보인다.
+                //     틀이 이미 깊이를 말해주므로, 틀 그림이 있을 때는 안 그린다.
                 lip.color = Color.Lerp(HoleCol, EdgeOf(kvDoor.Value), 0.44f);
                 //  아래에 홈이 또 있으면 거긴 벽이 아니라 속이다 — 안 그린다
                 lip.enabled = !_doorOf.ContainsKey(c + _L.W);
+                //  🔴 놋쇠 틀이 생긴 뒤로는 이 민트 띄가 곉돌고,
+                //     레일과 **차례가 같아서(둘 다 1) 서로 번갈아 이긴다** —
+                //     레일이 군데군데만 보여 외벽이 끊긴 것처럼 보였다 (09-02 사장님).
+                //     ⚠️ 끄는 줄을 앞에 둠다가 바로 뒤 줄이 다시 켜버렸다. 순서가 중요하다.
+                if (Art.Has("rail")) lip.enabled = false;
                 _holeLips[c] = lip;
 
                 _holes[c] = inner;
@@ -1142,9 +1149,17 @@ namespace SlimeEscape
             sr.transform.position = CellPos(cell) + off;
             if (art)
             {
-                sr.transform.localScale = Vector3.one;
+                //  🔴 레일을 **띄 두께만큼 양쪽으로 길게** 뿑는다.
+                //     칸 길이에 딱 맞추면 오목한 모서리에서 두 레일이 **점으로만 만나**
+                //     작은 홈이 남는다 — 외벽이 끊겨 보인다 (09-02 사장님).
+                //     길이만 늘리니 두께는 그대로다 (돌리기 전 가로가 띄의 길이 방향).
+                sr.transform.localScale = new Vector3(1f + 5f / 32f, 1f, 1f);
+                //  🔴 좌우가 바뀌어 있었다 (09-02 사장님: "외벽이 안 이어져있어").
+                //     유니티의 +90° 는 **반시계** 방향이라 윗쪽 띄가 **왼쪽**으로 간다.
+                //     왼쪽에 270° · 오른쪽에 90° 를 줘서 레일이 엉뚱한 변에 붙었고,
+                //     그래서 모서리에서 서로 안 만났다. 그림은 멀젖했다.
                 sr.transform.rotation = Quaternion.Euler(
-                    0, 0, side == 0 ? 0f : side == 1 ? 180f : side == 2 ? 270f : 90f);
+                    0, 0, side == 0 ? 0f : side == 1 ? 180f : side == 2 ? 90f : 270f);
             }
             else
             {
