@@ -97,4 +97,4 @@ Unity·게임개발·itch 같은 **어느 프로젝트든 재사용되는 기술
 
 ⚠️ 통합 위키에 **Unity·게임 페이지가 아직 없다.** 처음 만드는 게 이 프로젝트다 — [[todo]].
 
-#slime #puzzle #unity #pixelart #wiki
+#slime #puzzle #unity #flat #wiki
