@@ -26,6 +26,7 @@ $map = @{
   'LEFT' = '{LEFT}'; 'RIGHT' = '{RIGHT}'; 'UP' = '{UP}'; 'DOWN' = '{DOWN}'
   'ESC' = '{ESC}'; 'Z' = 'z'; 'R' = 'r'; 'N' = 'n'; 'P' = 'p'; 'H' = 'h'
   'F1' = '{F1}'; 'F2' = '{F2}'; 'F3' = '{F3}'; 'SPACE' = ' '; 'T' = 't'
+  'F' = 'f'; 'G' = 'g'; 'K' = 'k'; 'X' = 'x'
 }
 foreach ($k in $seq.Split(' ')) {
   if (-not $k) { continue }

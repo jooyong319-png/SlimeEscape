@@ -3,37 +3,13 @@ using UnityEngine;
 namespace SlimeEscape
 {
     /// <summary>
-    /// 되살린 GIF 시트를 잘라 쓰는 도구. 칸 크기는 art/frames.json에 적힌 실측값이다.
-    /// (한 픽셀도 안 고친 원본이라 여기 숫자를 바꾸면 그림이 어긋난다)
+    /// 🔴 **코드가 그리는 도형 넷.** 납작한 그림은 전부 여기서 나온다 (09-02 확정).
+    /// 네모 · 원 · 마름모 · 모서리 깎은 네모 — 색은 SpriteRenderer.color 가 준다.
+    ///
+    /// 한 번 만들고 계속 돌려 쓴다. 판마다 새로 만들면 텍스처가 쌓인다.
     /// </summary>
     public static class PixelSprites
     {
-        public const int PPU = 100;
-
-        public struct Sheet
-        {
-            public Sprite[] Frames;
-            public float UnitW, UnitH;   // 한 프레임의 월드 크기 (units)
-        }
-
-        public static Sheet Load(string resourcePath, int frameCount)
-        {
-            var tex = Resources.Load<Texture2D>(resourcePath);
-            if (tex == null) { Debug.LogError($"텍스처 없음: Resources/{resourcePath}"); return default; }
-            tex.filterMode = FilterMode.Point;
-
-            int cw = tex.width / frameCount, ch = tex.height;
-            var frames = new Sprite[frameCount];
-            for (int i = 0; i < frameCount; i++)
-            {
-                frames[i] = Sprite.Create(
-                    tex, new Rect(i * cw, 0, cw, ch),
-                    new Vector2(0.5f, 0.5f), PPU, 0, SpriteMeshType.FullRect);
-                frames[i].name = $"{resourcePath}_{i}";
-            }
-            return new Sheet { Frames = frames, UnitW = cw / (float)PPU, UnitH = ch / (float)PPU };
-        }
-
         static Sprite _solid, _disc;
         static Sprite _round;
         static Sprite _diamond;
@@ -67,10 +43,6 @@ namespace SlimeEscape
         }
 
         /// <summary>
-        /// 🔴 몸통용 **둥근 네모**. 각진 네모는 아무리 색을 잘 써도 블록으로 보인다.
-        /// 모서리만 깎아도 "말랑한 것"이 된다 — 슬라임에게는 그게 전부다.
-        /// </summary>
-        /// <summary>
         /// 🔴 마름모. 머리에 박힌 **열쇠**를 그린다 (09-02 사장님).
         /// 세로로 길게 쓰려고 만든 것이라 가로세로는 localScale 로 따로 준다 —
         /// 네모를 45도 돌려 쓰면 비스듬히 눌려서 마름모가 안 나온다.
@@ -90,6 +62,55 @@ namespace SlimeEscape
             t.Apply();
             _diamond = Sprite.Create(t, new Rect(0, 0, size, size), new Vector2(0.5f, 0.5f), size, 0, SpriteMeshType.FullRect);
             return _diamond;
+        }
+
+        /// <summary>
+        /// 🔴 몸통용 **둥근 네모**. 각진 네모는 아무리 색을 잘 써도 블록으로 보인다.
+        /// 모서리만 깎아도 "말랑한 것"이 된다 — 슬라임에게는 그게 전부다.
+        /// </summary>
+        static Sprite[] _drops;
+
+        /// 밑이 퍼진 모양을 몇 단으로 구워 둘 것인가. 많을수록 부드럽지만 텍스처가 는다.
+        public const int DropLevels = 7;
+
+        /// <summary>
+        /// 🔴 **밑이 퍼진 둥근 네모** (09-03 사장님: "밑에 사이드도 촥").
+        /// 0 이면 <see cref="Round"/> 와 똑같이 좌우대칭이고, 단이 오를수록 아래만 넓어진다.
+        ///
+        /// 마디 밑에 조각을 따로 깔지 않으려고 **모양 자체**를 여러 단으로 굽는다 —
+        /// 조각을 깔면 09-02 처럼 비석으로 보일 위험이 있고, 색·자리를 늘 맞춰줘야 한다.
+        ///
+        /// 넓히는 대신 **위를 좁힌다.** 칸을 넘을 수 없으니 넓힐 자리가 없다.
+        /// </summary>
+        public static Sprite Drop(int level, int size = 48, float radius = 0.30f)
+        {
+            if (_drops == null) _drops = new Sprite[DropLevels];
+            level = Mathf.Clamp(level, 0, DropLevels - 1);
+            if (_drops[level] != null) return _drops[level];
+
+            float taper = 0.17f * level / (DropLevels - 1f);
+            var t = new Texture2D(size, size, TextureFormat.RGBA32, false) { filterMode = FilterMode.Bilinear };
+            float r = size * radius;
+            for (int y = 0; y < size; y++)
+            {
+                //  y = 0 이 아래다. 아래 절반쯤에서만 부풀고 위로 갈수록 0 이 된다.
+                float up = y / (size - 1f);
+                float k  = Mathf.Max(0f, 1f - up / 0.55f);
+                k = k * k * (3f - 2f * k);                 // 부드럽게 (매끈한 계단)
+                float inset = size * 0.5f * taper * (1f - k);
+                for (int x = 0; x < size; x++)
+                {
+                    float px = x + 0.5f, py = y + 0.5f;
+                    float dx = Mathf.Max(0f, Mathf.Max((inset + r) - px, px - (size - inset - r)));
+                    float dy = Mathf.Max(0f, Mathf.Max(r - py, py - (size - r)));
+                    float d = Mathf.Sqrt(dx * dx + dy * dy);
+                    t.SetPixel(x, y, new Color(1, 1, 1, Mathf.Clamp01(r - d + 0.5f)));
+                }
+            }
+            t.Apply();
+            _drops[level] = Sprite.Create(t, new Rect(0, 0, size, size),
+                                          new Vector2(0.5f, 0.5f), size, 0, SpriteMeshType.FullRect);
+            return _drops[level];
         }
 
         public static Sprite Round(int size = 48, float radius = 0.30f)

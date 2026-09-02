@@ -161,7 +161,6 @@ namespace SlimeEscape
             { Body = body; Fm = fm; Pg = pg; Dm = dm; Sc = sc; Pm = pm; }
             public int Head => Body[0];
             public int Length => Body.Count;
-            public State Clone() => new State(new List<int>(Body), Fm, Pg, Dm, Sc, Pm);
         }
 
         /// 문자 격자를 판으로.
