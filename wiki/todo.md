@@ -125,5 +125,16 @@ python tools/subset-font.py "d:/Make_game/SalvageRun/game/Assets/_Project/Resour
     안내판에 흰 줄이 그어져 있던 것이 이거였다. **IMGUI 는 카메라보다 늘 위다**
 19. ⚠️ **JsonUtility 는 모르는 칸을 조용히 버린다** — `SnakeLevelJson` 에 `states`
     `tight` `backtrack` 선언이 없어서, 판 자료에 있는데도 게임은 전부 0으로 읽고 있었다
-20. **PowerShell 5.1 은 BOM 없는 .ps1 을 ANSI 로 읽는다** — 한글이 깨져 따옴표가 어긋나
+20. 🔴 **씬은 저장돼 있는데 유니티가 빈 씬으로 열릴 수 있다** — `Library/LastSceneManagerSetup.txt`
+    가 비면 `Untitled` 로 뜬다. 그 상태로 Play 를 눌러도 `SnakeController` 가 없으니
+    **아무 일도 안 일어나고 예외도 안 난다.** 창 제목에 `Untitled` 가 보이면 이것이다.
+    ```
+    확인:  창 제목  ·  game/Library/LastSceneManagerSetup.txt
+    고침:  그 파일에 Assets/Scenes/Main.unity 를 적고 유니티를 다시 연다
+           (또는 메뉴 SlimeEscape > 씬 다시 만들기)
+    ```
+21. 🔴 **`-executeMethod` 는 이름이 틀려도 조용히 실패한다** — 로그에
+    `executeMethod class ... could not be found` 한 줄만 남고 종료 코드도 안 준다.
+    (`SlimeEscape.Editor…` 가 아니라 **`SlimeEscape.EditorTools…`** 다)
+22. **PowerShell 5.1 은 BOM 없는 .ps1 을 ANSI 로 읽는다** — 한글이 깨져 따옴표가 어긋나
     스크립트가 통째로 안 돈다. 로그에서 찾을 표는 **아스키**로 둘 것

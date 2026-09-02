@@ -3057,7 +3057,7 @@ namespace SlimeEscape
 
             // ---- 한 줄 설명 ----
             string[] LINE = {
-                "몸을 홈에 정확히 포개면 판이 끝납니다\n머리의 마름모가 홈의 마름모에 앉아야 합니다",
+                "몸을 홈에 정확히 포개면 판이 끝납니다\n머리는 마름모 칸에서 끝나야 합니다",
                 "→  오른쪽 화살표 키",
                 "←  왼쪽 화살표 키",
                 "발판 끝에서는 떨어집니다",
@@ -3068,12 +3068,17 @@ namespace SlimeEscape
             var ls = new GUIStyle(_sSmall) { alignment = TextAnchor.UpperCenter, wordWrap = true,
                                              fontSize = Px(Mathf.Clamp(pw * 0.062f, 11f, 17f)) };
             ls.normal.textColor = new Color(1, 1, 1, 0.80f);
-            GUI.Label(new Rect(box.x + pad, stage.yMax + h * 0.035f, pw - pad * 2, h * 0.22f),
-                      LINE[slide], ls);
+            //  🔴 글이 몇 줄이 될지는 글꼴·화면 폭에 따라 달라진다. **재서** 쓴다 —
+            //     아래 점 자리를 비율로 못박아 뒀더니 세 줄이 되는 순간 점을 덮었다
+            //     (09-04 밤 화면). 글이 길어질 때마다 다시 터질 자리였다.
+            var lineRect = new Rect(box.x + pad, stage.yMax + h * 0.035f, pw - pad * 2, h * 0.30f);
+            float lineH = ls.CalcHeight(new GUIContent(LINE[slide]), lineRect.width);
+            GUI.Label(new Rect(lineRect.x, lineRect.y, lineRect.width, lineH), LINE[slide], ls);
 
             // ---- 몇 번째 장인지 ----
             float dot = Mathf.Clamp(pw * 0.022f, 4f, 9f), gap = dot * 1.9f;
-            float row = h * 0.60f;
+            //  글 아래로 밀어 둔다 (최소 자리는 지키되, 글이 길면 그만큼 내려간다)
+            float row = Mathf.Max(h * 0.60f, lineRect.y + lineH + h * 0.030f);
             float span = Slides * gap - (gap - dot);
             float dx = box.x + pw * 0.5f - span * 0.5f;
             for (int k = 0; k < Slides; k++)
