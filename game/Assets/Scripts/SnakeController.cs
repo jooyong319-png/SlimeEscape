@@ -898,11 +898,9 @@ namespace SlimeEscape
                 //  꾺이는 모서리에 장식을 박는다 — 참고 그림에서 틀을 틀로 만드는 것이 이것이다.
                 //  🔴 모서리 밖으로 반쯤 나가 있으면 핀처럼 보인다.
                 //     틀 **위에** 얙히는 자리로 당긴다 (09-02 화면).
-                float g = 0.5f - GemW * 0.80f;
-                if (!nU && !nL) Gem(c, dr, new Vector2(-g,  g));
-                if (!nU && !nR) Gem(c, dr, new Vector2( g,  g));
-                if (!nD && !nL) Gem(c, dr, new Vector2(-g, -g));
-                if (!nD && !nR) Gem(c, dr, new Vector2( g, -g));
+                //  ⚠️ 모서리 장식은 걷어냈다 (09-02 사장님 그림).
+                //     틀이 화려해지면 정작 봐야 하는 **마름모**를 이긴다.
+                //     그리는 함수(Gem)는 남겨둔다 — 되돌리기 쉽게.
 
                 //  틀 안을 칸으로 나눈다 — "몇 칸을 채우는가"가 저절로 세어진다
                 if (nR) Seam(c, new Vector2(0.5f, 0f), new Vector3(0.035f, 0.86f, 1));
@@ -935,6 +933,9 @@ namespace SlimeEscape
                 if (Art.Has("rail")) lip.enabled = false;
                 _holeLips[c] = lip;
 
+                //  🔴 그림(slot)이 칸을 이미 채운다. 그 위에 옷 검정 네모를 덮으면
+                //     사장님이 고르신 진한 초록이 안 보인다 (09-02 화면).
+                inner.enabled = !Art.Has("slot");
                 _holes[c] = inner;
                 _holeEdges[c] = edge;
 
@@ -1153,7 +1154,9 @@ namespace SlimeEscape
                 //     칸 길이에 딱 맞추면 오목한 모서리에서 두 레일이 **점으로만 만나**
                 //     작은 홈이 남는다 — 외벽이 끊겨 보인다 (09-02 사장님).
                 //     길이만 늘리니 두께는 그대로다 (돌리기 전 가로가 띄의 길이 방향).
-                sr.transform.localScale = new Vector3(1f + 5f / 32f, 1f, 1f);
+                //  얇은 선이라 조금만 겹쳐도 모서리가 덤인다.
+                //  많이 뿑으면 볼록 모서리에 **돌기**가 남는다 (09-02 화면).
+                sr.transform.localScale = new Vector3(1f + 3f / 32f, 1f, 1f);
                 //  🔴 좌우가 바뀌어 있었다 (09-02 사장님: "외벽이 안 이어져있어").
                 //     유니티의 +90° 는 **반시계** 방향이라 윗쪽 띄가 **왼쪽**으로 간다.
                 //     왼쪽에 270° · 오른쪽에 90° 를 줘서 레일이 엉뚱한 변에 붙었고,
@@ -1198,7 +1201,10 @@ namespace SlimeEscape
             var sr = NewSprite("Seam", 0);
             sr.transform.position = CellPos(cell) + off;
             sr.transform.localScale = scale;
-            sr.color = Color.Lerp(SlotLine, HoleCol, 0.55f);
+            //  🔴 검정으로 두면 칸 사이가 **구멍처럼** 보인다 (09-02 화면).
+            //     홈 속보다 한 단만 어둡게 — 칸을 세는 데만 쓰이면 된다.
+            sr.color = Art.Has("slot") ? new Color(0.72f, 0.72f, 0.72f, 0.55f)
+                                       : Color.Lerp(SlotLine, HoleCol, 0.55f);
         }
 
         void AddRim(int cell, Vector2 off, Vector3 scale)
@@ -1422,8 +1428,11 @@ namespace SlimeEscape
                 // 🔴 **머리가 맨 위**에 와야 한다. 예전엔 차례를 번갈아 매겨서
                 //    뒤쪽 몸이 머리를 덮었다 — 얼굴이 뒤로 밀려 보였다 (09-02 사장님).
                 //    머리 4 · 몸 3 · 이음매 2 로 못박는다.
+                //  🔴 머리를 이음매(5)보다 **위**로. 안 그러면 이음매가 얼굴을 덮어
+                //     눈이 사라진다 (09-02 화면). 마디 좁은 변에는 어두운 윤곽이 없어서
+                //     머리를 위로 올려도 이음매와 경계가 안 생긴다.
                 bool isHead = _segs.Count == 0;
-                var sr = NewSprite("Seg", isHead ? 4 : 3, isHead ? "head" : "body");
+                var sr = NewSprite("Seg", isHead ? 6 : 3, isHead ? "head" : "body");
                 _segs.Add(sr);
             }
             for (int i = 0; i < _segs.Count; i++)
@@ -1502,12 +1511,22 @@ namespace SlimeEscape
             {
                 if (fb.sr == null) continue;
                 bool fSpent = (_st.Dm & (1 << fb.door)) != 0;
-                var rc = fb.gem ? RailOf(fb.door) : RailDimOf(fb.door);
-                if (!fb.gem) rc = Color.Lerp(rc, RailOf(fb.door), 0.55f);
+                //  🔴 그림이 있으면 색을 안 입힌다. 여기서 놓치면
+                //     지을 때 흰색으로 둔 것을 **매 프레임 다시 놋쇠로** 덮어쓴다 (09-02).
+                var rc = Art.Has("rail") ? Color.white
+                       : fb.gem ? RailOf(fb.door)
+                       : Color.Lerp(RailDimOf(fb.door), RailOf(fb.door), 0.55f);
                 if (!fSpent)
                 {
-                    rc = Color.Lerp(rc, Color.white,
-                                    0.16f * (0.5f + 0.5f * Mathf.Sin(Time.time * 1.6f)));
+                    //  그림이면 숨쉬기를 **어둡게 깔았다 밝히는** 방식으로 —
+                    //  흰색을 더 하얀게 만들 수는 없기 때문이다.
+                    float br = Art.Has("rail")
+                        ? 0.80f + 0.20f * (0.5f + 0.5f * Mathf.Sin(Time.time * 1.6f))
+                        : 1f;
+                    rc = Art.Has("rail")
+                        ? new Color(rc.r * br, rc.g * br, rc.b * br, rc.a)
+                        : Color.Lerp(rc, Color.white,
+                                     0.16f * (0.5f + 0.5f * Mathf.Sin(Time.time * 1.6f)));
                     // 🔴 힌트 1 — 먼저 채울 틀만 깜빡인다.
                     //    글로 "왼쪽 아래요" 하는 것보다 빠르다.
                     if (_hint >= 1 && fb.door == _hintDoor)
@@ -1559,9 +1578,15 @@ namespace SlimeEscape
                     //     "몸이 지형이 됐다"는 규칙이 끊긴다 — 딛고 설 수 있다는 신호도 약해진다.
                     var want = Art.Get(spent ? "spent" : "slot");
                     if (want != null && e.sprite != want) e.sprite = want;
+                    //  🔴 그림이 있으면 덧칠하지 않는다. 옆에 어두운 색을 곱하면
+                    //     사장님이 고르신 진한 초록이 거의 검정으로 죽는다 (09-02 화면).
+                    //     덤은 칸만 한 단 밝혀서 "여기 들어갔다"를 알린다.
+                    bool hasSlot = Art.Has(spent ? "spent" : "slot");
                     e.color = spent
-                        ? (Art.Has("spent") ? Color.white : Color.Lerp(SlotLine, SpentCol, SuckT))
-                        : covered ? Color.Lerp(SlotLine, fill, 0.55f) : SlotLine;
+                        ? (hasSlot ? Color.white : Color.Lerp(SlotLine, SpentCol, SuckT))
+                        : hasSlot
+                            ? (covered ? new Color(1.25f, 1.25f, 1.25f) : Color.white)
+                            : (covered ? Color.Lerp(SlotLine, fill, 0.55f) : SlotLine);
                 }
             }
             // 🔴 채워진 홈의 심 표시는 사라진다 — 몸이 빨려드는 동안 같이 흐려진다
@@ -2601,24 +2626,30 @@ namespace SlimeEscape
             float lit = fit ? 0.55f + 0.45f * Mathf.Sin(Time.time * 9f)
                             : Mathf.Max(spark, 0.22f * breathe);
 
-            //  이마에, 가는 쪽으로 조금 — 얼굴에 붙어 있어야 "이게 내 열쇠"로 읽힌다
-            var at = hp + new Vector3(look.x * 0.07f * s, 0.26f * s + look.y * 0.03f * s, 0f);
-            //  🔴 위아래로 긴 마름모. 가로세로를 따로 준다
-            float kw = 0.30f * s * (1f + 0.06f * lit);
-            float kh = 0.52f * s * (1f + 0.10f * lit);
+            //  🔴 사장님 그림대로 **이마 가운데**. 가는 쪽으로 쓸리지 않는다 —
+            //     홈의 마름모도 가운데에 있으니, 둘이 **같은 자리**에 있어야 짝이 보인다.
+            var at = hp + new Vector3(0f, 0.16f * s, 0f);
+            float kw = 0.42f * s * (1f + 0.05f * lit);
+            float kh = 0.58f * s * (1f + 0.08f * lit);
 
             _keyGlow.transform.position = at;
             _keyGlow.transform.localScale = new Vector3(kh * 1.9f, kh * 1.9f, 1f);
-            var gc = CoreCol; gc.a = 0.10f + 0.26f * lit;
+            var gc = Art.Has("key") ? new Color(0.85f, 1f, 0.93f) : CoreCol;
+            gc.a = 0.10f + 0.26f * lit;
             _keyGlow.color = gc;
 
             _keyRing.transform.position = at;
             _keyRing.transform.localScale = new Vector3(kw, kh, 1f);
-            _keyRing.color = Color.Lerp(CoreRing, CoreCol, 0.35f + 0.65f * lit);
+            //  그림이 이미 흰색이다. 번짝임은 **밝기로만** 준다.
+            _keyRing.color = Art.Has("key")
+                ? new Color(1f, 1f, 1f, 0.55f + 0.45f * lit)
+                : Color.Lerp(CoreRing, CoreCol, 0.35f + 0.65f * lit);
 
             _keyCore.transform.position = at;
             _keyCore.transform.localScale = new Vector3(kw * 0.52f, kh * 0.52f, 1f);
-            _keyCore.color = Color.Lerp(CoreCol, Color.white, 0.75f * lit);
+            _keyCore.color = Art.Has("key")
+                ? Color.white
+                : Color.Lerp(CoreCol, Color.white, 0.75f * lit);
         }
 
         void CloseIntro()

@@ -38,6 +38,15 @@ PAL = {
     # 조각 — 주황
     'u': (0x7a, 0x40, 0x06), 'v': (0xc4, 0x69, 0x04),
     'w': (0xf3, 0x8a, 0x04), 'x': (0xff, 0xc0, 0x5c),
+    # 🔴 사장님 그림의 색 (09-02)
+    'S': (0x1d, 0x40, 0x34),   # 홈 속 — 진한 초록
+    'T': (0x16, 0x33, 0x29),   # 홈 속 아래
+    'U': (0x9f, 0xe0, 0xc0),   # 홈 테 — 얇고 밝은 선
+    'W': (0xff, 0xff, 0xff),   # 마름모 — 슬라임과 홈이 같은 것을 쓴다
+    'V': (0xdd, 0xf3, 0xe8),   # 마름모 그늘
+    'Z': (0x14, 0x24, 0x1d),   # 눈
+    #  흰빛 세 단 — 머리 마름모 뒤에 깔린다
+    'J': (0xdd, 0xf3, 0xe8, 0x66), 'K': (0xdd, 0xf3, 0xe8, 0x38), 'L': (0xdd, 0xf3, 0xe8, 0x16),
     # 별 — 놋쇠 기계와 안 섞이게 창백한 금빛
     'A': (0x8a, 0x76, 0x3a), 'B': (0xd8, 0xc2, 0x76),
     'C': (0xf5, 0xe6, 0xae), 'D': (0xff, 0xfb, 0xef),
@@ -175,12 +184,18 @@ def body():
 
 
 def head():
-    """머리. 조금 더 밝다 — 어디가 앞인지 색으로도 말해준다."""
-    g = body()
+    """
+    머리. 🔴 눈 둘을 되살렸다 (09-02 사장님 그림).
+    마름모는 코드가 따로 얹는다 — 번짝여야 하기 때문이다.
+    그래서 여기에는 **눈만** 찍는다. 눈은 마름모 **아래**에 둔다.
+    """
+    g = _blob(2.5)
     for y in range(N):
         for x in range(N):
             if g[y][x] == 'q':
                 g[y][x] = 'r'
+    for x0 in (10, 18):
+        box(g, x0, 20, x0 + 3, 23, 'Z')
     return g
 
 
@@ -208,55 +223,31 @@ def link():
     return g
 
 
-def key():
-    """머리에 박힌 열쇠. 위아래로 긴 마름모. 번쩍임은 코드가 입힌다."""
+def _diamond(w=8.5, h=12.0, fill='W', edge='V'):
+    """
+    🔴 슬라임의 열쇠와 홈의 구멍이 **같은 마름모**다 (09-02 사장님 그림).
+    같은 것을 두 군데 두면 "여기에 넣어라"가 설명 없이 읽힌다 —
+    그림에 "=" 로 적어 주셨던 그 뜻이다.
+    """
     g = blank(' ')
-    cx = N // 2
+    c = (N - 1) / 2.0
     for y in range(N):
-        #  |x|/w + |y|/h <= 1  가 마름모
-        h = (N - 2) / 2.0
-        w = (N - 2) / 2.0 * 0.52
-        span = w * (1 - abs(y - (N - 1) / 2.0) / h)
-        if span <= 0:
-            continue
         for x in range(N):
-            d = abs(x - (N - 1) / 2.0)
-            if d > span:
+            m = abs(x - c) / w + abs(y - c) / h
+            if m > 1.0:
                 continue
-            g[y][x] = 'l'
-            if d > span - 1.1:
-                g[y][x] = 'k'
-            elif y < N * 0.45:
-                g[y][x] = 'm'
-    box(g, cx - 1, 9, cx, 13, 'n')       # 손으로 얹은 빛
+            g[y][x] = edge if m > 0.80 else fill
     return g
+
+
+def key():
+    """머리에 박힌 마름모. 번짝임은 코드가 입힌다."""
+    return _diamond()
 
 
 def core():
-    """
-    열쇠 **구멍**. 🔴 머리에 박힌 열쇠와 **같은 마름모**여야 짝이 맞는다.
-    앞서 네모로 그렸더니 구멍이 아니라 갈색 상자로 보였다 (09-02).
-    열쇠는 꽉 찼으니 구멍은 비어 있어야 한다 — 테만 놋쇠, 속은 어둡게.
-    """
-    g = blank(' ')
-    cy = (N - 1) / 2.0
-    h = (N - 2) / 2.0
-    w = h * 0.62
-    for y in range(N):
-        span = w * (1 - abs(y - cy) / h)
-        if span <= 0:
-            continue
-        for x in range(N):
-            d = abs(x - cy)
-            if d > span:
-                continue
-            if d > span - 2.6:
-                g[y][x] = 'l'          # 놋쇠 테
-                if y < N * 0.42:
-                    g[y][x] = 'm'      # 위쪽 테가 빛을 받는다
-            else:
-                g[y][x] = 'j'          # 파인 속
-    return g
+    """홈의 마름모. 슬라임 머리의 것과 **똑같다.**"""
+    return _diamond()
 
 
 def food():
@@ -369,35 +360,26 @@ def spent():
 
 
 def slot():
-    """
-    홈 틀 **안 바닥**. 🔴 굴 바닥보다 확실히 어두워야 한다 —
-    비슷하면 "여기가 목표다"가 안 서고 그냥 빈 칸으로 보인다 (09-02 화면).
-    눈에 띄되 시끄럽지 않게: 어두운 바탕에 아주 옅은 결만 둔다.
-    """
-    g = blank('1')
-    for y in range(2, N, 6):        # 가로로 옅은 결 — 파낸 자국처럼
-        box(g, 1, y, N - 2, y, '2')
+    """홈 틀 **안 바닥**. 진한 초록 — 눈에 띄되 시끄럽지 않게."""
+    #  🔴 아래에 어두운 띄를 두었더니 칸마다 **가로줄**이 생겼다 (09-02 화면).
+    #     홈이 여러 칸이면 한 덩어리로 보여야 한다 — 평평하게 둔다.
+    g = blank('S')
     for x, y in [(7, 9), (20, 15), (13, 25), (26, 5)]:
-        stamp(g, [(x, y, '2')])
+        stamp(g, [(x, y, 'T')])
     return g
 
 
 def rail():
     """
-    홈 틀의 레일 한 마디. 🔴 **위쪽 변**에 그린다 — 코드가 돌려서 네 변에 쓴다.
+    홈 틀의 테 한 마디. 🔴 **윗쪽 변**에 그리고 코드가 돌려 네 변에 쓴다.
 
-    한 칸을 꽉 채우면 안 된다. 레일은 덩어리의 **바깥선**이라 칸 가장자리에
-    딱 붙어야 하고, 안쪽으로 파고들면 홈이 좁아 보인다 (09-02 화면).
-    그래서 위에서 5픽셀만 쓰고 나머지는 비운다.
+    사장님 그림대로 **얇고 밝은 선** 한 줄로. 놋쇠 장식은 걷어냈다 —
+    틀이 화려해지면 정작 봐야 하는 **마름모**를 이긴다.
     """
     g = blank(' ')
-    box(g, 0, 0, N - 1, 0, 'j')     # 바깥 한 겹은 어둡게 — 돌과 경계가 선다
-    box(g, 0, 1, N - 1, 1, 'l')
-    box(g, 0, 2, N - 1, 2, 'm')     # 빛을 받는 면
-    box(g, 0, 3, N - 1, 3, 'l')
-    box(g, 0, 4, N - 1, 4, 'k')     # 안쪽으로 갈수록 그늘
-    for x in range(3, N, 7):        # 손으로 찍은 못
-        stamp(g, [(x, 2, 'n'), (x, 3, 'k')])
+    box(g, 0, 0, N - 1, 0, 'T')     # 바깥 한 겹은 어둡게 — 돌과 경계가 선다
+    box(g, 0, 1, N - 1, 2, 'U')     # 밝은 선
+    box(g, 0, 3, N - 1, 4, 'S')     # 안쪽은 홈 속과 이어진다
     return g
 
 
@@ -490,30 +472,13 @@ def star_frames(n=6):
 
 
 def core_frames(n=6):
-    """열쇠 구멍 — 놋쇠 테에 빛이 한 바퀴 돈다. 여기로 오라는 신호다."""
-    out = []
-    for i in range(n):
-        g = blank(' ')
-        cy = (N - 1) / 2.0
-        h = (N - 2) / 2.0
-        w = h * 0.62
-        lit = i / float(n)                     # 빛이 도는 자리 (위에서 아래로)
-        for y in range(N):
-            span = w * (1 - abs(y - cy) / h)
-            if span <= 0:
-                continue
-            for x in range(N):
-                d = abs(x - cy)
-                if d > span:
-                    continue
-                if d > span - 2.6:
-                    #  세로 위치가 빛과 가까우면 밝아진다
-                    near = abs((y / float(N)) - lit)
-                    g[y][x] = 'm' if near < 0.16 else 'l'
-                else:
-                    g[y][x] = 'j'
-        out.append(g)
-    return out
+    """
+    홈의 마름모 — 숨만 쉰다.
+    🔴 슬라임 머리의 것과 **같은 모양·같은 색**이어야 한다 (09-02 사장님 그림).
+       둘이 달라지면 "이걸 저기에" 가 안 읽힌다.
+    """
+    k = [1.0, 1.05, 1.09, 1.05, 1.0, 0.96]
+    return [_diamond(8.5 * k[i % 6], 12.0 * k[i % 6]) for i in range(n)]
 
 
 def gem_frames(n=6):
@@ -562,7 +527,7 @@ FRAMES = {
     'star': star_frames(),
     'core': core_frames(),
     'gem': gem_frames(),
-    'key_glow': glow_frames('ioy'),
+    'key_glow': glow_frames('JKL'),
     'star_glow': glow_frames('IOY'),
 }
 
