@@ -566,6 +566,9 @@ namespace SlimeEscape
 
         void Awake()
         {
+            //  🔴 시범은 여기서 아무것도 안 한다. SetupDemo 가 세운다 —
+            //     본판의 카메라를 뺏거나 진행을 덮어쓰면 안 된다.
+            if (_demo) return;
             LoadKnobs();
 
             _cam = Camera.main;
@@ -586,6 +589,26 @@ namespace SlimeEscape
             LoadProgress();
             _intro = PlayerPrefs.GetInt(IntroKey, 0) == 0;
             _menu  = !_intro;    // 🔴 안내를 이미 본 사람은 바로 판 목록으로. 안 그러면 목록을 볼 길이 없다
+
+            //  🔴 안내판에서 돌 **진짜 게임**을 하나 세운다 (09-03 사장님).
+            //     본판과 겹치지 않게 멀리 놓고, 제 카메라로만 비춘다.
+            //
+            //  🔴 **꺼둔 채로 만든다.** AddComponent 는 그 자리에서 Awake 를 부르는데,
+            //     _demo 를 나중에 켜면 시범이 본판 Awake 를 통째로 돌면서
+            //     **또 시범을 만든다 — 무한 재귀다.**
+            var gg = new GameObject("GuideDemo");
+            gg.SetActive(false);
+            gg.transform.SetParent(transform, false);
+            _guide = gg.AddComponent<SnakeController>();
+            _guide._demo = true;
+
+            _guideCam = new GameObject("GuideCam").AddComponent<Camera>();
+            _guideCam.transform.SetParent(gg.transform, false);
+            _guideCam.orthographic = true;
+            _guideCam.clearFlags = CameraClearFlags.SolidColor;
+            _guideCam.backgroundColor = StageBg;
+            _guideCam.depth = _cam.depth + 1;
+            gg.SetActive(true);
 
             int start = 0;
             while (start < _set.levels.Length && Cleared(_set.levels[start].id)) start++;
@@ -690,6 +713,7 @@ namespace SlimeEscape
 
         void Ding(int i)
         {
+            if (_demo) return;
             if (_audio == null)
             {
                 _audio = gameObject.AddComponent<AudioSource>();
@@ -809,6 +833,7 @@ namespace SlimeEscape
 
         void StartRun()
         {
+            if (_demo) return;
             EndRun();                                  // 앞 판을 안 깨고 넘어갔어도 남긴다
             _run = new SnakeLog.Run { level = Def.id, best = Def.best };
             _runStart = Time.time;
@@ -816,6 +841,7 @@ namespace SlimeEscape
 
         void EndRun()
         {
+            if (_demo) return;
             if (_run == null) return;
             if (_run.seconds <= 0f) _run.seconds = Time.time - _runStart;   // 클리어 때 이미 찍었으면 그대로
             if (_run.moves > 0 || _run.cleared) SnakeLog.Add(_run);
@@ -838,6 +864,7 @@ namespace SlimeEscape
 
         void SaveProgress()
         {
+            if (_demo) return;
             var sb = new System.Text.StringBuilder();
             foreach (var kv in _recs)
             {
@@ -904,10 +931,16 @@ namespace SlimeEscape
                 cx = b.x + b.width * 0.5f; cy = -(b.y + b.height * 0.5f);
                 halfW = b.width * 0.5f; halfH = b.height * 0.5f;
             }
-            float fit = Mathf.Max(halfH + 0.9f, (halfW + 0.9f) / asp);
+            //  시범은 본판에서 멀리 떨어뜨려 놓았다 — 카메라도 그만큼 옮긴다
+            cx += _org.x; cy += _org.y;
+            //  시범은 판이 작으니 여백도 작게. 안 그러면 무대 한가운데 점처럼 보인다.
+            float mg = _demo ? 0.45f : 0.9f;
+            float fit = Mathf.Max(halfH + mg, (halfW + mg) / asp);
             // 작은 화면에선 읽기를 택한다 (2026-08-29)
             float refFit = Mathf.Max(BoardH * 0.5f + 0.6f, (BoardW * 0.5f + 0.6f) / asp);
-            float size = Mathf.Max(whole ? refFit : 0f, fit);
+            //  🔴 시범은 **기준 판 크기(20×12)를 안 본다.** 그걸 최소 배율로 삼으면
+            //     5×3 짜리 시범이 큰 판 기준으로 축소돼 점처럼 작아진다 (09-03 사장님 화면).
+            float size = Mathf.Max((whole && !_demo) ? refFit : 0f, fit);
             if (Screen.height / (2f * size) < 30f) size = fit;
 
             size = SnapSize(size);
@@ -1212,10 +1245,10 @@ namespace SlimeEscape
         }
 
         // ---------------- 화면 ----------------
-        Vector2 CellPos(int cell) => new Vector2(_L.X(cell) + 0.5f, -(_L.Y(cell) + 0.5f));
+        Vector2 CellPos(int cell) => _org + new Vector2(_L.X(cell) + 0.5f, -(_L.Y(cell) + 0.5f));
 
         /// 🔴 **판 밖도 가리킨다.** 칸 번호로는 -1 열을 못 쓴다 (09-03: 바깥 한 겹).
-        Vector2 CellXY(int x, int y) => new Vector2(x + 0.5f, -(y + 0.5f));
+        Vector2 CellXY(int x, int y) => _org + new Vector2(x + 0.5f, -(y + 0.5f));
 
         /// 판 밖은 전부 돌이다 — 실제로 못 지나가니 그렇게 그리는 게 맞다.
         bool WallAt(int x, int y)
@@ -2008,6 +2041,16 @@ namespace SlimeEscape
         // ---------------- 입력 ----------------
         void Update()
         {
+            //  🔴 시범은 사람 입력을 안 받는다. 정해진 방향을 스스로 누르고,
+            //     다 하면 처음으로 돌아간다. 그리는 것은 본판과 똑같이 돈다.
+            if (_demo)
+            {
+                if (_L == null) return;
+                TickDemo();
+                Animate(Time.deltaTime);
+                AimCamera(false);
+                return;
+            }
             // 🔴 이미 진 상태에서 보낸 시간을 잰다. 화면엔 아무 표시도 안 한다.
             if (_run != null && !_won && _lostSet != null && _lostSet.Ready && _lostSet.IsLost(_st))
                 _run.lostSeconds += Time.deltaTime;
@@ -2786,17 +2829,165 @@ namespace SlimeEscape
         //    지난번엔 판 위에 겹쳐 그려서 안내가 판 밑동에 잘려 나갔다.
         //    여섯 장이 저절로 넘어가며 키 넷과 홈 넣는 법을 전부 보여준다.
         const float GuideW = 0.28f;      // 안내판이 차지하는 가로 비율
-        const float SlideSecs = 3.6f;    // 한 장이 머무는 시간
-        const int Slides = 6;
+
+        // ================================================================ 시범 (안내판)
+        /// <summary>
+        /// 🔴 **안내판은 흉내가 아니라 진짜 게임이다** (09-03 사장님:
+        /// "진짜 내 캐릭터랑 같은 거가 저기서 방향키 누르는 방식 + 진짜 우리가 쓰는 벽").
+        ///
+        /// 같은 판을 IMGUI 로 다시 그리다가 오늘만 두 번 어긋났다 —
+        /// 게임을 둥글게 바꿔놓고 안내판만 네모로, 심을 희게 바꿔놓고 글은 "노란 칸"으로.
+        /// 그래서 <see cref="SnakeController"/> 를 **하나 더** 띄워 시범을 돌린다.
+        /// 그리는 코드가 같으니 게임이 바뀌면 안내판도 저절로 따라온다.
+        ///
+        /// 판 밖 세상(진행 저장·소리·목록·입력)은 전부 막는다. 그리는 것만 쓴다.
+        /// </summary>
+        bool _demo;                       // 나는 시범용인가
+        SnakeController _guide;           // 안내판에서 도는 시범 (본판만 가진다)
+        Camera _guideCam;
+        int _guideSlide = -1;             // 시범이 지금 보여주는 장
+        string _demoKeys = "";            // 눌러줄 방향들
+        int _demoAt;                      // 지금 몇 번째
+        float _demoNext;                  // 다음 걸음 시각
+        /// 시범이 처음부터 끝까지 몇 번 돌았나. 본판이 이걸 보고 장을 넘긴다.
+        public int DemoLoops { get; private set; }
+        Vector2 _org;                     // 판을 놓을 자리 (시범은 멀리 떨어뜨린다)
+
+        const float DemoStep = 0.70f;     // 한 걸음 사이
+        const float DemoHold = 1.30f;     // 다 하고 처음으로 돌아가기 전 쉼
+
+        /// <summary>
+        /// 시범 판 여섯. 🔴 **진짜 판 글자**를 쓴다 (SnakeEngine.Parse) —
+        /// # 벽 · . 빈칸 · S 시작 · + 조각 · = 채울 칸 · * 심.
+        /// 중력이 걸려 있으니 떨어지고, 막히면 안 간다. 흉내가 아니다.
+        /// </summary>
+        static readonly string[][] DemoMap =
+        {
+            //  🔴 **목표를 맨 앞에** (09-03 사장님: "튜토 사람들 잘 안 보잖음").
+            //     앞 한두 장만 보고 넘어가니, 조작보다 **뭘 해야 끝나는지**가 먼저다.
+            new[] { ".....",            // ⓪ 이렇게 하면 끝난다 (조각 하나 = 홈 두 칸)
+                    ".....",
+                    ".....",
+                    "S+.=*",
+                    "#####" },
+            new[] { ".....",            // → 오른쪽
+                    ".....",
+                    ".....",
+                    "S....",
+                    "#####" },
+            new[] { ".....",            // ← 왼쪽
+                    ".....",
+                    ".....",
+                    "....S",
+                    "#####" },
+            //  🔴 떨어지는 장. 아래 키로는 못 보여준다 — 중력이 있어서
+            //     슬라임은 늘 무언가를 딛고 서 있고, 발밑은 벽이라 아래로 못 간다.
+            //     **발판 끝까지 걸어가면 떨어진다** 가 실제로 일어나는 일이다.
+            new[] { ".....",
+                    "S....",
+                    "##...",
+                    "##...",
+                    "#####" },
+            new[] { ".....",            // 조각을 먹으면 길어진다
+                    ".....",
+                    ".....",
+                    "S..+.",
+                    "#####" },
+            //  🔴 발판 **위에 올라서는 데까지** 보여준다. 한 칸 뜨고 마는 것은
+            //     "올랐다"로 안 읽힌다 (09-03 사장님).
+            //     ⚠️ **먹는 장 뒤**에 둔다 — 길어지는 법을 모르고서는 이 장이 안 읽힌다.
+            new[] { ".....",            // 몸이 길어야 오른다
+                    ".....",
+                    ".....",
+                    "S+.##",
+                    "#####" },
+            //  🔴 **삼킨 조각(주황)** — 이 상태는 *떨어지면서* 먹어야 나온다.
+            //     평지에서 먹으면 그 걸음에 바로 길어져서 Pg 가 안 선다 (SnakeEngine.Settle).
+            //     그리고 머리 초록 + 꼬리 주황으로 보이려면 **길이가 2 이상**이어야 한다 —
+            //     길이 1 이면 덩어리가 머리에 얹혀 얼굴을 덮는다.
+            //     그래서 ① 평지에서 하나 먹어 길이 2 → ② 발판 끝에서 떨어지며 하나 더 먹는다.
+            new[] { ".....",
+                    "S+...",
+                    "##...",
+                    "##.+.",
+                    "#####" },
+        };
+        //  마침표는 **한 박자 쉼** — 상태를 보여주려면 멈출 줄도 알아야 한다
+        static readonly string[] DemoKeys =
+        { ">>>>", ">>>", "<<<", ">>>", ">>>", ">>^>", ">>>..>" };
+
+        /// <summary>
+        /// 시범을 세운다. 판은 글자 격자로, 누를 방향은 문자열로 준다.
+        /// 자리를 멀리 떨어뜨려서 본판과 안 겹치게 한다 — 층(layer)을 안 쓰고
+        /// **카메라 둘이 서로 다른 데를 보게** 하는 쪽이 손이 덜 간다.
+        /// </summary>
+        public void SetupDemo(Camera cam, string[] grid, string keys, bool gravity)
+        {
+            _demo = true;
+            _cam = cam;
+            _org = new Vector2(600f, -600f);
+            _demoKeys = keys ?? "";
+            _demoAt = 0;
+            _demoNext = 0f;
+            DemoLoops = 0;
+            _gravity = gravity;
+            _L = SnakeEngine.Parse(grid, "demo", gravity);
+            BuildBoard();
+            Restart();
+            AimCamera(true);
+        }
+
+        /// 방향 글자 하나 → 걸음. > < ^ v · 마침표는 **한 박자 쉼**
+        static SnakeEngine.Dir DirOf(char k)
+            => k == '<' ? SnakeEngine.Dir.Left
+             : k == '^' ? SnakeEngine.Dir.Up
+             : k == 'v' ? SnakeEngine.Dir.Down
+             : SnakeEngine.Dir.Right;
+
+        /// <summary>
+        /// 시범이 스스로 방향키를 누른다. 다 누르면 잠깐 쉬었다 처음부터.
+        /// 🔴 **막히면 그냥 넘어간다.** 중력이 걸려 자리가 어긋나도
+        /// 시범이 그 자리에서 굳어버리면 안 된다.
+        /// </summary>
+        void TickDemo()
+        {
+            if (_demoKeys.Length == 0) return;
+            if (Time.time < _demoNext) return;
+
+            if (_demoAt >= _demoKeys.Length)
+            {
+                _demoNext = Time.time + DemoHold;
+                _demoAt = 0;
+                DemoLoops++;
+                Restart();
+                return;
+            }
+            //  🔴 마침표는 **가만히 있는 박자**다. 상태를 보여주려면 멈출 줄도 알아야 한다 —
+            //     먹자마자 다음 걸음을 밟아버리면 "삼킨 조각"이 한 순간에 지나간다.
+            if (_demoKeys[_demoAt] != '.') Step(DirOf(_demoKeys[_demoAt]));
+            _demoAt++;
+            _demoNext = Time.time + DemoStep;
+        }
+        /// <summary>
+        /// 🔴 한 장에 시범을 **딱 두 번**만 보여준다 (09-03 사장님).
+        /// 시간으로 끊으면 판마다 걸음 수가 달라 어떤 장은 도중에 잘린다.
+        /// </summary>
+        const int DemoRepeat = 2;
+        /// 시범이 어쩌다 안 끝나도 장은 넘어가야 한다 — 마지막 안전장치
+        const float SlideMax = 30f;
+        const int Slides = 7;
         int _slide;               // 지금 보고 있는 장
         float _slideAt = -99f;    // 그 장이 뜬 시각
 
-        /// 안내판의 한 칸. 🔴 게임 화면과 **같은 색**으로 칠해야 한다 —
-        /// 배우는 자리에서 같은 것을 두 가지로 보여주면 제일 헷갈린다.
-        void Cell(Rect r, Color c)
+        /// 안내판에서 쓰는 네모·동그라미 한 장. 색은 GUI.color 로 준다.
+        void Shape(Rect r, Color c, Texture2D tex)
         {
-            GUI.color = c; GUI.DrawTexture(r, Solid(Color.white)); GUI.color = Color.white;
+            GUI.color = c; GUI.DrawTexture(r, tex); GUI.color = Color.white;
         }
+        /// 모양 없는 네모 — 경계선처럼
+        void Bar(Rect r, Color c) => Shape(r, c, Solid(Color.white));
+        /// 동그라미 — 장 표시 점
+        void Dot(Rect r, Color c) => Shape(r, c, PixelSprites.Disc().texture);
 
         /// <summary>
         /// 🔴 여섯 장을 돌려 보여준다 — → ← ↓ ↑ · 조각 · 홈.
@@ -2806,16 +2997,20 @@ namespace SlimeEscape
         {
             float pw = w * GuideW;
             var box = new Rect(w - pw, 0, pw, h);
-            GUI.DrawTexture(box, Solid(PanelBg));
-            Cell(new Rect(box.x, 0, 1.5f, h), new Color(1, 1, 1, 0.10f));   // 왼쪽 경계선
+            //  🔴 바탕을 통째로 칠하면 **시범을 덮는다.** IMGUI 는 카메라보다 늘 위다.
+            //     그래서 무대 자리만 남기고 네 조각으로 칠한다.
+            //     (아래에서 stage 를 잡은 뒤 칠하므로 여기서는 아무것도 안 한다)
+            Bar(new Rect(box.x, 0, 1.5f, h), new Color(1, 1, 1, 0.10f));   // 왼쪽 경계선
 
             float pad = pw * 0.09f;
 
             // 🔴 저절로 넘어가되, 손으로도 넘길 수 있다. 손으로 넘기면 그 장부터 다시 잰다.
             if (_slideAt < 0f) _slideAt = Time.time;
-            if (Time.time - _slideAt > SlideSecs) { _slide = (_slide + 1) % Slides; _slideAt = Time.time; }
+            //  🔴 **시범이 두 번 다 돌면** 다음 장으로. 시간으로 끊지 않는다.
+            bool done = _guide != null && _guide.DemoLoops >= DemoRepeat;
+            if (done || Time.time - _slideAt > SlideMax)
+            { _slide = (_slide + 1) % Slides; _slideAt = Time.time; }
             int slide = _slide;
-            float u = Mathf.Clamp01((Time.time - _slideAt) / SlideSecs);
 
             // ---- 제목 ----
             var ts = new GUIStyle(_sMid) { alignment = TextAnchor.UpperCenter, wordWrap = true,
@@ -2828,87 +3023,42 @@ namespace SlimeEscape
             //    격자로 안 읽히고 그냥 빈 검은 상자로 보인다 (08-31 화면).
             float c = Mathf.Floor(Mathf.Min((pw - pad * 2f) / 5f, h * 0.30f / 3f));
             var stage = new Rect(box.x + (pw - c * 5f) * 0.5f, h * 0.20f, c * 5f, c * 3f);
-            GUI.DrawTexture(new Rect(stage.x - 4, stage.y - 4, stage.width + 8, stage.height + 8),
-                            Solid(new Color(1, 1, 1, 0.07f)));
-            GUI.DrawTexture(stage, Solid(StageBg));
+            //  🔴 바탕은 무대에 **딱 붙여** 칠한다. 사이에 틈을 두면
+            //     그 띠는 **어느 카메라도 안 지우는 자리**가 되어 쓰레기 화소가 그대로 비친다
+            //     (09-03 사장님 화면: 위아래에 흰 줄). 본 카메라는 이 오른쪽을 안 비춘다.
+            GUI.DrawTexture(new Rect(box.x, 0, box.width, stage.y), Solid(PanelBg));
+            GUI.DrawTexture(new Rect(box.x, stage.yMax, box.width, h - stage.yMax), Solid(PanelBg));
+            GUI.DrawTexture(new Rect(box.x, stage.y, stage.x - box.x, stage.height), Solid(PanelBg));
+            GUI.DrawTexture(new Rect(stage.xMax, stage.y, box.xMax - stage.xMax, stage.height), Solid(PanelBg));
 
-            float gx = stage.x, gy = stage.y;
-            Rect at(int cx, int cy) => new Rect(gx + cx * c + 1f, gy + cy * c + 1f, c - 2f, c - 2f);
-
-            // 바닥 한 줄은 늘 돌
-            for (int k = 0; k < 5; k++) Cell(at(k, 2), Rock);
-
-            float e = Mathf.Clamp01((u - 0.15f) / 0.55f);      // 움직이는 구간
-            switch (slide)
+            //  🔴 **시범을 무대 자리에 비춘다.** 카메라 자리는 0~1 로 주고 y 는 아래가 0 이라
+            //     화면 좌표(y 가 위가 0)를 뒤집어야 한다.
+            if (_guide != null && _guideCam != null)
             {
-                case 0: {                                       // →
-                    float x = Mathf.Lerp(0.6f, 3.4f, e);
-                    Cell(new Rect(gx + x * c + 1f, gy + c + 1f, c - 2f, c - 2f), BodyCol);
-                    break;
+                if (_guideSlide != slide)
+                {
+                    _guideSlide = slide;
+                    _guide.SetupDemo(_guideCam, DemoMap[slide % DemoMap.Length],
+                                     DemoKeys[slide % DemoKeys.Length], _gravity);
                 }
-                case 1: {                                       // ←
-                    float x = Mathf.Lerp(3.4f, 0.6f, e);
-                    Cell(new Rect(gx + x * c + 1f, gy + c + 1f, c - 2f, c - 2f), BodyCol);
-                    break;
-                }
-                case 2: {                                       // ↓ 떨어진다
-                    Cell(at(0, 1), Rock); Cell(at(1, 1), Rock);
-                    float y = Mathf.Lerp(0f, 1f, e * e);
-                    Cell(new Rect(gx + 2.6f * c + 1f, gy + y * c + 1f, c - 2f, c - 2f), BodyCol);
-                    break;
-                }
-                case 3: {                                       // ↑ 몸이 길어야 오른다
-                    Cell(at(3, 1), Rock); Cell(at(4, 1), Rock);
-                    float x = Mathf.Lerp(0.6f, 2.4f, Mathf.Clamp01(e * 1.6f));
-                    float up = Mathf.Clamp01((e - 0.62f) / 0.38f);
-                    Cell(new Rect(gx + (x + up) * c + 1f, gy + (1f - up) * c + 1f, c - 2f, c - 2f), BodyCol);
-                    Cell(new Rect(gx + x * c + 1f, gy + c + 1f, c - 2f, c - 2f), BodyCol);
-                    break;
-                }
-                case 4: {                                       // 조각을 먹으면 길어진다
-                    bool ate = e > 0.55f;
-                    if (!ate) Cell(at(3, 1), FoodCol);
-                    float x = Mathf.Lerp(0.6f, 3f, Mathf.Clamp01(e / 0.55f));
-                    Cell(new Rect(gx + x * c + 1f, gy + c + 1f, c - 2f, c - 2f), BodyCol);
-                    if (ate) Cell(new Rect(gx + (x - 1f) * c + 1f, gy + c + 1f, c - 2f, c - 2f), BodyCol);
-                    break;
-                }
-                default: {                                      // 홈에 몸을 포갠다
-                    for (int k = 0; k < 3; k++)
-                    {
-                        //  홈은 놋쇠 틀 + 어두운 속. 게임 화면과 같은 규칙이어야 한다
-                        Cell(at(2 + k, 1), FrameCol);
-                        var q = at(2 + k, 1);
-                        Cell(new Rect(q.x + 2, q.y + 2, q.width - 4, q.height - 4), HoleCol);
-                    }
-                    var core = at(4, 1);
-                    Cell(core, CoreCol);
-
-                    float slid = Mathf.Clamp01(u / 0.45f);
-                    float suck = Mathf.Clamp01((u - 0.62f) / 0.22f);
-                    float hx = Mathf.Lerp(-0.6f, 4f, 1f - (1f - slid) * (1f - slid));
-                    for (int k = 0; k < 3; k++)
-                    {
-                        if (suck >= 1f && k > 0) continue;
-                        float bx = hx - k;
-                        float s = 1f;
-                        if (suck > 0f && k > 0) { float v = Mathf.Clamp01(suck * 1.4f - k * 0.2f); bx = Mathf.Lerp(bx, 4f, v); s = 1f - v * 0.8f; }
-                        float p = c * (1f - s) * 0.5f;
-                        Cell(new Rect(gx + bx * c + p + 1f, gy + c + p + 1f, (c - 2f) * s, (c - 2f) * s),
-                             Color.Lerp(BodyCol, SpentTop, suck));
-                    }
-                    break;
-                }
+                _guideCam.rect = new Rect(stage.x / w, 1f - stage.yMax / h,
+                                          stage.width / w, stage.height / h);
+                _guideCam.enabled = true;
             }
+
+            //  🔴 여기서 판을 **흉내내 그리던 코드는 걷어냈다** (09-03 사장님).
+            //     같은 것을 두 군데서 그리니 게임이 바뀔 때마다 어긋났다 —
+            //     오늘만 두 번(둥글게 바꾼 것 · 심을 희게 바꾼 것). 이제 시범이 진짜로 돈다.
 
             // ---- 한 줄 설명 ----
             string[] LINE = {
+                "몸을 홈에 정확히 포개면 판이 끝납니다\n머리의 마름모가 홈의 마름모에 앉아야 합니다",
                 "→  오른쪽 화살표 키",
                 "←  왼쪽 화살표 키",
-                "↓  아래로 — 떨어지면 못 돌아옵니다",
-                "↑  위로 — 몸이 길어야 오릅니다",
+                "발판 끝에서는 떨어집니다",
                 "주황 조각을 먹으면 몸이 한 칸 길어집니다",
-                "몸을 홈에 정확히 포개세요\n머리가 노란 칸에서 끝나야 합니다",
+                "↑  위로 — 몸이 길어야 오릅니다",
+                "떨어지면서 먹으면 꼬리에 담깁니다\n다음 걸음에 몸이 됩니다",
             };
             var ls = new GUIStyle(_sSmall) { alignment = TextAnchor.UpperCenter, wordWrap = true,
                                              fontSize = Px(Mathf.Clamp(pw * 0.062f, 11f, 17f)) };
@@ -2924,7 +3074,7 @@ namespace SlimeEscape
             for (int k = 0; k < Slides; k++)
             {
                 var dr = new Rect(dx + k * gap, row, dot, dot);
-                Cell(dr, k == slide ? StarLit : new Color(1, 1, 1, 0.18f));
+                Dot(dr, k == slide ? StarLit : new Color(1, 1, 1, 0.18f));
                 // 점을 눌러 그 장으로 바로
                 if (GUI.Button(new Rect(dr.x - 4, dr.y - 8, dr.width + 8, dr.height + 16),
                                GUIContent.none, GUIStyle.none))
@@ -2999,7 +3149,7 @@ namespace SlimeEscape
                 foreach (int c in _st.Body) if (!_L.Doors[0].Set.Contains(c)) { onDoor = false; break; }
                 if (!onDoor) return "밝은 홈에 몸을 정확히 포개세요";
                 if (_L.Doors[0].Core >= 0 && _st.Head != _L.Doors[0].Core)
-                    return "거의 다 됐습니다 — 머리가 노란 칸에서 끝나야 합니다";
+                    return "거의 다 됐습니다 — 머리가 마름모 칸에서 끝나야 합니다";
                 return null;
             }
 
@@ -3024,7 +3174,7 @@ namespace SlimeEscape
             if (inside < want)
                 return "밝은 홈 위에 몸을 정확히 포개세요 (" + inside + "/" + want + "칸)";
             if (door.Core >= 0 && _st.Head != door.Core)
-                return "다 맞았다 — 머리가 노란 칸에서 끝나야 한다";
+                return "다 맞았다 — 머리가 마름모 칸에서 끝나야 한다";
             return null;
         }
 
@@ -3214,6 +3364,11 @@ namespace SlimeEscape
 
         void OnGUI()
         {
+            if (_demo) return;          // 시범은 판만 보여준다. 글자는 본판이 그린다.
+            //  🔴 안내판이 안 뜨는 판에서는 시범 카메라를 꺼둔다.
+            //     안 끄면 화면 한 귀퉁이에 시범이 그대로 남는다.
+            if (_guideCam != null && _guideCam.enabled && (!Def.tutorial || _menu || _intro))
+                _guideCam.enabled = false;
             Styles();
             float w = Screen.width, h = Screen.height;
             var def = Def;
