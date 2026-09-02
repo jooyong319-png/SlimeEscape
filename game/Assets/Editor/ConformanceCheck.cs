@@ -37,11 +37,16 @@ namespace SlimeEscape.EditorTools
         {
             var set = SnakeLevels.Load();
             var log = new StringBuilder();
-            int fail = 0, easy = 0;
+            int fail = 0, easy = 0, unmeasured = 0;
 
             foreach (var d in set.levels)
             {
-                if (d.lost < 1f) easy++;
+                //  🔴 **안 쟴 판을 달리 센다.** 상태가 40만을 넘으면
+                //     측정을 포기하고 lost 가 0 으로 남는다. 그걸 "쉽다"로 읽으면
+                //     **제일 큰 판 다섯이 항상 경고로 뜼다** — 빨간불이 틀리면
+                //     사람은 경고를 안 보게 된다. 초록불이 틀린 것만큼 나쁘다 (09-02).
+                if (d.states <= 0) unmeasured++;
+                else if (d.lost < 1f) easy++;
                 string why = null;
                 SnakeEngine.Level L = null;
                 SnakeEngine.State st = null;
@@ -78,7 +83,13 @@ namespace SlimeEscape.EditorTools
             }
 
             Debug.Log($"[적합성] 판 {set.levels.Length}개 · 중력 {(set.gravity ? "켬" : "끔")}\n{log}" +
-                      $"\n🔴 이미 진 상태 1% 미만인 판 {easy}/{set.levels.Length} — 실수해도 저절로 회복된다 = 아직 퍼즐이 아니다" +
+                      (easy > 0
+                        ? $"\n🔴 이미 진 상태 1% 미만인 판 {easy}개 — 실수해도 저절로 회복된다"
+                        : "") +
+                      (unmeasured > 0
+                        ? $"\n⚠️ 난이도를 못 재본 판 {unmeasured}개 — 상태가 너무 많아 포기한 큰 판들이다."
+                          + "\n   못 재는 것과 쉬운 것은 다르다 — 이쪽이 오히려 제일 길다."
+                        : "") +
                       (fail == 0 ? "\n통과 — C# 엔진이 JS 솔버와 같은 답을 낸다"
                                  : $"\n실패 {fail}개 — 두 엔진이 어긋났다"));
             return fail == 0;
