@@ -814,7 +814,7 @@ namespace SlimeEscape
                 {
                     int c = y * _L.W + x;
                     bool wall = _L.IsWall(c);
-                    var sr = NewSprite(wall ? "Wall" : "Floor", -3, wall ? "wall" : "floor");
+                    var sr = NewSprite(wall ? "Wall" : "Floor", -3, wall ? WallArt(c) : "floor");
                     sr.transform.position = CellPos(c);
                     //  빈 칸은 높이에 따라 밝기가 다르다 — 위가 밝고 아래가 가라앉는다
                     sr.color = Art.Tint(wall ? "wall" : "floor",
@@ -1124,6 +1124,30 @@ namespace SlimeEscape
             }
 
             SplitRooms();
+        }
+
+        /// <summary>
+        /// 🔴 벙돌을 칸마다 골라 쓴다. 넓은 벽이 한 그림이면
+        /// 도트로 바꿔놓고도 다시 **모눈종이**처럼 보인다 (09-02 사장님 참고 그림).
+        ///
+        /// 🔴 섮되 **아무렇게 섮지 않는다.** 칸 자리로 정해지는 값을 쓴다 —
+        /// 같은 판은 언제 봐도 같아야 한다. 매번 달라지면 어제 본 판이 딴 판이 된다.
+        ///
+        /// 룬·결정은 **드물게만** 내보낸다. 흔해지면 무늬가 아니라 배경 소음이 된다.
+        /// </summary>
+        string WallArt(int cell)
+        {
+            if (!Art.Has("wall_brick")) return "wall";
+            //  칸 자리로 정해지는 값 (판마다 같은 모양이 나오게)
+            int h = (cell * 73856093) ^ ((cell / Mathf.Max(1, _L.W)) * 19349663);
+            h = h < 0 ? -h : h;
+            int r = h % 100;
+            if (r < 4)  return "wall_rune";       //  4%
+            if (r < 7)  return "wall_crystal";    //  3%
+            if (r < 34) return "wall_brick";
+            if (r < 58) return "wall_block";
+            if (r < 78) return "wall_crack";
+            return "wall";
         }
 
         /// 돌 가장자리의 옅은 테. 윗면(설 수 있다)과 헷갈리지 않게 훨씬 어둡다.

@@ -25,6 +25,8 @@ namespace SlimeEscape.EditorTools
         {
             //  지형
             "wall", "wall_top", "floor",
+            //  벙돌 버전 — 칸마다 골라 쓴다 (SnakeController.WallArt)
+            "wall_brick", "wall_block", "wall_crack", "wall_rune", "wall_crystal",
             //  슬라임
             "head", "body", "link", "key", "key_glow",
             //  물건
