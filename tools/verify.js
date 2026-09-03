@@ -21,6 +21,24 @@ for (const l of d.levels) {
   const w = l.grid[0].length;
   if (l.grid.some(r => r.length !== w)) { say(l.id, '줄 길이가 들쭉날쭉'); continue; }
 
+  //  🔴 **조각 개수 규칙** — 홈이 셋이면 (칸수-1)×셋 만큼 조각이 있어야 한다.
+  //     어기면 유니티가 판을 아예 못 읽고 ArgumentException 을 던진다.
+  //     09-05 에 구경용 판이 이걸 어겨서 게임이 멈췄다 — 사장님 화면에서 봤다.
+  //     솔버까지 안 가고 **여기서** 걸러야 한다.
+  {
+    const sizes = [['=', '*'], ['-', '%'], ['~', '@']]
+      .map(p => l.grid.join('').split('').filter(c => p.includes(c)).length)
+      .filter(n => n > 0);
+    const need = (l.clear || 'all') === 'all'
+      ? sizes.reduce((s, n) => s + n - 1, 0)
+      : (sizes[0] || 1) - 1;
+    const have = l.grid.join('').split('+').length - 1;
+    if (have < need) { say(l.id, '조각이 모자란다 — ' + need + '개가 필요한데 ' + have + '개다'); continue; }
+  }
+
+  //  🔴 구경용 판은 **안 깨져도 된다.** 읽히기만 하면 된다 (09-05 사장님).
+  if (l.demo) { try { E.parse(def); } catch (e) { say(l.id, '판을 못 읽는다: ' + e.message); } continue; }
+
   // 적어둔 수순이 진짜 이기는가
   let st, ok = true;
   try {

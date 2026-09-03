@@ -22,8 +22,8 @@ const GRID = [
   '#....................#',
   '#....................#',
   '#.:..................#',
-  '#.:........1.........#',
-  '#.:........1.........#',
+  '#.:........1..+.+....#',
+  '#.:........1..+.+....#',
   '#S.B..++==*1.--%.~~@o#',
   '######################',
 ];
@@ -50,6 +50,23 @@ if (require.main === module) {
   console.log('');
   if (bad.length) console.log('🔴 시작 줄 ' + bad.join(',') + '번 칸은 발밑이 뚫렸다 — 걸어가다 떨어진다');
   else console.log('🟢 시작점에서 문벽까지 발밑이 이어진다 — 걸어서 상자에 닿는다');
+
+  //  🔴 **조각 개수 규칙을 여기서 센다** (09-05).
+  //     홈이 셀이면 조각이 (칸수-1)×셀 만큼 있어야 한다.
+  //     어기면 유니티가 판을 아예 못 읽고 ArgumentException 을 던진다 —
+  //     그러면 구경용이 아니라 고장이 된다. 사장님 화면에서 그걸 봤다.
+  {
+    const doorSizes = [['=', '*'], ['-', '%'], ['~', '@']]
+      .map(p => GRID.join('').split('').filter(c => p.includes(c)).length)
+      .filter(n => n > 0);
+    const need = doorSizes.reduce((s, n) => s + n - 1, 0);
+    const have = GRID.join('').split('+').length - 1;
+    if (have < need) {
+      console.log('🔴 조각이 모자란다 — ' + need + '개가 필요한데 ' + have + '개다');
+      process.exit(1);
+    }
+    console.log('🟢 조각 ' + have + '개 / 필요 ' + need + '개');
+  }
 
   const count = ch => GRID.join('').split(ch).length - 1;
   console.log('조각 + : ' + count('+') + '   무중력 : : ' + count(':') + '   상자 B : ' + count('B') +

@@ -286,6 +286,16 @@ namespace SlimeEscape
         //  미는 상자 — 자리가 매 걸음 바뀐다 (몸처럼 따라 그린다)
         readonly List<SpriteRenderer> _boxViews = new List<SpriteRenderer>();
         readonly List<SpriteRenderer> _boxTops = new List<SpriteRenderer>();
+        // 🔴 **상자는 무겁게 움직인다** (09-05 사장님: "너무 슥 하고 밀리거든?").
+        //    자리를 바로 찍으면 순간이동으로 보인다. 슬라임과 반대 곡선을 쓴다 —
+        //    슬라임은 빨리 떠서 사뿐히 앉고(Ease), 상자는 **버티다 밀려서 쿵 선다**.
+        readonly List<Vector2> _boxDrawn = new List<Vector2>();   // 지금 그려지는 자리
+        readonly List<Vector2> _boxFrom = new List<Vector2>();    // 이번 걸음의 출발선
+        readonly List<float> _boxSq = new List<float>();          // 미는 동안 퍼지는 정도
+        const float BoxLag = 0.20f;      // 슬라임보다 늦게 떠난다 — 버티는 만큼
+        const float BoxSpan = 1.25f;     // 그리고 더 오래 간다
+        const float BoxShake = 0.05f;    // 멈출 때 한 번 떤다
+        const float BoxSquash = 0.09f;   // 밀리는 동안 옆으로 퍼지고 납작해진다
         //  무중력 구역의 떠 있는 점 — (칸, 몇 번째, 그림)
         readonly List<(int cell, int k, SpriteRenderer sr)> _zoneDots
             = new List<(int, int, SpriteRenderer)>();
@@ -293,7 +303,9 @@ namespace SlimeEscape
         readonly Dictionary<int, int> _gateOf = new Dictionary<int, int>();   // 칸 -> 문 번호
         readonly Dictionary<int, SpriteRenderer> _gateInner = new Dictionary<int, SpriteRenderer>();
         int _shownDm = -1;    // 지금 화면에 그려진 "열린 문" 상태
-        float _gateFade = 1f;
+        //  🔴 문벽마다 따로 사라진다. 값 하나로 묶어두면 홈 하나 채울 때마다
+        //     이미 사라진 문벽까지 다시 사라지는 연출이 돈다 (09-05).
+        readonly float[] _gateFadeOf = new float[3];
 
         // ---- 방 ----
         // 🔴 지도 전체를 한 번에 보여주면 "방"이 안 생긴다. 넓은 판 하나로 보일 뿐이다.
@@ -1651,6 +1663,7 @@ namespace SlimeEscape
 
             // 🔴 문벽 — 열리면 사라진다. 벽보다 밝고 테두리가 있어 "열릴 수 있는 벽"으로 보인다.
             _gateViews.Clear(); _gateOf.Clear(); _shownDm = -1;
+            for (int gi = 0; gi < _gateFadeOf.Length; gi++) _gateFadeOf[gi] = 0f;
             for (int gi = 0; gi < _L.Gates.Length; gi++)
                 foreach (int c in _L.Gates[gi])
                 {
@@ -1854,6 +1867,7 @@ namespace SlimeEscape
             _pop = 0; _stepT = 999f; _jigT = 99f; _jigX = _jigY = 0f;
             _fall = 0; _land = 0f; _landed = true;
             _segPos.Clear(); _from.Clear(); _mid.Clear();
+            _boxDrawn.Clear(); _boxFrom.Clear(); _boxSq.Clear();
             _segPos.Add(CellPos(_st.Head)); _from.Add(_segPos[0]); _mid.Add(_segPos[0]);
             _bornAt = Time.time;
             SyncViews();
@@ -1882,9 +1896,14 @@ namespace SlimeEscape
                 _boxViews[i].enabled = on;
                 _boxTops[i].enabled = on;
                 if (!on) continue;
-                Vector2 p = CellPos(_st.Bx[i]);
-                _boxViews[i].transform.position = (Vector3)p + new Vector3(0, 0, -0.05f);
-                _boxTops[i].transform.position = (Vector3)p + new Vector3(0, 0.4f, -0.06f);
+                //  🔴 칸 자리가 아니라 **보간된 자리**를 쓴다 — 안 그러면 순간이동한다
+                Vector2 p = i < _boxDrawn.Count ? _boxDrawn[i] : CellPos(_st.Bx[i]);
+                float sq = i < _boxSq.Count ? _boxSq[i] : 0f;
+                float bw = 0.9f + sq, bh = 0.9f - sq;
+                _boxViews[i].transform.position = (Vector3)p + new Vector3(0, -sq * 0.5f, -0.05f);
+                _boxViews[i].transform.localScale = new Vector3(bw, bh, 1f);
+                _boxTops[i].transform.position = (Vector3)p + new Vector3(0, bh * 0.45f - sq * 0.5f, -0.06f);
+                _boxTops[i].transform.localScale = new Vector3(bw, 0.14f, 1f);
             }
 
             while (_segs.Count < _st.Length)
@@ -1952,12 +1971,20 @@ namespace SlimeEscape
                 zsr.transform.position = (Vector3)CellPos(zc) + new Vector3(ox, oy, -0.02f);
             }
 
-            if (_shownDm != _st.Dm) { _shownDm = _st.Dm; _gateFade = 0f; }
-            _gateFade = Mathf.Min(1f, _gateFade + Time.deltaTime / 0.45f);
+            // 🔴 **문벽마다 따로 센다** (09-05 사장님: "다른 홈 깨도 계속 없어지는 모션 나와").
+            //    전에는 값이 하나뿐이라, 아무 홈이나 채우면 그 값이 0 으로 돌아가
+            //    **이미 사라진 문벽이 도로 나타났다 다시 사라졌다.**
+            //    자기 문이 열릴 때만 자기 값이 오르게 한다. 되돌리면 도로 0 이 된다.
+            for (int gi = 0; gi < _gateFadeOf.Length; gi++)
+                _gateFadeOf[gi] = (_st.Dm & (1 << gi)) != 0
+                    ? Mathf.Min(1f, _gateFadeOf[gi] + Time.deltaTime / 0.45f)
+                    : 0f;
             foreach (var kv in _gateViews)
             {
-                bool open = (_st.Dm & (1 << _gateOf[kv.Key])) != 0;
-                float a = open ? 1f - _gateFade : 1f;
+                int gi2 = _gateOf[kv.Key];
+                bool open = (_st.Dm & (1 << gi2)) != 0;
+                float fade = _gateFadeOf[gi2];
+                float a = open ? 1f - fade : 1f;
                 var ec = GateEdge; ec.a = a;
                 kv.Value.color = ec;
                 kv.Value.enabled = a > 0.01f;
@@ -1966,7 +1993,7 @@ namespace SlimeEscape
                     var ic = GateCol; ic.a = a;
                     gin.color = ic;
                     gin.enabled = a > 0.01f;
-                    float s = Mathf.Lerp(0.78f, 0.2f, open ? _gateFade : 0f);
+                    float s = Mathf.Lerp(0.78f, 0.2f, open ? fade : 0f);
                     gin.transform.localScale = new Vector3(s, s, 1);
                 }
             }
@@ -2330,6 +2357,10 @@ namespace SlimeEscape
             //    (걸음이 끝나기 전에 또 누르면 튀지 않게)
             _from.Clear();
             _from.AddRange(_segPos);
+            //  🔴 상자도 '출발선'을 지금 그려지는 자리로 잡는다 — 걸음이 끝나기 전에
+            //     또 누르면 상자가 튄다 (슬라임과 같은 이유다)
+            _boxFrom.Clear();
+            _boxFrom.AddRange(_boxDrawn);
             _stepT = 0f;
             SyncViews();
         }
@@ -2344,6 +2375,8 @@ namespace SlimeEscape
             while (_segPos.Count > _st.Length) _segPos.RemoveAt(_segPos.Count - 1);
             while (_segPos.Count < _st.Length) _segPos.Add(_segPos[_segPos.Count - 1]);
             for (int i = 0; i < _st.Length; i++) _segPos[i] = CellPos(_st.Body[i]);   // 되돌리기는 딱 붙인다
+            //  상자도 딱 붙인다 — 되돌리기는 연출 없이 즉시다
+            _boxDrawn.Clear(); _boxFrom.Clear(); _boxSq.Clear();
             _from.Clear(); _from.AddRange(_segPos);
             _mid.Clear(); _mid.AddRange(_segPos);
             _stepT = 999f;
@@ -2373,6 +2406,48 @@ namespace SlimeEscape
             return true;
         }
 
+        /// 🔴 상자를 **무겁게** 옮긴다. 슬라임의 Ease(감속)를 쓰면 안 된다 —
+        /// 그건 가벼운 것의 곡선이다. 상자는 천천히 떠서 천천히 선다(smoothstep).
+        /// 떨어질 때만 점점 빨라진다 — 무거운 건 더 그래야 한다.
+        void AnimateBoxes()
+        {
+            int n = _st == null ? 0 : _st.Bx.Count;
+            while (_boxDrawn.Count < n) _boxDrawn.Add(CellPos(_st.Bx[_boxDrawn.Count]));
+            while (_boxDrawn.Count > n) _boxDrawn.RemoveAt(_boxDrawn.Count - 1);
+            while (_boxFrom.Count < n) _boxFrom.Add(_boxDrawn[_boxFrom.Count]);
+            while (_boxFrom.Count > n) _boxFrom.RemoveAt(_boxFrom.Count - 1);
+            while (_boxSq.Count < n) _boxSq.Add(0f);
+            while (_boxSq.Count > n) _boxSq.RemoveAt(_boxSq.Count - 1);
+
+            for (int i = 0; i < n; i++)
+            {
+                Vector2 end = CellPos(_st.Bx[i]);
+                Vector2 from = _boxFrom[i];
+                Vector2 d = end - from;
+                if (d.sqrMagnitude < 1e-6f) { _boxDrawn[i] = end; _boxSq[i] = 0f; continue; }
+
+                float raw = (_stepT - BoxLag) / BoxSpan;
+                float tt = Mathf.Clamp01(raw);
+                bool falling = Mathf.Abs(d.y) > Mathf.Abs(d.x);
+                //  낙하는 가속(t²), 밀림은 **버티다 밀려 서서히 선다**(smoothstep)
+                float u = falling ? tt * tt : tt * tt * (3f - 2f * tt);
+                Vector2 p = Vector2.Lerp(from, end, u);
+
+                if (!falling)
+                {
+                    //  🔴 다 가고 나서 한 번 떤다 — 무거운 게 놓이는 느낌은 여기서 난다
+                    float over = raw - 1f;
+                    if (over > 0f)
+                        p.x += Mathf.Sin(over * 30f) * BoxShake * Mathf.Exp(-over * 8f) * Mathf.Sign(d.x);
+                    //  미는 동안만 옆으로 퍼진다 (가운데서 제일 크고 양끝은 0)
+                    _boxSq[i] = BoxSquash * Mathf.Sin(tt * Mathf.PI);
+                }
+                else _boxSq[i] = 0f;
+
+                _boxDrawn[i] = p;
+            }
+        }
+
         // ---------------- 움직임 ----------------
         void Animate(float dt)
         {
@@ -2395,6 +2470,7 @@ namespace SlimeEscape
             float fallSpan = FallSpan;
             float done = 1f + fallSpan + Lag * Mathf.Max(0, _st.Length - 1);
             if (_stepT < done + 1f) _stepT += dt / Mathf.Max(0.02f, K.stepTime);
+            AnimateBoxes();
             _pop = Mathf.Max(0f, _pop - dt / 0.18f);
             _land = Mathf.Max(0f, _land - dt / 0.20f);
             if (_jigT < 9f) _jigT += dt;
