@@ -28,6 +28,22 @@ console.log('못', pool.length, '· 잰 판', stat.length);
 // 압박을 0 으로 보고 앞쪽에 몰아넣게 된다 (그게 09-04 의 '길이 곡선' 이었다).
 const rows = stat.map(r => Object.assign({}, r, pool[r.i]))
                  .filter(r => r.grid && r.moves >= 8);
+//  🔴 **기믹이 정말 쓰이는지 여기서 다시 본다** (09-05 밤).
+//     못을 만들 때 한 번 걸렀는데, 그 뒤 **덤 조각을 얹으면서 정답이 바뀌어**
+//     기믹이 안 쓰이게 된 판이 생겼다. 하필 그게 포탈 첫 등장 판이었다 —
+//     처음 만나는 기믹이 아무 일도 안 하면 그건 없느니만 못하다.
+{
+  const before = rows.length;
+  for (let i = rows.length - 1; i >= 0; i--) {
+    const r = rows[i];
+    if ((r.gim || 'none') === 'none') continue;
+    const a = E.solve({ grid: r.grid, gravity: true, clear: 'all', id: 'u' }, { cap: 400000 });
+    const b = E.solve({ grid: r.grid.map(x => x.replace(/[:BPQpq]/g, '.')),
+                        gravity: true, clear: 'all', id: 'u' }, { cap: 400000 });
+    if (a.ok && b.ok && b.moves === a.moves) rows.splice(i, 1);   // 없어도 똑같다 = 장식
+  }
+  console.log('기믹이 장식뿐인 판 ' + (before - rows.length) + '개를 뺐다');
+}
 console.log('쓸 수 있는 판', rows.length);
 if (rows.length < N) console.log('⚠️ ' + N + '판을 채우기엔 모자란다 — 있는 만큼만 고른다');
 
