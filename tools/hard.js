@@ -55,6 +55,11 @@ function measure(def) {
 
   let st = E.startState(L);
   let forks = 0, tight = 0, away = 0;
+  //  🔴 **압박** — 다른 수 가운데 몇 %가 지는가. 2026-09-04 에 넣었다.
+  //     tight 는 "다른 수가 **전부** 지는" 경우만 세서 아주 드물다 (평균 4.4%).
+  //     그래서 lost 가 95% 인데 tight 는 4% 인 모순이 생겼다 — 둘이 다른 걸 재고 있었다.
+  //     판이 조이는 정도는 이 평균이 훨씬 잘 잡는다.
+  let pressSum = 0;
   const goal = L.doors.length ? L.doors[0].cells[0] : L.start;
   const dist = c => Math.abs(L.w ? (c % L.w) - (goal % L.w) : 0)
                   + Math.abs(((c / L.w) | 0) - ((goal / L.w) | 0));
@@ -70,7 +75,7 @@ function measure(def) {
       alts++;
       if (j === undefined || !W.safe.has(j)) bad++;
     }
-    if (alts > 0) { forks++; if (bad === alts) tight++; }
+    if (alts > 0) { forks++; if (bad === alts) tight++; pressSum += bad / alts; }
     const before = dist(st.body[0]);
     const next = E.step(L, st, right);
     if (!next) break;
@@ -82,7 +87,8 @@ function measure(def) {
     moves: sol.moves,
     states: W.total,
     lost: 1 - W.safe.size / W.total,
-    tight: forks ? tight / forks : 0,        // 외길 비율
+    tight: forks ? tight / forks : 0,        // 외길 비율 (다른 수가 **전부** 지는 자리)
+    press: forks ? pressSum / forks : 0,     // 압박 (다른 수 중 지는 것의 평균 비율)
     back: sol.moves ? away / sol.moves : 0,  // 되짚기 비율
   };
 }
