@@ -70,6 +70,15 @@ namespace SlimeEscape
             public List<int> Boxes = new List<int>();
 
             /// <summary>
+            /// 🔴 포탈 (rev.11) — 칸 -> (나갈 칸, 몇 번 홈이 켜는가).
+            /// **그 홈을 채워야 켜진다.** 꺼져 있으면 그냥 바닥이다.
+            /// P↔Q 는 홈 1 · p↔q 는 홈 2. 홈 셋짜리는 안 만든다 —
+            /// 마지막 홈을 채우면 판이 끝나서 쓸 데가 없다 (문벽이 1·2 만 뜻이 있는 것과 같다).
+            /// 🔴 tools/engine.js 의 portal 과 **같아야 한다.**
+            /// </summary>
+            public Dictionary<int, (int To, int Door)> Portal = new Dictionary<int, (int, int)>();
+
+            /// <summary>
             /// 🔴 맵을 넘는 자리. 밟을 수 있는 바닥이고 **퍼즐엔 아무 영향이 없다** —
             /// 게임이 여기서 다음 맵으로 넘긴다. 기호 '&gt;' 오른쪽 · '&lt;' 왼쪽.
             /// 들어온 출구의 **반대편**에서 나오게 해서 위치가 이어지게 한다.
@@ -190,6 +199,8 @@ namespace SlimeEscape
             var L = new Level { Id = id, H = grid.Length, W = grid[0].Length, Start = -1, Gravity = gravity,
                                 Clear = string.IsNullOrEmpty(clear) ? "any" : clear };
             L.Wall = new bool[L.W * L.H];
+            //  포탈 짝 — port[i,0] ↔ port[i,1], i 번 홈이 켠다
+            var port = new int[2, 2] { { -1, -1 }, { -1, -1 } };
             var d0 = new Level.Door();     // = *
             var d1 = new Level.Door();     // - %
             var d2 = new Level.Door();     // ~ @
@@ -215,6 +226,10 @@ namespace SlimeEscape
                             L.Gates[grid[y][x] - '1'].Add(c); L.HasGates = true; break;
                         case ':': L.Zone.Add(c); break;
                         case 'B': L.Boxes.Add(c); break;
+                        case 'P': port[0, 0] = c; break;
+                        case 'Q': port[0, 1] = c; break;
+                        case 'p': port[1, 0] = c; break;
+                        case 'q': port[1, 1] = c; break;
                         case 'o': L.Star = c; break;
                         case 'T': L.PadIdx[c] = L.Pads.Count; L.Pads.Add(c); break;
                         case '^': L.Signs.Add((c, 0)); break;
@@ -223,6 +238,12 @@ namespace SlimeEscape
                         case '>': L.Signs.Add((c, 3)); break;
                     }
                 }
+            }
+            for (int i = 0; i < 2; i++)
+            {
+                int a = port[i, 0], b = port[i, 1];
+                if (a < 0 || b < 0) continue;         // 짝이 하나만 있으면 안 쓴다
+                L.Portal[a] = (b, i); L.Portal[b] = (a, i);
             }
             if (L.Start < 0) throw new System.ArgumentException($"{id}: S가 없다");
             if (L.Foods.Count > MaxFoods) throw new System.ArgumentException($"{id}: 조각이 {MaxFoods}개를 넘는다");
@@ -406,8 +427,21 @@ namespace SlimeEscape
             int hx = L.X(st.Head) + dx, hy = L.Y(st.Head) + dy;
             if (hx < 0 || hy < 0 || hx >= L.W || hy >= L.H) return false;
 
+            if (L.IsBlocked(hy * L.W + hx, st.Dm)) return false;
+
+            // 🔴 포탈 (rev.11) — **걸어 들어갈 때만** 통한다.
+            //    ⚠️ 떨어져 들어가도 통하게 하면 *떨어짐 → 나감 → 또 떨어짐* 의 무한 고리가 된다.
+            //       그래서 Settle 은 포탈을 안 본다. 포탈 위에 내려앉는 건 그냥 그 칸에 서는 것이다.
+            //    ⚠️ 한 번만 통한다 — 나간 자리가 또 포탈이어도 다시 안 보낸다.
             int nh = hy * L.W + hx;
-            if (L.IsBlocked(nh, st.Dm)) return false;
+            bool warped = false;
+            if (L.Portal.Count > 0 && L.Portal.TryGetValue(nh, out var hop)
+                && (st.Dm & (1 << hop.Door)) != 0)
+            {
+                nh = hop.To;
+                warped = true;
+                if (L.IsBlocked(nh, st.Dm)) return false;
+            }
 
             // 🔴 상자를 민다 — **가로로만.** 위아래로 밀면 중력과 뜻이 겹쳐 읽히지 않는다.
             //    🔴 tools/engine.js 의 같은 자리와 규칙이 **한 글자도 달라선 안 된다.**
@@ -416,6 +450,8 @@ namespace SlimeEscape
             if (bi >= 0)
             {
                 if (dir != Dir.Left && dir != Dir.Right) return false;   // 위·아래로는 못 민다
+                //  🔴 포탈로 나온 자리에서는 못 민다 — 어느 쪽으로 미는지가 뜻을 잃는다
+                if (warped) return false;
                 int tx = hx + dx;
                 if (tx < 0 || tx >= L.W) return false;
                 int tc = hy * L.W + tx;

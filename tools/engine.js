@@ -32,6 +32,8 @@
     //    자리를 정해두면 **받침대 칸 수만큼의 비트**로 끝난다.
     const pads = [];
     const boxes = [];      // 🔴 미는 상자의 처음 자리
+    //  포탈 짝 — port[i] = [한쪽, 다른쪽]. i 번 홈을 채우면 켜진다
+    const port = [[-1, -1], [-1, -1]];
     // 🔴 화살표 표지판 '^ v < >' — **순수 장식.** 퍼즐엔 아무 영향이 없다.
     //    가르치는 판에서 "여기서 이 키를 누르세요"를 맵 안에 박아두는 용도다.
     const signs = [];
@@ -62,6 +64,12 @@
       //  🔴 미는 상자 'B' — **가로로만** 민다. 떨어지고, 딛고 설 수 있다 (rev.10).
       //     자리가 상태에 들어가므로 솔버가 소코반이 된다 — 판을 작게 써야 한다.
       else if (c === 'B') { boxes.push(y * w + x); g[y][x] = '.'; }
+      //  🔴 포탈 (rev.11) — 짝끼리 오간다. **그 짝의 홈을 채워야 켜진다.**
+      //     P↔Q 는 홈 1 · p↔q 는 홈 2. 홈 셋짜리는 안 만든다 (채우면 판이 끝나서 쓸 데가 없다).
+      else if (c === 'P') { port[0][0] = y * w + x; g[y][x] = '.'; }
+      else if (c === 'Q') { port[0][1] = y * w + x; g[y][x] = '.'; }
+      else if (c === 'p') { port[1][0] = y * w + x; g[y][x] = '.'; }
+      else if (c === 'q') { port[1][1] = y * w + x; g[y][x] = '.'; }
       else if ('^v<>'.includes(c)) { signs.push({ cell: y * w + x, dir: '^v<>'.indexOf(c) }); g[y][x] = '.'; }
     }
     const open = doors.filter(d => d.cells.length);
@@ -80,6 +88,16 @@
     return {
       ...def, g, w, h, start, foods, doors: open, clear,
       boxes,
+      //  칸 -> [나갈 칸, 몇 번 홈이 켜는가]
+      portal: (() => {
+        const m = new Map();
+        for (let i = 0; i < port.length; i++) {
+          const [a, b] = port[i];
+          if (a < 0 || b < 0) continue;      // 짝이 하나만 있으면 안 쓴다
+          m.set(a, [b, i]); m.set(b, [a, i]);
+        }
+        return m;
+      })(),
       star,
       pads,
       signs,
@@ -230,8 +248,21 @@
     const hx = st.body[0] % L.w, hy = (st.body[0] / L.w) | 0;
     const nx = hx + dx, ny = hy + dy;
     if (nx < 0 || ny < 0 || nx >= L.w || ny >= L.h) return null;
-    const nh = ny * L.w + nx;
-    if (isBlocked(L, nh, st.dm || 0)) return null;
+    if (isBlocked(L, ny * L.w + nx, st.dm || 0)) return null;
+
+    // 🔴 포탈 (rev.11) — **걸어 들어갈 때만** 통한다.
+    //    ⚠️ 떨어져 들어가도 통하게 하면 *떨어짐 → 나감 → 또 떨어짐* 의 무한 고리가 된다.
+    //       그래서 settle() 은 포탈을 안 본다. 포탈 위에 내려앉는 건 그냥 그 칸에 서는 것이다.
+    //    ⚠️ 한 번만 통한다 — 나간 자리가 또 포탈이어도 다시 안 보낸다.
+    let nh = ny * L.w + nx;
+    if (L.portal.size) {
+      const hit = L.portal.get(nh);
+      //  그 짝의 홈을 채웠을 때만 켜진다. 안 켜졌으면 그냥 바닥이다.
+      if (hit && ((st.dm || 0) & (1 << hit[1]))) {
+        nh = hit[0];
+        if (isBlocked(L, nh, st.dm || 0)) return null;
+      }
+    }
 
     // 🔴 상자를 민다 — **가로로만.** 위아래로 밀면 중력과 뜻이 겹쳐 읽히지 않는다.
     let bx = st.bx || [];
@@ -239,6 +270,8 @@
       const bxs0 = new Set(bx);
       if (bxs0.has(nh)) {
         if (di !== 2 && di !== 3) return null;          // 위·아래로는 못 민다
+        //  🔴 포탈로 나온 자리에서는 못 민다 — 어느 쪽으로 미는지가 뜻을 잃는다
+        if (nh !== ny * L.w + nx) return null;
         const tx = nx + dx;
         if (tx < 0 || tx >= L.w) return null;
         const tc = ny * L.w + tx;
@@ -413,6 +446,11 @@
         else if (L.padIdx.has(y * L.w + x))
           r += ((st.pm || 0) & (1 << L.padIdx.get(y * L.w + x))) ? 'Ⅰ' : 'T';
         else if (st && st.bx && st.bx.indexOf(y * L.w + x) >= 0) r += 'B';
+        else if (L.portal.has(y * L.w + x)) {
+          const [, gi] = L.portal.get(y * L.w + x);
+          //  켜졌으면 큰 P, 아니면 작은 p (보여주기용이라 짝 구분은 안 한다)
+          r += ((st && (st.dm || 0)) & (1 << gi)) ? 'P' : 'p';
+        }
         else if (L.zoneSet.has(y * L.w + x)) r += ':';
         else if (L.doors[1] && L.doors[1].set.has(y * L.w + x))
           r += (y * L.w + x) === L.doors[1].core ? '%' : '-';

@@ -88,6 +88,11 @@ namespace SlimeEscape
         //    벽과 가르는 건 색이 아니라 **윗면이 밝고 테가 있다**는 것 — "이건 낱개다".
         static readonly Color BoxCol  = new Color32(0x44, 0x4d, 0x5a, 0xff);
         static readonly Color BoxTop  = new Color32(0x6e, 0x7a, 0x8a, 0xff);
+        // 🔴 포탈 — 짝을 **색으로 안 짓는다** (색 규칙 ③: 나머지는 무채색).
+        //    대신 짝끼리 **점이 같은 자리에서 같은 속도로 돈다.** 움직임이 같다는 것으로
+        //    "이 둘은 하나"를 말한다. 켜지기 전엔 바닥보다 아주 조금만 밝다.
+        static readonly Color PortOff = new Color32(0x36, 0x3c, 0x45, 0xff);
+        static readonly Color PortOn  = new Color32(0x8a, 0x96, 0xa6, 0xff);
         static readonly Color ZoneCol = new Color32(0x3a, 0x40, 0x48, 0xff);
         static readonly Color ZoneDot = new Color32(0x9a, 0xa6, 0xb4, 0xff);
         static readonly Color GateCol  = new Color32(0x3c, 0x44, 0x50, 0xff);
@@ -296,6 +301,13 @@ namespace SlimeEscape
         const float BoxSpan = 1.25f;     // 그리고 더 오래 간다
         const float BoxShake = 0.05f;    // 멈출 때 한 번 떤다
         const float BoxSquash = 0.09f;   // 밀리는 동안 옆으로 퍼지고 납작해진다
+        //  포탈 — (칸, 몇 번 홈이 켜는가, 테, 속, 도는 점 둘)
+        class Port
+        {
+            public int cell, door;
+            public SpriteRenderer ring, hole, d0, d1;
+        }
+        readonly List<Port> _ports = new List<Port>();
         //  무중력 구역의 떠 있는 점 — (칸, 몇 번째, 그림)
         readonly List<(int cell, int k, SpriteRenderer sr)> _zoneDots
             = new List<(int, int, SpriteRenderer)>();
@@ -1294,7 +1306,7 @@ namespace SlimeEscape
             if (_root != null) Destroy(_root.gameObject);
             _root = new GameObject("Board").transform;
             _segs.Clear(); _foodViews.Clear(); _foodExtra.Clear(); _links.Clear();
-            _zoneDots.Clear(); _boxViews.Clear(); _boxTops.Clear();
+            _zoneDots.Clear(); _boxViews.Clear(); _boxTops.Clear(); _ports.Clear();
 
             for (int y = 0; y < _L.H; y++)
                 for (int x = 0; x < _L.W; x++)
@@ -1331,6 +1343,29 @@ namespace SlimeEscape
                             dsr.color = dc;
                             _zoneDots.Add((c, k, dsr));
                         }
+                    }
+
+                    //  🔴 포탈 — 가운데를 바닥색으로 뚫어 **고리**로 만든다.
+                    //     채운 원으로 두면 '조각'이나 '별'로 잘못 읽힌다.
+                    if (!wall && _L.Portal.TryGetValue(c, out var hop))
+                    {
+                        var pr = new Port { cell = c, door = hop.Door };
+                        pr.ring = NewSprite("Portal", -3);
+                        pr.ring.sprite = PixelSprites.Disc();
+                        pr.ring.transform.position = (Vector3)CellPos(c) + new Vector3(0, 0, -0.011f);
+                        pr.ring.transform.localScale = new Vector3(0.8f, 0.8f, 1f);
+                        pr.hole = NewSprite("PortalIn", -3);
+                        pr.hole.sprite = PixelSprites.Disc();
+                        pr.hole.transform.position = (Vector3)CellPos(c) + new Vector3(0, 0, -0.012f);
+                        pr.hole.transform.localScale = new Vector3(0.52f, 0.52f, 1f);
+                        pr.hole.color = sr.color;          // 그 줄의 바닥색 그대로 — 뚫린 것처럼
+                        pr.d0 = NewSprite("PortalDot", -2);
+                        pr.d0.sprite = PixelSprites.Disc();
+                        pr.d0.transform.localScale = new Vector3(0.12f, 0.12f, 1f);
+                        pr.d1 = NewSprite("PortalDot", -2);
+                        pr.d1.sprite = PixelSprites.Disc();
+                        pr.d1.transform.localScale = new Vector3(0.12f, 0.12f, 1f);
+                        _ports.Add(pr);
                     }
 
                     if (wall)
@@ -1960,6 +1995,28 @@ namespace SlimeEscape
             // 🔴 문이 열리면 그 문벽이 사라지고, 그 홈은 "두고 온 몸"이 된다.
             //    화면을 매번 다시 만들지 않고 색만 바꾼다 — 몸이 움직이는 중에도 안 튄다.
             // 🔴 문벽이 툭 사라지면 허전하다 — 스르르 꺼지게 한다
+            //  🔴 포탈 — 짝끼리 **같은 각도로** 돈다. 그게 "이 둘은 하나"라는 말이다.
+            //     켜지기 전엔 어둡고 안 돈다 — 아직 아무 일도 안 일어난다는 뜻이다.
+            foreach (var pr in _ports)
+            {
+                bool on = (_st.Dm & (1 << pr.door)) != 0;
+                var col = on ? PortOn : PortOff;
+                pr.ring.color = col;
+                //  🔴 각도는 **칸이 아니라 짝(door)** 으로 정한다 — 그래야 둘이 같이 돈다
+                float ang = on ? Time.time * 1.5f + pr.door * 1.1f : 0f;
+                Vector2 at = CellPos(pr.cell);
+                for (int k = 0; k < 2; k++)
+                {
+                    var dsr = k == 0 ? pr.d0 : pr.d1;
+                    dsr.enabled = on;
+                    if (!on) continue;
+                    float a2 = ang + k * Mathf.PI;
+                    dsr.color = col;
+                    dsr.transform.position = (Vector3)at
+                        + new Vector3(Mathf.Cos(a2) * 0.33f, Mathf.Sin(a2) * 0.33f, -0.02f);
+                }
+            }
+
             //  🔴 무중력 점은 **제자리에서 떠 있다.** 위로 오르면 홈의 불빛과 헷갈린다.
             for (int i = 0; i < _zoneDots.Count; i++)
             {
