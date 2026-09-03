@@ -344,6 +344,10 @@
     const s0 = startState(L);
     if (isWin(L, s0, needStar)) return { ok: true, moves: 0, path: '', shortest: 1, states: 1 };
 
+    //  🔴 **상한을 둔다** (rev.10, 2026-09-05). 상자가 들어오면서 상태가 터질 수 있게 됐다 —
+    //     상한이 없으면 node 가 메모리를 다 먹고 죽어 **돌던 일 전체가 날아간다.**
+    //     넘으면 "못 풀었다" 가 아니라 **"너무 크다"** 로 돌려준다. 둘은 다른 말이다.
+    const cap = (opts && opts.cap) || +(typeof process !== 'undefined' && process.env && process.env.SOLVE_CAP) || 3000000;
     const q = [s0];
     const dist = new Map([[keyOf(s0), 0]]);
     const prev = new Map([[keyOf(s0), null]]);
@@ -351,6 +355,7 @@
     const wins = [];
 
     while (head < q.length) {
+      if (dist.size > cap) return { ok: false, why: '너무 큼', states: dist.size, capped: true };
       const st = q[head++];
       const sk = keyOf(st), d = dist.get(sk);
       if (d >= gd) continue;

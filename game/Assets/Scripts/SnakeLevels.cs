@@ -15,6 +15,11 @@ namespace SlimeEscape
         public string name;
         /// 🔴 가르치는 판. 맵 안에서 키부터 하나씩 알려준다.
         public bool tutorial;
+        /// 🔴 **구경용 판.** 기믹이 어떻게 생겼는지 보려고 손으로 그린 것이라
+        ///    안 깨져도 된다. 적합성 검사는 이런 판을 건너뛴다 —
+        ///    ⚠️ 안 건너뛰면 빨간불이 하나 늘 떠 있게 되고, 그러면 사람이
+        ///       빨간불을 안 보게 된다 (09-02 에 배운 것).
+        public bool demo;
         public int best;      // 최단 걸음 수 — stamp.js가 박는다
         public string sol;    // 정답 수순 ↑↓←→ — stamp.js가 박는다
         /// 🔴 별을 먹고 깨는 최단 걸음. 별 셋의 커트라인은 여기서 나온다.
