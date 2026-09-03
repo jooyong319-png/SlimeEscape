@@ -380,7 +380,8 @@ namespace SlimeEscape
         // 🔴 판을 갈아치우면 이 이름을 올린다. 번호(1-1, 1-2…)가 같아서
         //    옛 기록이 **전혀 다른 판**에 그대로 붙어 버린다 —
         //    안 깬 판에 별 셋이 달려 있었다 (08-31 화면).
-        const string ProgressKey = "snakeRecords_rev2";
+        //    09-05: 덤 조각 공정으로 47판을 통째 갈았다 → rev3.
+        const string ProgressKey = "snakeRecords_rev3";
         readonly Dictionary<string, int> _recs = new Dictionary<string, int>();
 
         bool Cleared(string id) => _recs.ContainsKey(id);
