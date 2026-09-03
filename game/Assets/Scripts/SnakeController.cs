@@ -308,6 +308,10 @@ namespace SlimeEscape
             public SpriteRenderer ring, hole, d0, d1;
         }
         readonly List<Port> _ports = new List<Port>();
+        //  🔴 방금 건너뛴 포탈 두 짝 (들어간 칸 · 나온 칸) — 고리가 한 번 크게 돈다.
+        //     안 그러면 몸이 그냥 사라졌다 나타나서 "버그인가?" 로 읽힌다.
+        int _warpIn = -1, _warpOut = -1;
+        float _warpT = 9f;
         //  무중력 구역의 떠 있는 점 — (칸, 몇 번째, 그림)
         readonly List<(int cell, int k, SpriteRenderer sr)> _zoneDots
             = new List<(int, int, SpriteRenderer)>();
@@ -1904,6 +1908,7 @@ namespace SlimeEscape
             _fall = 0; _land = 0f; _landed = true;
             _segPos.Clear(); _from.Clear(); _mid.Clear();
             _boxDrawn.Clear(); _boxFrom.Clear(); _boxSq.Clear();
+            _warpIn = _warpOut = -1; _warpT = 9f;   //  건너뛰기 표시도 지운다
             _segPos.Add(CellPos(_st.Head)); _from.Add(_segPos[0]); _mid.Add(_segPos[0]);
             _bornAt = Time.time;
             SyncViews();
@@ -2003,6 +2008,9 @@ namespace SlimeEscape
                 bool on = (_st.Dm & (1 << pr.door)) != 0;
                 var col = on ? PortOn : PortOff;
                 pr.ring.color = col;
+                //  🔴 크기를 **매 프레임 되돌린다.** 안 그러면 한 번 퍼진 고리가
+                //     그 크기로 굳는다 (아래 건너뛰기 표시가 크기를 건드린다).
+                pr.ring.transform.localScale = new Vector3(0.8f, 0.8f, 1f);
                 //  🔴 각도는 **칸이 아니라 짝(door)** 으로 정한다 — 그래야 둘이 같이 돈다
                 float ang = on ? Time.time * 1.5f + pr.door * 1.1f : 0f;
                 Vector2 at = CellPos(pr.cell);
@@ -2015,6 +2023,21 @@ namespace SlimeEscape
                     dsr.color = col;
                     dsr.transform.position = (Vector3)at
                         + new Vector3(Mathf.Cos(a2) * 0.33f, Mathf.Sin(a2) * 0.33f, -0.02f);
+                }
+            }
+
+            //  🔴 건너뛴 자리에 고리가 한 번 크게 퍼진다. 들어간 쪽·나온 쪽 둘 다.
+            if (_warpT < 1f)
+            {
+                _warpT = Mathf.Min(1f, _warpT + Time.deltaTime / 0.35f);
+                foreach (var pr in _ports)
+                {
+                    bool hit = pr.cell == _warpIn || pr.cell == _warpOut;
+                    if (!hit) continue;
+                    float s = Mathf.Lerp(0.8f, 1.55f, _warpT);
+                    pr.ring.transform.localScale = new Vector3(s, s, 1f);
+                    var c2 = PortOn; c2.a = 1f - _warpT;
+                    pr.ring.color = c2;
                 }
             }
 
@@ -2419,6 +2442,13 @@ namespace SlimeEscape
             //     또 누르면 상자가 튄다 (슬라임과 같은 이유다)
             _boxFrom.Clear();
             _boxFrom.AddRange(_boxDrawn);
+            //  🔴 포탈을 지났나 — 머리가 이웃 칸이 아닌 데로 갔으면 지난 것이다
+            if (_L.Portal.Count > 0 && _undo.Count > 0)
+            {
+                int was = _undo.Peek().Head, now = _st.Head;
+                int dx1 = Mathf.Abs(_L.X(was) - _L.X(now)), dy1 = Mathf.Abs(_L.Y(was) - _L.Y(now));
+                if (dx1 + dy1 > 1 && _L.Portal.ContainsKey(now)) { _warpIn = was; _warpOut = now; _warpT = 0f; }
+            }
             _stepT = 0f;
             SyncViews();
         }
@@ -2435,6 +2465,7 @@ namespace SlimeEscape
             for (int i = 0; i < _st.Length; i++) _segPos[i] = CellPos(_st.Body[i]);   // 되돌리기는 딱 붙인다
             //  상자도 딱 붙인다 — 되돌리기는 연출 없이 즉시다
             _boxDrawn.Clear(); _boxFrom.Clear(); _boxSq.Clear();
+            _warpIn = _warpOut = -1; _warpT = 9f;   //  건너뛰기 표시도 지운다
             _from.Clear(); _from.AddRange(_segPos);
             _mid.Clear(); _mid.AddRange(_segPos);
             _stepT = 999f;
@@ -2557,14 +2588,25 @@ namespace SlimeEscape
             {
                 float t = _stepT - i * lag;
                 Vector2 end = CellPos(_st.Body[i]);
+
+                //  🔴 **포탈로 건너뛴 마디는 미끄러지지 않는다** (rev.11).
+                //     걸음 구간의 도착이 한 칸 넘게 떨어져 있으면 그건 걸은 게 아니라
+                //     **건너뛴 것**이다. 이어 그리면 마디가 판을 가로질러 날아간다 —
+                //     사장님이 "포털 들어가면 몸이 늘어난다" 고 하신 게 이것이다.
+                //     ⚠️ **걸음 구간만** 본다. 낙하는 여러 칸이 정상이라 여기서 잡으면 안 된다.
+                Vector2 stepTo = fallSpan <= 0f ? end : _mid[i];
+                bool warp = (stepTo - _from[i]).sqrMagnitude > 2.25f;
+
                 if (fallSpan <= 0f)
                 {
-                    _segPos[i] = Vector2.Lerp(_from[i], end, Ease(Mathf.Clamp01(t)));
+                    _segPos[i] = warp ? (t < 0.5f ? _from[i] : end)
+                                      : Vector2.Lerp(_from[i], end, Ease(Mathf.Clamp01(t)));
                 }
                 else if (t <= 1f)
                 {
                     // 1구간: 걸음. 끝을 부드럽게 놓는다
-                    _segPos[i] = Vector2.Lerp(_from[i], _mid[i], Ease(Mathf.Clamp01(t)));
+                    _segPos[i] = warp ? (t < 0.5f ? _from[i] : _mid[i])
+                                      : Vector2.Lerp(_from[i], _mid[i], Ease(Mathf.Clamp01(t)));
                 }
                 else
                 {
@@ -2693,6 +2735,17 @@ namespace SlimeEscape
             for (int i = 0; i < _links.Count; i++)
             {
                 bool on = i + 1 < _st.Length && i + 1 < _segPos.Count && BornT >= 1f;
+                //  🔴 **포탈을 지나는 동안 몸은 두 덩이로 갈라진다** (rev.11).
+                //     그때 이음매를 그으면 지도를 가로지르는 막대가 된다 —
+                //     사장님이 "포털 들어가면 몸이 늘어난다" 고 하신 게 이것이다.
+                //     붙어 있는 마디 사이에만 긋는다. 한 칸 넘게 떨어지면 안 긋는다.
+                if (on && i < _st.Body.Count && i + 1 < _st.Body.Count)
+                {
+                    int ca0 = _st.Body[i], cb0 = _st.Body[i + 1];
+                    int dx0 = Mathf.Abs(_L.X(ca0) - _L.X(cb0));
+                    int dy0 = Mathf.Abs(_L.Y(ca0) - _L.Y(cb0));
+                    if (dx0 + dy0 > 1) on = false;
+                }
                 _links[i].enabled = on;
                 if (!on) continue;
                 //  🔴 이음매는 몸통과 **같은 두께**여야 이어진 한 덩어리로 보인다.
@@ -2710,6 +2763,13 @@ namespace SlimeEscape
                 Vector2 ca = new Vector2(_segPos[i].x, yA);
                 Vector2 cb = new Vector2(_segPos[j].x, yB);
                 Vector2 d2 = cb - ca;
+                //  🔴 **그려지는 자리**로도 한 번 더 본다 (09-05 사장님: "움직일 때 살짝살짝 보여").
+                //     최종 칸으로는 이웃인데 **지금 그려지는 자리는 판 반대편**인 순간이 있다 —
+                //     머리는 벌써 출구 옆으로 갔는데 다음 마디는 아직 입구 자리에 남아 있을 때다.
+                //     그때 이으면 막대가 한 번 번쩍인다.
+                //     ⚠️ 걸을 때도 마디 사이가 **두 칸**까지 벌어진다 (뒤 마디가 늦게 뜬다).
+                //        그래서 세 칸(9)을 넘을 때만 끊는다 — 걸음은 안 건드린다.
+                if (d2.sqrMagnitude > 9f) { _links[i].enabled = false; continue; }
                 bool horiz = Mathf.Abs(d2.x) > Mathf.Abs(d2.y);
 
                 //  🔴 **얇은 쪽에 맞춘다.** 굵은 쪽에 맞추면 가는 마디 옆으로
