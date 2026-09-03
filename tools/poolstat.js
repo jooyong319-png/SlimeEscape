@@ -8,7 +8,7 @@
 //    ⚠️ 위키 함정: *"최단해가 유일한 판만 골랐다고 했는데, 고를 게 없어서 유일했다."*
 //       고르기 전에 **분포**를 본다.
 //
-//   node tools/poolstat.js [못파일]
+//   node tools/poolstat.js [못파일] [나갈파일]
 'use strict';
 const fs = require('fs');
 const path = require('path');
@@ -25,6 +25,9 @@ new Function('module', 'exports', 'require', '__dirname',
 const { measure } = mod.exports;
 
 const file = process.argv[2] || 'tools/make40-pool.json';
+//  🔴 나갈 파일을 고를 수 있게 한다. 고정이면 덤 조각 **전** 측정값을
+//     덮어써 짝비교를 못 하게 된다 (09-05).
+const OUT = process.argv[3] || process.env.OUT || 'tools/poolstat.json';
 const raw = JSON.parse(fs.readFileSync(file, 'utf8'));
 const pool = Array.isArray(raw) ? raw : (raw.levels || raw.pool || []);
 console.log(file, '—', pool.length, '개');
@@ -36,7 +39,12 @@ for (let i = 0; i < pool.length; i++) {
   const m = measure({ grid: p.grid, gravity: true, clear: p.clear || 'all', id: p.id || ('#' + i) });
   if (!m) { skipped++; continue; }
   rows.push({ i, doors: p.doors, w: p.grid[0].length, h: p.grid.length, ...m });
-  if ((i + 1) % 40 === 0) process.stderr.write('  ' + (i + 1) + '/' + pool.length + '\n');
+  //  🔴 **중간에 저장한다.** trapall 이 180/213 에서 오류 한 줄 없이 죽었다 (09-05).
+  //     재는 일은 더 비싸니 맨 끕에서 한 번만 쓰면 안 된다.
+  if ((i + 1) % 20 === 0) {
+    fs.writeFileSync(OUT, JSON.stringify(rows, null, 1) + '\n');
+    process.stderr.write('  ' + (i + 1) + '/' + pool.length + '\n');
+  }
 }
 console.log('잰 판', rows.length, '· 못 잰 판', skipped);
 
@@ -65,5 +73,5 @@ for (const t of [20, 30, 40, 50, 60]) {
   console.log('압박 ' + String(t).padStart(2) + '% 이상: ' + String(n).padStart(3) + '개' +
               (n >= 47 ? '   ← 47판을 채울 수 있다' : ''));
 }
-fs.writeFileSync('tools/poolstat.json', JSON.stringify(rows, null, 1) + '\n');
-console.log('\n잰 값을 tools/poolstat.json 에 남겼다');
+fs.writeFileSync(OUT, JSON.stringify(rows, null, 1) + '\n');
+console.log('\n' + '본 값을 ' + OUT + '에 남겼다');

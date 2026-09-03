@@ -12,6 +12,8 @@ const fs = require('fs');
 const path = require('path');
 const E = require('./engine.js').SlimeEngine;
 const { grow, rng, SHAPES } = require('./grow.js');
+//  별 박기는 pick.js 와 같은 규칙을 써야 해서 따로 빼둔다 (09-05)
+const { putStar, cutOf } = require('./star.js');
 
 const LP = path.join(__dirname, '../game/Assets/Resources/levels.json');
 const POOLF = path.join(__dirname, 'make40-pool.json');
@@ -43,30 +45,6 @@ const BANDS = [
   { d: 3, W: 22, H: 12, ratio: 0.43, wmin: 34, wmax: 58, lens: [5, 3, 3] },
 ];
 
-/// 별 자리 — 칸마다 다시 푸는 건 너무 느리다. 몇 개만 뽑아 보고 충분하면 멈춘다.
-function putStar(grid, base, r, tries, goodEnough) {
-  const G = grid.map(row => row.split(''));
-  const H = G.length, W = G[0].length;
-  const cells = [];
-  for (let y = 1; y < H - 1; y++) for (let x = 1; x < W - 1; x++)
-    if (G[y][x] === '.') cells.push([x, y]);
-  for (let i = cells.length - 1; i > 0; i--) {
-    const j = Math.floor(r() * (i + 1)); [cells[i], cells[j]] = [cells[j], cells[i]];
-  }
-  let best = null;
-  for (const [x, y] of cells.slice(0, tries)) {
-    const g2 = grid.map(row => row.split(''));
-    g2[y][x] = 'o';
-    const gg = g2.map(row => row.join(''));
-    const s = E.solve({ grid: gg, gravity: true, clear: 'all', id: 's' }, { needStar: true });
-    if (!s.ok) continue;
-    const det = s.moves - base;
-    if (!best || det > best.det) best = { grid: gg, det, moves: s.moves };
-    if (best.det >= goodEnough) break;
-  }
-  return best;
-}
-
 // ---- 잔뜩 뽑는다 ----
 // 🔴 SELECT=1 이면 **못자리를 새로 만들지 않고 있는 걸 쓴다.**
 //    안 그러면 longer.js 로 어렵게 찾은 긴 판을 덮어써 버린다 (08-31에 한 번 그랬다).
@@ -96,11 +74,7 @@ for (const b of (SELECT_ONLY ? [] : BANDS)) {
       pool.push({
         doors: b.d, shape, grid: st.grid, best: a.moves, sol: a.path,
         bestStar: st.moves, det: st.det,
-        // 🔴 커트는 **별을 먹은 최단(bestStar)** 기준이다. 별 없는 최단(best)으로
-        //    잡으면 별을 주우러 도는 걸음이 빠져서 3별이 아예 불가능해진다
-        //    (2026-09-04: 그렇게 잡았다가 47판 중 34판이 불가능해졌다).
-        //    여기 st.moves 는 별을 먹고 돈 값이라 맞다.
-        cut: st.moves + Math.max(2, Math.round(st.moves * 0.10)),
+        cut: cutOf(st.moves),        //  별을 먹은 최단 기준 — 왜 그런지는 star.js 에
       });
       got++;
     }
