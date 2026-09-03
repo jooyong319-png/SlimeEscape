@@ -12,6 +12,7 @@ namespace SlimeEscape
     {
         static Sprite _solid, _disc;
         static Sprite _round;
+        static Sprite _halo;
         static Sprite _diamond;
 
         /// 벽·바닥용 1×1 흰 사각형 (색은 SpriteRenderer.color로 준다)
@@ -154,6 +155,32 @@ namespace SlimeEscape
         ///
         /// 크게 구워야 한다 — 작게 구워 늘이면 모서리 계단이 그대로 늘어난다.
         /// </summary>
+        /// <summary>
+        /// 🔴 **가장자리로 갈수록 옅어지는 동그라미** (09-05 사장님).
+        /// Soft() 는 둥근 **네모**라 빛무리로 쓰면 네모가 보인다 — 사장님 화면에서 그랬다.
+        /// 가운데가 제일 짙고 밖으로 갈수록 사라진다. 딱 끊기는 테가 없어야 빛으로 읽힌다.
+        /// 세제곱으로 떨어뜨린다 — 선형이면 가장자리에 옅은 테가 남아 원판처럼 보인다.
+        /// </summary>
+        public static Sprite Halo(int size = 96)
+        {
+            if (_halo != null) return _halo;
+            var t = new Texture2D(size, size, TextureFormat.RGBA32, false)
+                    { filterMode = FilterMode.Bilinear, hideFlags = HideFlags.HideAndDontSave };
+            float c = (size - 1) * 0.5f, r = size * 0.5f;
+            for (int y = 0; y < size; y++)
+                for (int x = 0; x < size; x++)
+                {
+                    float d = Mathf.Sqrt((x - c) * (x - c) + (y - c) * (y - c)) / r;
+                    float a = Mathf.Clamp01(1f - d);
+                    t.SetPixel(x, y, new Color(1, 1, 1, a * a * a));
+                }
+            t.Apply();
+            _halo = Sprite.Create(t, new Rect(0, 0, size, size),
+                                  new Vector2(0.5f, 0.5f), size, 0, SpriteMeshType.FullRect);
+            _halo.hideFlags = HideFlags.HideAndDontSave;
+            return _halo;
+        }
+
         public static Sprite Soft(int size = 96, float radius = 0.06f)
         {
             if (_soft != null) return _soft;

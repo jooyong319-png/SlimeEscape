@@ -1363,7 +1363,9 @@ namespace SlimeEscape
                         var pr = new Port { cell = c, door = hop.Door };
                         //  빛무리 — 칸 밖으로 번져 나간다. "여기 뭔가 있다"는 건 이게 말한다
                         pr.glow = NewSprite("PortalGlow", -3);
-                        pr.glow.sprite = PixelSprites.Soft();
+                        //  🔴 Soft() 는 둥근 **네모**라 빛무리로 쓰면 네모가 보인다
+                        //     (09-05 사장님 화면). 가장자리로 갈수록 옅어지는 동그라미를 쓴다.
+                        pr.glow.sprite = PixelSprites.Halo();
                         pr.glow.transform.position = (Vector3)CellPos(c) + new Vector3(0, 0, -0.009f);
                         //  테
                         pr.ring = NewSprite("Portal", -3);
@@ -1375,8 +1377,9 @@ namespace SlimeEscape
                         pr.hole.sprite = PixelSprites.Disc();
                         pr.hole.transform.position = (Vector3)CellPos(c) + new Vector3(0, 0, -0.012f);
                         //  도는 점 셋 — 짝끼리 **같은 각도**로 돈다
-                        pr.dots = new SpriteRenderer[3];
-                        for (int k = 0; k < 3; k++)
+                        //  🔴 **빨려들어가는** 알갱이 넷. 바깥에서 생겨 가운데로 빨려든다.
+                        pr.dots = new SpriteRenderer[4];
+                        for (int k = 0; k < 4; k++)
                         {
                             var ds = NewSprite("PortalDot", -2);
                             ds.sprite = PixelSprites.Disc();
@@ -2040,21 +2043,28 @@ namespace SlimeEscape
                 float hs = 0.5f * pulse;
                 pr.hole.transform.localScale = new Vector3(hs, hs, 1f);
 
-                //  🔴 각도는 **칸이 아니라 짝(door)** 으로 정한다 — 그래야 둘이 같이 돈다.
-                //     색이 아니라 **움직임이 같다**는 것으로 "이 둘은 하나"를 말한다.
-                float ang = on ? Time.time * 1.7f + pr.door * 1.1f : 0f;
-                for (int k = 0; k < pr.dots.Length; k++)
+                //  🔴 **빨려들어가는 느낌** (09-05 사장님). 알갱이가 바깥에서 생겨
+                //     **가운데로 감기며 빨려든다.** 제자리에서 도는 것과는 뜻이 다르다 —
+                //     도는 건 "여기 뭐가 있다", 빨려드는 건 "여기로 들어간다" 이다.
+                //     🔴 짝끼리 **같은 박자**로 움직인다 (칸이 아니라 door 로 위상을 정한다).
+                int nd = pr.dots.Length;
+                for (int k = 0; k < nd; k++)
                 {
                     var dsr = pr.dots[k];
                     dsr.enabled = on;
                     if (!on) continue;
-                    float a2 = ang + k * (Mathf.PI * 2f / pr.dots.Length);
-                    var dc2 = PortOn; dc2.a = 0.95f;
+                    //  0 → 1 을 도는 값. 알갱이마다 시작이 어긋나 줄지어 빨려든다
+                    float u = Mathf.Repeat(Time.time * 0.85f + pr.door * 0.37f + k / (float)nd, 1f);
+                    float rad = Mathf.Lerp(0.62f, 0.06f, u * u);        // 안으로 갈수록 빨라진다
+                    float a2 = (u * 2.4f + k / (float)nd) * Mathf.PI * 2f + pr.door * 1.1f;
+                    //  들어올 때 살짝 뜨고, 가운데서 사라진다
+                    float fade = Mathf.Min(1f, u * 6f) * (1f - Mathf.Clamp01((u - 0.75f) / 0.25f));
+                    var dc2 = PortOn; dc2.a = 0.95f * fade;
                     dsr.color = dc2;
-                    float dsz = 0.15f;
+                    float dsz = Mathf.Lerp(0.17f, 0.05f, u);            // 멀어질수록 작아진다
                     dsr.transform.localScale = new Vector3(dsz, dsz, 1f);
                     dsr.transform.position = (Vector3)at
-                        + new Vector3(Mathf.Cos(a2) * 0.34f, Mathf.Sin(a2) * 0.34f, -0.02f);
+                        + new Vector3(Mathf.Cos(a2) * rad, Mathf.Sin(a2) * rad, -0.02f);
                 }
             }
 
@@ -2064,12 +2074,20 @@ namespace SlimeEscape
                 _warpT = Mathf.Min(1f, _warpT + Time.deltaTime / 0.35f);
                 foreach (var pr in _ports)
                 {
-                    bool hit = pr.cell == _warpIn || pr.cell == _warpOut;
-                    if (!hit) continue;
-                    float s = Mathf.Lerp(0.8f, 1.55f, _warpT);
+                    bool inp = pr.cell == _warpIn, outp = pr.cell == _warpOut;
+                    if (!inp && !outp) continue;
+                    //  🔴 들어가는 쪽은 **오므라들고**, 나오는 쪽은 **퍼진다.**
+                    //     둘 다 퍼지게 하면 "빨려들어갔다"가 아니라 그냥 반짝인 게 된다.
+                    float s = inp ? Mathf.Lerp(1.35f, 0.35f, _warpT)
+                                  : Mathf.Lerp(0.35f, 1.55f, _warpT);
                     pr.ring.transform.localScale = new Vector3(s, s, 1f);
-                    var c2 = PortOn; c2.a = 1f - _warpT;
+                    var c2 = PortOn; c2.a = inp ? 1f - _warpT * 0.4f : 1f - _warpT;
                     pr.ring.color = c2;
+                    //  빛무리도 같이 — 들어갈 땐 잦아들고 나올 땐 확 번진다
+                    float g2s = (inp ? Mathf.Lerp(2.0f, 0.7f, _warpT) : Mathf.Lerp(0.7f, 2.2f, _warpT));
+                    pr.glow.transform.localScale = new Vector3(g2s, g2s, 1f);
+                    var gc2 = PortGlow; gc2.a = 0.55f * (1f - _warpT);
+                    pr.glow.color = gc2;
                 }
             }
 
