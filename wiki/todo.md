@@ -217,3 +217,17 @@ python tools/subset-font.py "d:/Make_game/SalvageRun/game/Assets/_Project/Resour
            awk 'NR>그줄' 로 잘라서 센다
     ```
     같은 이유로 **예외도** 그 뒤 것만 센다.
+
+31. 🔴 **기다리는 반복문이 「시간 다 됨」을 「끝남」이라고 말하게 두지 말 것** (09-05)
+    `for i in $(seq 1 28); do ...; sleep 20; done; echo "끝"` 을 썼다.
+    시간이 다 되어 빠져나온 것도 **"끝"** 이라고 찍혔다. 그 바람에
+    · 아직 도는 일을 죽은 줄 알고 **원인을 지어냈고**
+    · 같은 파일에 쓰는 놈을 **하나 더 띄웠다** (자료가 깨질 뻔했다)
+    ```
+    쓸 것:  powershell -NoProfile -ExecutionPolicy Bypass -File tools\waitpid.ps1 <pid> [초]
+            DONE  = 정말 끝났다 (종료코드 0)
+            STILL = 아직 돈다   (종료코드 3)  ← 이걸 「끝」으로 읽지 말 것
+    ```
+    ⚠️ `.ps1` 은 **BOM 없이 저장하면** PowerShell 5.1 이 ANSI 로 읽어 한글이 깨지고
+       따옴표가 어긋난다 (함정 24). 이 파일도 그래서 한 번 안 돌았다.
+    「초록불을 의심하기」와 같은 병 — **검사가 엉뚱한 걸 재고 있었다.**

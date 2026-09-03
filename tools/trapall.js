@@ -69,10 +69,15 @@ function addTraps(grid, want) {
 }
 
 const pool = JSON.parse(fs.readFileSync(IN, 'utf8'));
-console.log(IN, '—', pool.length, '개 ·', WANT, '개씩 얹는다');
-const out = [];
+//  🔴 **이어서 한다.** 09-05 에 340판 중 140판에서 조용히 죽었다 (솔버 상한을
+//     크게 잡아 메모리를 먹은 것으로 본다). 몇십 분치를 다시 돌리면 안 된다.
+const out = (process.env.RESUME === '1' && fs.existsSync(OUT))
+  ? JSON.parse(fs.readFileSync(OUT, 'utf8')) : [];
+const start = out.length;
+console.log(IN, '—', pool.length, '개 ·', WANT, '개씩 얹는다' +
+            (start ? ' · ' + start + '개는 이미 했다' : ''));
 let none = 0;
-for (let i = 0; i < pool.length; i++) {
+for (let i = start; i < pool.length; i++) {
   const p = pool[i];
   const r = addTraps(p.grid, WANT);
   if (!r) { none++; out.push(Object.assign({}, p, { traps: 0 })); continue; }
