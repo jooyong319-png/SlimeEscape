@@ -6,7 +6,7 @@
 //   node tools/pick.js                   골라서 보여만 준다
 //   WRITE=1 node tools/pick.js           levels.json 에 쓴다 (사본 먼저 뜬다)
 //
-//   POOL=... STAT=... N=40 으로 바꿀 수 있다.
+//   POOL=... STAT=... N=47 로 바꿀 수 있다.
 'use strict';
 const fs = require('fs');
 const path = require('path');
@@ -18,7 +18,7 @@ const POOL = process.env.POOL || 'tools/trap-pool.json';
 const STAT = process.env.STAT || 'tools/trapstat-after.json';
 const LP   = path.join(__dirname, '../game/Assets/Resources/levels.json');
 const BAK  = path.join(__dirname, 'levels.bak.json');
-const N    = +(process.env.N || 40);     // 튜토리얼 뒤로 몇 판
+const N    = +(process.env.N || 47);     // 튜토리얼 뒤로 몇 판
 
 const pool = JSON.parse(fs.readFileSync(POOL, 'utf8'));
 const stat = JSON.parse(fs.readFileSync(STAT, 'utf8'));
@@ -31,54 +31,62 @@ const rows = stat.map(r => Object.assign({}, r, pool[r.i]))
 console.log('쓸 수 있는 판', rows.length);
 if (rows.length < N) console.log('⚠️ ' + N + '판을 채우기엔 모자란다 — 있는 만큼만 고른다');
 
+// ---- 목표 곡선 ----
 // 🔴 **곡선은 여전히 있어야 한다.** 1-1 이 어려우면 아무도 2판까지 못 간다.
-//    앞은 쉽고 짧게, 뒤로 갈수록 조이고 길게. 두 값을 **함께** 본다.
+//    다만 목표는 **못에 실제로 있는 것**으로 잡는다. 09-05 에 걸음 55 를 좇았는데
+//    걸음 30 넘는 판이 여덟 개뿐이라, 애꿎은 압박을 버려가며 긴 판을 주웠다.
 const want = [];
 for (let k = 0; k < N; k++) {
   const t = k / (N - 1);                       // 0 → 1
   want.push({
-    press: 0.03 + 0.32 * t * t,                // 3% → 35% (뒤에서 가파르게)
-    moves: 10 + 45 * t,                        // 10 → 55 걸음
-    doors: t < 0.30 ? 1 : t < 0.65 ? 2 : 3,
+    press: 0.03 + 0.33 * t * t,                // 3% → 36% (뒤에서 가파르게)
+    moves: 10 + 22 * t,                        // 10 → 32
   });
 }
 
 const used = new Set();
 const picked = [];
+//  홈 개수는 난이도가 아니지만 **보기에는** 다르다. 안 밀면 마흔일곱 판 중 서른셋이
+//  홈 둘이 된다. 못에 있는 만큼만 부드럽게 민다 (넘칠 때만, 아주 약하게).
+const quota = { 1: 14, 2: 21, 3: 12 };
+const mixCount = { 1: 0, 2: 0, 3: 0 };
 for (const w of want) {
   let best = null, bestD = Infinity;
   for (let i = 0; i < rows.length; i++) {
     if (used.has(i)) continue;
     const r = rows[i];
-    const d = Math.abs((r.doors || 1) - w.doors) * 0.9
+    // 🔴 홈 개수는 **난이도가 아니다.** 09-05 측정: 홈 1/2/3 의 압박 중앙값이
+    //    14.3 / 13.9 / 14.1% 로 같았다. 예전엔 홈 개수를 난이도 띠로 썼는데,
+    //    그 탓에 홈 셋 열여덟 판을 압박과 상관없이 죄다 뒤쪽에 끌어다 썼다.
+    //    이제는 "앞쪽엔 복잡해 보이는 판을 안 준다" 정도로만 쓴다.
+    const early = (picked.length / N) < 0.25;
+    const dr = r.doors || 1;
+    const over = Math.max(0, mixCount[dr] - quota[dr]) * 0.06;
+    const d = (early && dr >= 3 ? 0.5 : 0) + over
             + Math.abs(r.press - w.press) * 4.0
             + Math.abs(r.moves - w.moves) / 60;
     if (d < bestD) { bestD = d; best = i; }
   }
   if (best === null) break;
   used.add(best);
+  mixCount[rows[best].doors || 1]++;
   picked.push(rows[best]);
 }
 
-// 🔴 **줄어들면 안 된다.** 홈 개수 차례는 그대로 두고, 띠 안에서 다시 세운다.
-//    길이만으로 세우면 또 길이 곡선이 되니 **걸음과 압박의 등수를 더해서** 센다.
+// 🔴 **줄어들면 안 된다.** 걸음만으로 세우면 또 길이 곡선이 되니
+//    걸음과 압박의 **등수를 더해서** 세운다. 압박에 조금 더 무게를 준다.
 {
-  const byDoor = { 1: [], 2: [], 3: [] };
-  for (const p of picked) (byDoor[p.doors] || byDoor[3]).push(p);
-  const rank = (arr, get) => {
-    const ord = arr.map((_, i) => i).sort((a, b) => get(arr[a]) - get(arr[b]));
-    const out = new Array(arr.length);
+  const rank = get => {
+    const ord = picked.map((_, i) => i).sort((a, b) => get(picked[a]) - get(picked[b]));
+    const out = new Array(picked.length);
     ord.forEach((idx, pos) => { out[idx] = pos; });
     return out;
   };
+  const rm = rank(r => r.moves), rp = rank(r => r.press);
+  const scored = picked.map((r, i) => ({ r, s: rm[i] + rp[i] * 1.5 }));
+  scored.sort((x, y) => x.s - y.s);
   picked.length = 0;
-  for (const k of [1, 2, 3]) {
-    const a = byDoor[k];
-    const rm = rank(a, r => r.moves), rp = rank(a, r => r.press);
-    a.map((r, i) => ({ r, s: rm[i] + rp[i] }))
-     .sort((x, y) => x.s - y.s)
-     .forEach(x => picked.push(x.r));
-  }
+  scored.forEach(x => picked.push(x.r));
 }
 
 console.log('\n고른 판', picked.length);
@@ -95,11 +103,14 @@ picked.forEach((r, k) => {
     String(r.states).padStart(9));
 });
 const avg = f => picked.reduce((s, r) => s + f(r), 0) / picked.length;
+const mix = [1, 2, 3].map(d => d + '홈 ' + picked.filter(r => r.doors === d).length).join(' · ');
 console.log('-'.repeat(58));
 console.log('평균 압박 ' + (avg(r => r.press) * 100).toFixed(1) + '%' +
             ' · 되짚기 ' + (avg(r => r.back) * 100).toFixed(0) + '%' +
             ' · 걸음 ' + avg(r => r.moves).toFixed(0) +
             ' · 덤 ' + avg(r => r.traps || 0).toFixed(1) + '개');
+console.log('홈 섞임: ' + mix + ' · 크기 ' +
+            new Set(picked.map(r => r.w + 'x' + r.h)).size + '가지');
 { // 덤 조각 전과 견줘 본다 (press0 가 판마다 붙어 있다)
   const has = picked.filter(r => typeof r.press0 === 'number');
   if (has.length)
@@ -147,4 +158,4 @@ d.levels = [tut, ...out.map((l, i) => Object.assign({ id: '1-' + (i + 1) }, l))]
 d.chapter = 1;
 fs.writeFileSync(LP, JSON.stringify(d, null, 2) + '\n');
 console.log('판 자료에 썼다 · 판 ' + (d.levels.length - 1) + '개 (+튜토리얼)');
-console.log('다음: node tools/verify.js  또는 유니티 ConformanceCheck');
+console.log('다음: 유니티 ConformanceCheck');

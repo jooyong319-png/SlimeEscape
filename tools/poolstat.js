@@ -32,10 +32,17 @@ const raw = JSON.parse(fs.readFileSync(file, 'utf8'));
 const pool = Array.isArray(raw) ? raw : (raw.levels || raw.pool || []);
 console.log(file, '—', pool.length, '개');
 
-const rows = [];
+//  🔴 **이어서 재다.** 배경 작업의 10분 제한이 node 를 같이 죽인다 —
+//     09-05 에 trapall 이 180/213, poolstat 이 120/180 에서 그렇게 잘렸다.
+//     오류가 아니었다. RESUME=1 이면 이미 재 것은 건너뛴다.
+const rows = (process.env.RESUME === '1' && fs.existsSync(OUT))
+  ? JSON.parse(fs.readFileSync(OUT, 'utf8')) : [];
+const done = new Set(rows.map(r => r.i));
+if (rows.length) console.log('이어서 재다 — 이미 ' + rows.length + '개');
 let skipped = 0;
 for (let i = 0; i < pool.length; i++) {
   const p = pool[i];
+  if (done.has(i)) continue;
   const m = measure({ grid: p.grid, gravity: true, clear: p.clear || 'all', id: p.id || ('#' + i) });
   if (!m) { skipped++; continue; }
   rows.push({ i, doors: p.doors, w: p.grid[0].length, h: p.grid.length, ...m });
