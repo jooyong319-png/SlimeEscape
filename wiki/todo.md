@@ -45,6 +45,10 @@ python tools/subset-font.py "d:/Make_game/SalvageRun/game/Assets/_Project/Resour
       🔴 **확정. 재설계 금지** — 상수만 만진다
 - [x] **벽** — 바깥선만 둥글게 · 판 밖 한 겹이 배경으로 녹는다
 - [x] **튜토리얼 안내판** — 🔴 흉내를 걷어내고 **진짜 게임**을 하나 더 돌린다 (rev.8-d)
+- [ ] 🔴 **판을 다시 만든다 — 덤 조각으로** (2026-09-04 저녁에 길을 찾았다)
+      압박(press) 이 덤 조각 셋으로 **6.5% → 24.5%** 가 됐다. 규칙을 안 늘리고 네 배다.
+      굴 모양·크기·홈 개수를 아무리 흔들어도 3~5% 를 못 벗어났던 것과 대조된다.
+      → `tools/trapall.js` 로 못에 얹고 → `poolstat.js` 로 재고 → `pick.js` 로 고른다
 - [ ] **정합성 검사 다시** — 도장 찍은 값으로. ⚠️ 유니티가 열려 있으면 배치모드를 못 쓴다
 - [ ] **못 잰 판 다섯** — 상태 한도(40만)를 올리면 잴 수 있다. 🔴 자리 비우실 때만
 - [ ] **판 고르기 · 결과 · 첫 화면** — 판은 납작해졌는데 이 화면들은 아직 옛 색이다
@@ -145,5 +149,13 @@ python tools/subset-font.py "d:/Make_game/SalvageRun/game/Assets/_Project/Resour
 21. 🔴 **`-executeMethod` 는 이름이 틀려도 조용히 실패한다** — 로그에
     `executeMethod class ... could not be found` 한 줄만 남고 종료 코드도 안 준다.
     (`SlimeEscape.Editor…` 가 아니라 **`SlimeEscape.EditorTools…`** 다)
-22. **PowerShell 5.1 은 BOM 없는 .ps1 을 ANSI 로 읽는다** — 한글이 깨져 따옴표가 어긋나
+23. 🔴 **역슬래시가 셸을 지나며 먹힌다** — 헤어독으로 파이썬에 넘긴 \n 이
+    **진짜 줄바꿈**이 되어 소스가 깨진다. 2026-09-04 하루에만 **세 번** 밟았다.
+    메모에 적어놓고도 또 밟았다 — 급할 때 제일 먼저 잊는 것이다.
+    ```
+    고침:  BS = chr(92)  으로 역슬래시를 직접 만든다
+    또는:  스크립트를 Write 도구로 파일에 쓰고 실행한다 (셸을 안 지난다)
+    확인:  node -c <파일>  ·  python tools/braces.py
+    ```
+24. **PowerShell 5.1 은 BOM 없는 .ps1 을 ANSI 로 읽는다** — 한글이 깨져 따옴표가 어긋나
     스크립트가 통째로 안 돈다. 로그에서 찾을 표는 **아스키**로 둘 것

@@ -79,7 +79,12 @@ for (let i = 0; i < pool.length; i++) {
   //  🔴 정답 수순은 그대로다 (최단해가 안 바뀌는 것만 받았다). 그래도 다시 풀어 못박는다.
   const a = E.solve({ grid: r.grid, gravity: true, clear: 'all', id: 'g' });
   out.push(Object.assign({}, p, { grid: r.grid, traps: r.traps, best: a.moves, sol: a.path }));
-  if ((i + 1) % 40 === 0) process.stderr.write('  ' + (i + 1) + '/' + pool.length + '\n');
+  //  🔴 **중간에 저장한다.** 맨 끝에서 한 번만 쓰면 도중에 죽을 때
+  //     몇십 분치가 통째로 날아간다 (09-04 에 hardpool.js 로 그럴 뻔했다).
+  if ((i + 1) % 20 === 0) {
+    fs.writeFileSync(OUT, JSON.stringify(out, null, 1) + '\n');
+    process.stderr.write('  ' + (i + 1) + '/' + pool.length + ' (저장함)\n');
+  }
 }
 fs.writeFileSync(OUT, JSON.stringify(out, null, 1) + '\n');
 const avg = out.reduce((s, p) => s + p.traps, 0) / out.length;
