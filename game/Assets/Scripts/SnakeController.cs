@@ -422,7 +422,8 @@ namespace SlimeEscape
         //    옛 기록이 **전혀 다른 판**에 그대로 붙어 버린다 —
         //    안 깬 판에 별 셋이 달려 있었다 (08-31 화면).
         //    09-05: 덤 조각 공정으로 47판을 통째 갈았다 → rev3.
-        const string ProgressKey = "snakeRecords_rev3";
+        //    09-05 밤: rev.11 기믹 공정으로 47판을 또 통째 갈았다 → rev4.
+        const string ProgressKey = "snakeRecords_rev4";
         readonly Dictionary<string, int> _recs = new Dictionary<string, int>();
 
         bool Cleared(string id) => _recs.ContainsKey(id);
