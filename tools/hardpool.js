@@ -91,7 +91,9 @@ for (const b of BANDS) {
       if (b.zone || b.box || b.port) {
         const strip = grid.map(x => x.replace(/[:BPQpq]/g, '.'));
         const c = E.solve({ grid: strip, gravity: true, clear: 'all', id: 'x' });
-        if (c.ok && c.moves === a.moves) continue;      // 없어도 똑같다 = 장식
+        //  🔴 **포탈은 없으면 못 푸는 것만** (09-05 사장님: "포털이 꼭 필요하게 써야한다").
+        //     걸어서도 갈 수 있으면 포탈이 거기 있을 이유가 없다.
+        if (b.port ? c.ok : (c.ok && c.moves === a.moves)) continue;
       }
       seen.add(key);
       pool.push({

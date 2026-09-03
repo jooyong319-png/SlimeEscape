@@ -88,11 +88,16 @@ namespace SlimeEscape
         //    벽과 가르는 건 색이 아니라 **윗면이 밝고 테가 있다**는 것 — "이건 낱개다".
         static readonly Color BoxCol  = new Color32(0x44, 0x4d, 0x5a, 0xff);
         static readonly Color BoxTop  = new Color32(0x6e, 0x7a, 0x8a, 0xff);
-        // 🔴 포탈 — 짝을 **색으로 안 짓는다** (색 규칙 ③: 나머지는 무채색).
-        //    대신 짝끼리 **점이 같은 자리에서 같은 속도로 돈다.** 움직임이 같다는 것으로
-        //    "이 둘은 하나"를 말한다. 켜지기 전엔 바닥보다 아주 조금만 밝다.
-        static readonly Color PortOff = new Color32(0x36, 0x3c, 0x45, 0xff);
-        static readonly Color PortOn  = new Color32(0x8a, 0x96, 0xa6, 0xff);
+        // 🔴 포탈 — **보라**다 (09-05 사장님: "포털색 + 이게 포털이다! 라는 느낌").
+        //    ⚠️ 색 규칙 ③(나머지는 무채색)의 **예외**다. 사장님이 정하셨다.
+        //       무채색으로 뒀더니 바닥에 묻혀 "이게 뭐지" 가 됐다.
+        //    🔴 왜 보라인가 — 안 겹치는 자리가 여기뿐이다:
+        //       초록은 슬라임 · 주황은 조각 · 민트/푸른빛은 홈 1·2 · 흰빛은 심.
+        //    켜지기 전엔 **색이 빠진다** (회보라). 켜지면 보라가 돌아오고 빛이 돈다.
+        static readonly Color PortOff  = new Color32(0x4a, 0x42, 0x56, 0xff);
+        static readonly Color PortOn   = new Color32(0xa8, 0x75, 0xe8, 0xff);
+        static readonly Color PortGlow = new Color32(0x7a, 0x4f, 0xc0, 0xff);
+        static readonly Color PortHole = new Color32(0x17, 0x10, 0x28, 0xff);
         static readonly Color ZoneCol = new Color32(0x3a, 0x40, 0x48, 0xff);
         static readonly Color ZoneDot = new Color32(0x9a, 0xa6, 0xb4, 0xff);
         static readonly Color GateCol  = new Color32(0x3c, 0x44, 0x50, 0xff);
@@ -305,7 +310,8 @@ namespace SlimeEscape
         class Port
         {
             public int cell, door;
-            public SpriteRenderer ring, hole, d0, d1;
+            public SpriteRenderer glow, ring, hole;
+            public SpriteRenderer[] dots;
         }
         readonly List<Port> _ports = new List<Port>();
         //  🔴 방금 건너뛴 포탈 두 짝 (들어간 칸 · 나온 칸) — 고리가 한 번 크게 돈다.
@@ -1355,21 +1361,27 @@ namespace SlimeEscape
                     if (!wall && _L.Portal.TryGetValue(c, out var hop))
                     {
                         var pr = new Port { cell = c, door = hop.Door };
+                        //  빛무리 — 칸 밖으로 번져 나간다. "여기 뭔가 있다"는 건 이게 말한다
+                        pr.glow = NewSprite("PortalGlow", -3);
+                        pr.glow.sprite = PixelSprites.Soft();
+                        pr.glow.transform.position = (Vector3)CellPos(c) + new Vector3(0, 0, -0.009f);
+                        //  테
                         pr.ring = NewSprite("Portal", -3);
                         pr.ring.sprite = PixelSprites.Disc();
                         pr.ring.transform.position = (Vector3)CellPos(c) + new Vector3(0, 0, -0.011f);
-                        pr.ring.transform.localScale = new Vector3(0.8f, 0.8f, 1f);
+                        //  🔴 가운데는 **바닥색이 아니라 더 어둡게** 뚫는다.
+                        //     바닥색으로 채우면 그냥 도넛 무늬가 되고, 어둡게 하면 **구멍**이 된다.
                         pr.hole = NewSprite("PortalIn", -3);
                         pr.hole.sprite = PixelSprites.Disc();
                         pr.hole.transform.position = (Vector3)CellPos(c) + new Vector3(0, 0, -0.012f);
-                        pr.hole.transform.localScale = new Vector3(0.52f, 0.52f, 1f);
-                        pr.hole.color = sr.color;          // 그 줄의 바닥색 그대로 — 뚫린 것처럼
-                        pr.d0 = NewSprite("PortalDot", -2);
-                        pr.d0.sprite = PixelSprites.Disc();
-                        pr.d0.transform.localScale = new Vector3(0.12f, 0.12f, 1f);
-                        pr.d1 = NewSprite("PortalDot", -2);
-                        pr.d1.sprite = PixelSprites.Disc();
-                        pr.d1.transform.localScale = new Vector3(0.12f, 0.12f, 1f);
+                        //  도는 점 셋 — 짝끼리 **같은 각도**로 돈다
+                        pr.dots = new SpriteRenderer[3];
+                        for (int k = 0; k < 3; k++)
+                        {
+                            var ds = NewSprite("PortalDot", -2);
+                            ds.sprite = PixelSprites.Disc();
+                            pr.dots[k] = ds;
+                        }
                         _ports.Add(pr);
                     }
 
@@ -2006,23 +2018,43 @@ namespace SlimeEscape
             foreach (var pr in _ports)
             {
                 bool on = (_st.Dm & (1 << pr.door)) != 0;
-                var col = on ? PortOn : PortOff;
-                pr.ring.color = col;
-                //  🔴 크기를 **매 프레임 되돌린다.** 안 그러면 한 번 퍼진 고리가
-                //     그 크기로 굳는다 (아래 건너뛰기 표시가 크기를 건드린다).
-                pr.ring.transform.localScale = new Vector3(0.8f, 0.8f, 1f);
-                //  🔴 각도는 **칸이 아니라 짝(door)** 으로 정한다 — 그래야 둘이 같이 돈다
-                float ang = on ? Time.time * 1.5f + pr.door * 1.1f : 0f;
                 Vector2 at = CellPos(pr.cell);
-                for (int k = 0; k < 2; k++)
+                //  숨쉬듯 커졌다 작아진다 — 켜졌을 때만
+                float pulse = on ? 1f + Mathf.Sin(Time.time * 2.2f + pr.door * 1.7f) * 0.07f : 1f;
+
+                //  빛무리 — 켜지면 번지고, 꺼지면 없다
+                var gc = PortGlow; gc.a = on ? 0.30f + Mathf.Sin(Time.time * 2.2f + pr.door * 1.7f) * 0.07f : 0f;
+                pr.glow.color = gc;
+                float gs = 1.45f * pulse;
+                pr.glow.transform.localScale = new Vector3(gs, gs, 1f);
+
+                //  테 — 🔴 크기를 **매 프레임 되돌린다.** 안 그러면 건너뛰기 표시가 키워놓은
+                //       크기가 그대로 굳는다.
+                pr.ring.color = on ? PortOn : PortOff;
+                float rs = 0.82f * pulse;
+                pr.ring.transform.localScale = new Vector3(rs, rs, 1f);
+
+                //  구멍 — 어두울수록 "뚫렸다"로 읽힌다
+                var hc = PortHole; hc.a = on ? 1f : 0.65f;
+                pr.hole.color = hc;
+                float hs = 0.5f * pulse;
+                pr.hole.transform.localScale = new Vector3(hs, hs, 1f);
+
+                //  🔴 각도는 **칸이 아니라 짝(door)** 으로 정한다 — 그래야 둘이 같이 돈다.
+                //     색이 아니라 **움직임이 같다**는 것으로 "이 둘은 하나"를 말한다.
+                float ang = on ? Time.time * 1.7f + pr.door * 1.1f : 0f;
+                for (int k = 0; k < pr.dots.Length; k++)
                 {
-                    var dsr = k == 0 ? pr.d0 : pr.d1;
+                    var dsr = pr.dots[k];
                     dsr.enabled = on;
                     if (!on) continue;
-                    float a2 = ang + k * Mathf.PI;
-                    dsr.color = col;
+                    float a2 = ang + k * (Mathf.PI * 2f / pr.dots.Length);
+                    var dc2 = PortOn; dc2.a = 0.95f;
+                    dsr.color = dc2;
+                    float dsz = 0.15f;
+                    dsr.transform.localScale = new Vector3(dsz, dsz, 1f);
                     dsr.transform.position = (Vector3)at
-                        + new Vector3(Mathf.Cos(a2) * 0.33f, Mathf.Sin(a2) * 0.33f, -0.02f);
+                        + new Vector3(Mathf.Cos(a2) * 0.34f, Mathf.Sin(a2) * 0.34f, -0.02f);
                 }
             }
 

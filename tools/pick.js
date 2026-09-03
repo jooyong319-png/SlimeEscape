@@ -40,9 +40,14 @@ const rows = stat.map(r => Object.assign({}, r, pool[r.i]))
     const a = E.solve({ grid: r.grid, gravity: true, clear: 'all', id: 'u' }, { cap: 400000 });
     const b = E.solve({ grid: r.grid.map(x => x.replace(/[:BPQpq]/g, '.')),
                         gravity: true, clear: 'all', id: 'u' }, { cap: 400000 });
-    if (a.ok && b.ok && b.moves === a.moves) rows.splice(i, 1);   // 없어도 똑같다 = 장식
+    //  🔴 **포탈은 더 엄하게 본다** (09-05 사장님: "포털이 꼭 필요하게 써야한다").
+    //     걸어서도 갈 수 있으면 포탈이 거기 있을 이유가 없다 — 지름길은 기믹이 아니다.
+    //     상자·무중력은 지름길이어도 손으로 쓰는 것이라 그대로 둔다.
+    const strict = (r.gim || 'none') === 'portal';
+    const useless = strict ? (b.ok) : (a.ok && b.ok && b.moves === a.moves);
+    if (useless) rows.splice(i, 1);
   }
-  console.log('기믹이 장식뿐인 판 ' + (before - rows.length) + '개를 뺐다');
+  console.log('기믹이 장식뿐인 판 ' + (before - rows.length) + '개를 뺐다 (포탈은 없으면 못 푸는 것만)');
 }
 console.log('쓸 수 있는 판', rows.length);
 if (rows.length < N) console.log('⚠️ ' + N + '판을 채우기엔 모자란다 — 있는 만큼만 고른다');
