@@ -282,9 +282,10 @@ namespace SlimeEscape
         // ---- 방 ----
         // 🔴 지도 전체를 한 번에 보여주면 "방"이 안 생긴다. 넓은 판 하나로 보일 뿐이다.
         //    문벽을 **다 닫아놓고** 이어진 덩어리를 찾으면 그게 곧 방이다 — 따로 적을 필요가 없다.
-        int[] _roomOf;                       // 칸 -> 방 번호 (-1이면 벽)
-        readonly List<Rect> _roomBox = new List<Rect>();
-        int _room = -1;                      // 지금 비추는 방
+        //  🔴 방 나누기는 rev.10 에서 걷어냈다. 문벽에 딸려 있던 **카메라 미끄러짐**이
+        //     사장님이 원치 않으신 것이었고 (09-04: "카메라 이동 없이 한 화면에서만"),
+        //     그것 때문에 47판이 전부 문벽을 안 쓰고 있었다.
+        //     tools/fit.js 로 재보니 폰 세로에서도 가로 22칸까지는 한 칸 30픽셀이 나온다.
         Vector3 _camWant; float _camSizeWant;
         const float CamEase = 6f;            // 방을 옮길 때 미끄러지는 빠르기
 
@@ -931,62 +932,13 @@ namespace SlimeEscape
             PlayerPrefs.Save();
         }
 
-        /// 문벽을 다 닫은 채로 이어진 칸끼리 묶는다 = 방
-        void SplitRooms()
-        {
-            int total = _L.W * _L.H;
-            _roomOf = new int[total];
-            for (int i = 0; i < total; i++) _roomOf[i] = -1;
-            _roomBox.Clear();
-
-            // 🔴 방 나누기는 **문벽이 있을 때만** 뜻이 있다. 문벽을 없앤 뒤에도 계속 돌아서,
-            //    못 가는 주머니 하나 때문에 "방이 여럿"이 되고 카메라가 퍽 튀었다.
-            //    (08-30 사장님: "여기는 왜 갑자기 퍽 하고 커짐?" — pv2 에 2칸짜리 주머니가 있었다)
-            if (!_L.HasGates) return;      // 방 하나 = 판 전체를 잡는다
-
-            var q = new Queue<int>();
-            for (int s = 0; s < total; s++)
-            {
-                if (_roomOf[s] >= 0 || _L.IsBlocked(s, 0)) continue;
-                int id = _roomBox.Count;
-                int minX = _L.W, maxX = 0, minY = _L.H, maxY = 0;
-                _roomOf[s] = id; q.Enqueue(s);
-                while (q.Count > 0)
-                {
-                    int c = q.Dequeue();
-                    int x = _L.X(c), y = _L.Y(c);
-                    if (x < minX) minX = x; if (x > maxX) maxX = x;
-                    if (y < minY) minY = y; if (y > maxY) maxY = y;
-                    int[] nb = { c - 1, c + 1, c - _L.W, c + _L.W };
-                    for (int k = 0; k < 4; k++)
-                    {
-                        int m = nb[k];
-                        if (m < 0 || m >= total) continue;
-                        if (k < 2 && _L.Y(m) != y) continue;        // 가로로 넘어가지 않게
-                        if (_roomOf[m] >= 0 || _L.IsBlocked(m, 0)) continue;
-                        _roomOf[m] = id; q.Enqueue(m);
-                    }
-                }
-                _roomBox.Add(new Rect(minX, minY, maxX - minX + 1, maxY - minY + 1));
-            }
-            _room = -1;
-        }
-
         /// 지금 핵이 있는 방에 카메라를 맞춘다
         void AimCamera(bool snap)
         {
-            int r = (_roomOf != null && _st != null && _roomOf[_st.Head] >= 0) ? _roomOf[_st.Head] : -1;
-            // 🔴 방이 하나뿐이면 예전처럼 판 전체를 잡는다 — 지금까지의 판이 안 바뀐다
-            bool whole = _roomBox.Count <= 1 || r < 0;
+            // 🔴 **늘 판 전체를 잡는다.** 카메라는 판이 바뀔 때 말고는 안 움직인다 (rev.10)
             float asp = Mathf.Max(0.1f, _cam.aspect);
-            float cx, cy, halfW, halfH;
-            if (whole) { cx = _L.W * 0.5f; cy = -_L.H * 0.5f; halfW = _L.W * 0.5f; halfH = _L.H * 0.5f; }
-            else
-            {
-                var b = _roomBox[r];
-                cx = b.x + b.width * 0.5f; cy = -(b.y + b.height * 0.5f);
-                halfW = b.width * 0.5f; halfH = b.height * 0.5f;
-            }
+            float cx = _L.W * 0.5f, cy = -_L.H * 0.5f;
+            float halfW = _L.W * 0.5f, halfH = _L.H * 0.5f;
             //  시범은 본판에서 멀리 떨어뜨려 놓았다 — 카메라도 그만큼 옮긴다
             cx += _org.x; cy += _org.y;
             //  시범은 판이 작으니 여백도 작게. 안 그러면 무대 한가운데 점처럼 보인다.
@@ -996,13 +948,12 @@ namespace SlimeEscape
             float refFit = Mathf.Max(BoardH * 0.5f + 0.6f, (BoardW * 0.5f + 0.6f) / asp);
             //  🔴 시범은 **기준 판 크기(20×12)를 안 본다.** 그걸 최소 배율로 삼으면
             //     5×3 짜리 시범이 큰 판 기준으로 축소돼 점처럼 작아진다 (09-03 사장님 화면).
-            float size = Mathf.Max((whole && !_demo) ? refFit : 0f, fit);
+            float size = Mathf.Max(_demo ? 0f : refFit, fit);
             if (Screen.height / (2f * size) < 30f) size = fit;
 
             size = SnapSize(size);
             _camWant = new Vector3(cx, cy, -10);
             _camSizeWant = size;
-            _room = r;
             if (snap) { _cam.transform.position = SnapPos(_camWant); _cam.orthographicSize = _camSizeWant; }
         }
 
@@ -1693,7 +1644,6 @@ namespace SlimeEscape
                 _starView.color = StarLit;
             }
 
-            SplitRooms();
         }
 
         /// <summary>
@@ -2357,11 +2307,9 @@ namespace SlimeEscape
             SyncViews();
 
             // 다 끝났으면 더 안 키운다 (가만히 두면 값이 무한정 커진다)
-            // 🔴 방이 바뀌면 카메라가 미끄러져 따라간다. 문을 지나는 게 이걸로 읽힌다.
-            if (_roomOf != null && _st != null)
+            // 판이 바뀔 때 맞춰둔 자리로 부드럽게 붙는다. 판 도중에는 안 움직인다 (rev.10)
+            if (_st != null)
             {
-                int r = _roomOf[_st.Head];
-                if (r != _room) AimCamera(false);
                 float k = 1f - Mathf.Exp(-CamEase * dt);
                 //  따라가는 동안에도 도트 격자에 떨어뜨린다 — 안 그러면 움직일 때마다 번진다
                 _cam.transform.position =
