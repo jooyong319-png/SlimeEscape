@@ -31,6 +31,7 @@
     //    아무 데나 놓게 하면 '어디에 놓았나'가 상태에 들어가 솔버가 터진다.
     //    자리를 정해두면 **받침대 칸 수만큼의 비트**로 끝난다.
     const pads = [];
+    const boxes = [];      // 🔴 미는 상자의 처음 자리
     // 🔴 화살표 표지판 '^ v < >' — **순수 장식.** 퍼즐엔 아무 영향이 없다.
     //    가르치는 판에서 "여기서 이 키를 누르세요"를 맵 안에 박아두는 용도다.
     const signs = [];
@@ -58,6 +59,9 @@
       //     지나갈 수 있고, 몸의 한 칸이라도 여기 걸쳐 있으면 안 떨어진다.
       //     중력이 이 게임의 축이라 그걸 국소적으로 끄면 오르기 규칙(길이 ≥ k+1)이 통째로 비켜간다.
       else if (c === ':') { zone.push(y * w + x); g[y][x] = '.'; }
+      //  🔴 미는 상자 'B' — **가로로만** 민다. 떨어지고, 딛고 설 수 있다 (rev.10).
+      //     자리가 상태에 들어가므로 솔버가 소코반이 된다 — 판을 작게 써야 한다.
+      else if (c === 'B') { boxes.push(y * w + x); g[y][x] = '.'; }
       else if ('^v<>'.includes(c)) { signs.push({ cell: y * w + x, dir: '^v<>'.indexOf(c) }); g[y][x] = '.'; }
     }
     const open = doors.filter(d => d.cells.length);
@@ -75,6 +79,7 @@
 
     return {
       ...def, g, w, h, start, foods, doors: open, clear,
+      boxes,
       star,
       pads,
       signs,
@@ -92,6 +97,20 @@
   }
 
   const isWall = (L, cell) => L.g[(cell / L.w) | 0][cell % L.w] === '#';
+
+  /// 🔴 상자는 **딛고 설 수 있다** — 그게 이 기믹의 전부다 (발판을 스스로 만든다).
+  ///    상자를 받쳐주는 것: 판 밖 · 벽 · 닫힌 문벽 · 굳은 몸 · 다른 상자 · 슬라임 몸.
+  ///    ⚠️ 슬라임은 자기 몸을 못 딛지만 **상자는 슬라임을 딛는다.**
+  ///       안 그러면 몸 위로 상자가 통과해 내려가 그림이 무너진다.
+  function boxHeld(L, c, dm, bxs, bodySet) {
+    const below = c + L.w;
+    if (below >= L.w * L.h) return true;
+    if (isBlocked(L, below, dm)) return true;
+    if (spent(L, below, dm)) return true;
+    if (bxs.has(below)) return true;
+    if (bodySet.has(below)) return true;
+    return false;
+  }
 
   /// 🔴 지금 이 칸이 막혀 있나 — 문벽은 짝이 되는 문을 열면 사라진다.
   /// 🔴 이미 연 문의 칸인가 — 굳은 몸이 박혀 있다
@@ -125,6 +144,8 @@
       if (spent(L, below, dm)) return true;
       // 받침대에 놓고 온 몸도 디딤돌이다
       if (L.padIdx.has(below) && ((body.pm || 0) & (1 << L.padIdx.get(below)))) return true;
+      // 🔴 상자 위에는 설 수 있다 (rev.10)
+      if (body.bxs && body.bxs.has(below)) return true;
     }
     return false;
   }
@@ -136,29 +157,52 @@
   ///    다만 낙하 중엔 꼬리가 물러날 자리가 없다 — 거기에 마디를 붙이면 몸이 겹친다.
   ///    그래서 **다음 걸음에 꼬리가 안 물러나는 것**으로 갚는다 (고전 스네이크와 같다).
   ///    { body, fm, pg } 를 돌려준다. pg = 아직 안 갚은 성장 횟수.
-  function settle(L, body, fm, pg, dm, sc, pm) {
+  function settle(L, body, fm, pg, dm, sc, pm, bx) {
+    bx = (bx || []).slice();
     body.pm = pm || 0;                 // supported() 가 받침대를 보게 들려 보낸다
+    body.bxs = new Set(bx);            // 상자도 같이 들려 보낸다
     sc = sc || 0;
     if (L.star >= 0 && body[0] === L.star) sc = 1;
-    if (!L.gravity) return { body: body, fm: fm, pg: pg, sc: sc };
-    for (let guard = 0; guard < 64; guard++) {
-      if (supported(L, body, dm)) return { body: body, fm: fm, pg: pg, sc: sc };
-      const next = body.map(c => c + L.w);
-      for (const c of next) if (c >= L.w * L.h) return null;
-      body = next;
-      const fi = L.foodIdx.get(body[0]);        // 머리가 새로 들어간 칸
-      if (fi !== undefined && !(fm & (1 << fi))) { fm |= (1 << fi); pg++; }
-      if (L.star >= 0 && body[0] === L.star) sc = 1;   // 떨어지며 지나가도 줍는다
+    const done = () => ({ body: body, fm: fm, pg: pg, sc: sc, bx: bx });
+    if (!L.gravity) return done();
+    for (let guard = 0; guard < 128; guard++) {
+      body.pm = pm || 0;
+      body.bxs = new Set(bx);
+      if (!supported(L, body, dm)) {
+        const next = body.map(c => c + L.w);
+        for (const c of next) if (c >= L.w * L.h) return null;
+        next.pm = pm || 0; next.bxs = body.bxs;
+        body = next;
+        const fi = L.foodIdx.get(body[0]);        // 머리가 새로 들어간 칸
+        if (fi !== undefined && !(fm & (1 << fi))) { fm |= (1 << fi); pg++; }
+        if (L.star >= 0 && body[0] === L.star) sc = 1;   // 떨어지며 지나가도 줍는다
+        continue;
+      }
+      //  🔴 몸이 멈춘 뒤에 상자를 떨어뜨린다. **아래 것부터** — 아래가 비켜야 위가 내려온다.
+      if (!bx.length) return done();
+      const bxs = body.bxs, bodySet = new Set(body);
+      let moved = false;
+      const order = bx.slice().sort((a, b) => b - a);
+      for (const c of order) {
+        if (boxHeld(L, c, dm, bxs, bodySet)) continue;
+        const below = c + L.w;
+        if (below >= L.w * L.h) return null;
+        bx = bx.map(v => (v === c ? below : v));
+        moved = true;
+        break;
+      }
+      if (!moved) return done();
     }
     return null;
   }
 
   /// 상태: { body: [머리, ..., 꼬리], fm }
   const startState = L => {
-    const r = settle(L, [L.start], 0, 0, 0, 0, 0);
-    const st = r || { body: [L.start], fm: 0, pg: 0, sc: 0 };
+    const r = settle(L, [L.start], 0, 0, 0, 0, 0, L.boxes);
+    const st = r || { body: [L.start], fm: 0, pg: 0, sc: 0, bx: (L.boxes || []).slice() };
     st.pm = 0;
     st.dm = 0;                       // 🔴 열린 문 비트마스크
+    st.bx = st.bx || (L.boxes || []).slice();
     return st;
   };
 
@@ -175,9 +219,9 @@
       mask |= 1 << i;
     }
     const pm = (st.pm || 0) | mask;
-    const r = settle(L, [st.body[0]], st.fm, 0, st.dm || 0, st.sc || 0, pm);
+    const r = settle(L, [st.body[0]], st.fm, 0, st.dm || 0, st.sc || 0, pm, st.bx);
     if (!r) return null;
-    return { body: r.body, fm: r.fm, pg: r.pg, sc: r.sc, dm: st.dm || 0, pm };
+    return { body: r.body, fm: r.fm, pg: r.pg, sc: r.sc, dm: st.dm || 0, pm, bx: r.bx };
   }
 
   function step(L, st, di) {
@@ -188,6 +232,23 @@
     if (nx < 0 || ny < 0 || nx >= L.w || ny >= L.h) return null;
     const nh = ny * L.w + nx;
     if (isBlocked(L, nh, st.dm || 0)) return null;
+
+    // 🔴 상자를 민다 — **가로로만.** 위아래로 밀면 중력과 뜻이 겹쳐 읽히지 않는다.
+    let bx = st.bx || [];
+    if (bx.length) {
+      const bxs0 = new Set(bx);
+      if (bxs0.has(nh)) {
+        if (di !== 2 && di !== 3) return null;          // 위·아래로는 못 민다
+        const tx = nx + dx;
+        if (tx < 0 || tx >= L.w) return null;
+        const tc = ny * L.w + tx;
+        if (isBlocked(L, tc, st.dm || 0)) return null;
+        if (spent(L, tc, st.dm || 0)) return null;      // 굳은 몸이 박힌 칸엔 못 넣는다
+        if (bxs0.has(tc)) return null;                  // 상자 둘은 한 번에 못 민다
+        for (const c of st.body) if (c === tc) return null;
+        bx = bx.map(v => (v === nh ? tc : v));
+      }
+    }
 
     const fi = L.foodIdx.get(nh);
     const grows = fi !== undefined && !(st.fm & (1 << fi));
@@ -204,9 +265,9 @@
     let sc = st.sc || 0;
     if (L.star >= 0 && nh === L.star) sc = 1;
 
-    const r = settle(L, body, grows ? (st.fm | (1 << fi)) : st.fm, pg, st.dm || 0, sc, st.pm || 0);
+    const r = settle(L, body, grows ? (st.fm | (1 << fi)) : st.fm, pg, st.dm || 0, sc, st.pm || 0, bx);
     if (!r) return null;
-    const ns = { body: r.body, fm: r.fm, pg: r.pg, sc: r.sc, dm: st.dm || 0, pm: st.pm || 0 };
+    const ns = { body: r.body, fm: r.fm, pg: r.pg, sc: r.sc, dm: st.dm || 0, pm: st.pm || 0, bx: r.bx };
 
     // 🔴 문이 채워졌나 — 채워졌으면 **몸을 자물쇠에 두고 핵만 남는다.**
     //    (몸이 문 칸을 정확히 덮고 있으므로, 남는 몸의 모양은 곧 그 문이다)
@@ -218,9 +279,9 @@
         ns.pg = 0;                   // 두고 온 몸과 함께 미룬 성장도 사라진다
       }
       // 🔴 문벽이 사라지면 발밑이 없어질 수 있다 — 그러면 떨어진다
-      const after = settle(L, ns.body, ns.fm, ns.pg, ns.dm, ns.sc, ns.pm);
+      const after = settle(L, ns.body, ns.fm, ns.pg, ns.dm, ns.sc, ns.pm, ns.bx);
       if (!after) return null;
-      ns.body = after.body; ns.fm = after.fm; ns.pg = after.pg; ns.sc = after.sc;
+      ns.body = after.body; ns.fm = after.fm; ns.pg = after.pg; ns.sc = after.sc; ns.bx = after.bx;
     }
     return ns;
   }
@@ -257,8 +318,10 @@
   /// 예전 이름 — 어느 문이 열렸는지 물을 때
   const wonDoor = (L, st) => matchDoor(L, st);
 
+  //  🔴 상자 자리도 상태다 — 이것 때문에 판이 커지면 솔버가 소코반처럼 터진다.
   const keyOf = st => st.body.join(',') + '|' + st.fm + '|' + (st.pg || 0) + '|' +
-                      (st.dm || 0) + '|' + (st.sc || 0) + '|' + (st.pm || 0);
+                      (st.dm || 0) + '|' + (st.sc || 0) + '|' + (st.pm || 0) +
+                      ((st.bx && st.bx.length) ? '|' + st.bx.join('.') : '');
 
   function solve(def, opts) {
     const needStar = !!(opts && opts.needStar);
@@ -344,6 +407,7 @@
         else if (y * L.w + x === L.star) r += 'o';
         else if (L.padIdx.has(y * L.w + x))
           r += ((st.pm || 0) & (1 << L.padIdx.get(y * L.w + x))) ? 'Ⅰ' : 'T';
+        else if (st && st.bx && st.bx.indexOf(y * L.w + x) >= 0) r += 'B';
         else if (L.zoneSet.has(y * L.w + x)) r += ':';
         else if (L.doors[1] && L.doors[1].set.has(y * L.w + x))
           r += (y * L.w + x) === L.doors[1].core ? '%' : '-';

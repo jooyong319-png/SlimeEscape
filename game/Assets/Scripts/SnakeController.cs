@@ -83,6 +83,11 @@ namespace SlimeEscape
         // 🔴 무중력 구역 — "여기선 안 떨어진다". 벽이 아니라 **뒷벽**이라
         //    바닥보다 밝되 홈(목표)보다는 어둡다. 색 규칙 ③ 대로 무채색이다.
         //    ⚠️ 홈처럼 테를 두르면 "여기 채워라"로 잘못 읽힌다 — 테는 두르지 않는다.
+        // 🔴 미는 상자 — **딛고 설 수 있는 것**이라 벽(Rock)과 같은 계열로 그린다.
+        //    두고 온 몸도 같은 이유로 벽 계열이다. 디딜 수 있는 건 디딜 수 있게 보여야 한다.
+        //    벽과 가르는 건 색이 아니라 **윗면이 밝고 테가 있다**는 것 — "이건 낱개다".
+        static readonly Color BoxCol  = new Color32(0x44, 0x4d, 0x5a, 0xff);
+        static readonly Color BoxTop  = new Color32(0x6e, 0x7a, 0x8a, 0xff);
         static readonly Color ZoneCol = new Color32(0x3a, 0x40, 0x48, 0xff);
         static readonly Color ZoneDot = new Color32(0x9a, 0xa6, 0xb4, 0xff);
         static readonly Color GateCol  = new Color32(0x3c, 0x44, 0x50, 0xff);
@@ -278,6 +283,9 @@ namespace SlimeEscape
         /// 다 빨아들이고 결과 화면까지 두는 사이
         const float WinDelay = 0.5f;
 
+        //  미는 상자 — 자리가 매 걸음 바뀐다 (몸처럼 따라 그린다)
+        readonly List<SpriteRenderer> _boxViews = new List<SpriteRenderer>();
+        readonly List<SpriteRenderer> _boxTops = new List<SpriteRenderer>();
         //  무중력 구역의 떠 있는 점 — (칸, 몇 번째, 그림)
         readonly List<(int cell, int k, SpriteRenderer sr)> _zoneDots
             = new List<(int, int, SpriteRenderer)>();
@@ -1274,7 +1282,7 @@ namespace SlimeEscape
             if (_root != null) Destroy(_root.gameObject);
             _root = new GameObject("Board").transform;
             _segs.Clear(); _foodViews.Clear(); _foodExtra.Clear(); _links.Clear();
-            _zoneDots.Clear();
+            _zoneDots.Clear(); _boxViews.Clear(); _boxTops.Clear();
 
             for (int y = 0; y < _L.H; y++)
                 for (int x = 0; x < _L.W; x++)
@@ -1854,6 +1862,31 @@ namespace SlimeEscape
         /// 마디 스프라이트 개수를 몸 길이에 맞춘다
         void SyncViews()
         {
+            //  🔴 상자는 **자리가 바뀐다** — 판이 아니라 몸처럼 매 걸음 따라 그린다.
+            while (_boxViews.Count < _st.Bx.Count)
+            {
+                var b = NewSprite("Box", 1);
+                b.sprite = PixelSprites.Round();
+                b.transform.localScale = new Vector3(0.9f, 0.9f, 1f);
+                b.color = BoxCol;
+                _boxViews.Add(b);
+                //  윗면 — "여기 딛고 설 수 있다". 벽 윗면과 같은 신호다.
+                var e = NewSprite("BoxTop", 2);
+                e.transform.localScale = new Vector3(0.9f, 0.14f, 1f);
+                e.color = BoxTop;
+                _boxTops.Add(e);
+            }
+            for (int i = 0; i < _boxViews.Count; i++)
+            {
+                bool on = i < _st.Bx.Count;
+                _boxViews[i].enabled = on;
+                _boxTops[i].enabled = on;
+                if (!on) continue;
+                Vector2 p = CellPos(_st.Bx[i]);
+                _boxViews[i].transform.position = (Vector3)p + new Vector3(0, 0, -0.05f);
+                _boxTops[i].transform.position = (Vector3)p + new Vector3(0, 0.4f, -0.06f);
+            }
+
             while (_segs.Count < _st.Length)
             {
                 // 🔴 **머리가 맨 위**에 와야 한다. 예전엔 차례를 번갈아 매겨서

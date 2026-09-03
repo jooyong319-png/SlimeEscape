@@ -62,6 +62,14 @@ namespace SlimeEscape
             public HashSet<int> Zone = new HashSet<int>();
 
             /// <summary>
+            /// 🔴 미는 상자의 **처음 자리**. 기호 'B' (rev.10, 2026-09-05).
+            /// 가로로만 민다. 떨어지고, **딛고 설 수 있다** — 발판을 스스로 만드는 것이 요점이다.
+            /// ⚠️ 지금 자리는 판이 아니라 <see cref="State.Bx"/> 에 있다. 상태가 커진다.
+            /// 🔴 tools/engine.js 의 boxes 와 **같아야 한다.**
+            /// </summary>
+            public List<int> Boxes = new List<int>();
+
+            /// <summary>
             /// 🔴 맵을 넘는 자리. 밟을 수 있는 바닥이고 **퍼즐엔 아무 영향이 없다** —
             /// 게임이 여기서 다음 맵으로 넘긴다. 기호 '&gt;' 오른쪽 · '&lt;' 왼쪽.
             /// 들어온 출구의 **반대편**에서 나오게 해서 위치가 이어지게 한다.
@@ -165,8 +173,12 @@ namespace SlimeEscape
             public int Sc;
             /// 🔴 받침대 중 어디에 몸을 놓았나 (비트마스크)
             public int Pm;
-            public State(List<int> body, int fm, int pg = 0, int dm = 0, int sc = 0, int pm = 0)
-            { Body = body; Fm = fm; Pg = pg; Dm = dm; Sc = sc; Pm = pm; }
+            /// 🔴 지금 상자들이 있는 자리 (오름차순). 없으면 빈 목록.
+            public List<int> Bx = new List<int>();
+            public State(List<int> body, int fm, int pg = 0, int dm = 0, int sc = 0, int pm = 0,
+                         List<int> bx = null)
+            { Body = body; Fm = fm; Pg = pg; Dm = dm; Sc = sc; Pm = pm;
+              Bx = bx != null ? new List<int>(bx) : new List<int>(); }
             public int Head => Body[0];
             public int Length => Body.Count;
         }
@@ -202,6 +214,7 @@ namespace SlimeEscape
                         case '1': case '2': case '3':
                             L.Gates[grid[y][x] - '1'].Add(c); L.HasGates = true; break;
                         case ':': L.Zone.Add(c); break;
+                        case 'B': L.Boxes.Add(c); break;
                         case 'o': L.Star = c; break;
                         case 'T': L.PadIdx[c] = L.Pads.Count; L.Pads.Add(c); break;
                         case '^': L.Signs.Add((c, 0)); break;
@@ -236,12 +249,29 @@ namespace SlimeEscape
         }
 
         /// 몸의 어느 칸이든 바로 아래가 벽이면 버틴다.
-        static bool Supported(Level L, List<int> body, int dm, int pm)
+        /// 🔴 상자를 받쳐주는 것: 판 밖 · 벽 · 닫힌 문벽 · 굳은 몸 · 다른 상자 · **슬라임 몸**.
+        /// ⚠️ 슬라임은 자기 몸을 못 딛지만 **상자는 슬라임을 딛는다.**
+        ///    안 그러면 몸 위로 상자가 통과해 내려가 그림이 무너진다.
+        /// 🔴 tools/engine.js 의 boxHeld 와 **같아야 한다.**
+        static bool BoxHeld(Level L, int c, int dm, List<int> bx, List<int> body)
+        {
+            int below = c + L.W;
+            if (below >= L.W * L.H) return true;
+            if (L.IsBlocked(below, dm)) return true;
+            if (L.IsSpent(below, dm)) return true;
+            if (bx.Contains(below)) return true;
+            if (body.Contains(below)) return true;
+            return false;
+        }
+
+        static bool Supported(Level L, List<int> body, int dm, int pm, List<int> bx)
         {
             foreach (int c in body)
             {
                 //  🔴 무중력 구역에 한 칸이라도 걸쳐 있으면 안 떨어진다 (rev.10)
                 if (L.Zone.Count > 0 && L.Zone.Contains(c)) return true;
+                // 🔴 상자 위에는 설 수 있다 (rev.10)
+                if (bx != null && bx.Contains(c + L.W)) return true;
                 int below = c + L.W;
                 if (below >= L.W * L.H || L.IsBlocked(below, dm)) return true;
                 if (L.IsSpent(below, dm)) return true;    // 🔴 두고 온 몸은 디딤돌이다
@@ -258,22 +288,35 @@ namespace SlimeEscape
         /// 다만 낙하 중엔 꼬리가 물러날 자리가 없다 — 거기에 마디를 붙이면 몸이 겹친다.
         /// 그래서 **다음 걸음에 꼬리가 안 물러나는 것**으로 갚는다 (pg, 고전 스네이크와 같다).
         /// </summary>
-        static bool Settle(Level L, List<int> body, ref int fm, ref int pg, int dm, ref int sc, int pm)
+        static bool Settle(Level L, List<int> body, ref int fm, ref int pg, int dm, ref int sc, int pm,
+                           List<int> bx = null)
         {
             if (L.Star >= 0 && body[0] == L.Star) sc = 1;
             if (!L.Gravity) return true;
-            for (int guard = 0; guard < 64; guard++)
+            for (int guard = 0; guard < 128; guard++)
             {
-                if (Supported(L, body, dm, pm)) return true;
-                for (int i = 0; i < body.Count; i++)
+                if (!Supported(L, body, dm, pm, bx))
                 {
-                    int next = body[i] + L.W;
-                    if (next >= L.W * L.H) return false;
-                    body[i] = next;
+                    for (int i = 0; i < body.Count; i++)
+                    {
+                        int next = body[i] + L.W;
+                        if (next >= L.W * L.H) return false;
+                        body[i] = next;
+                    }
+                    int fi = L.Foods.IndexOf(body[0]);       // 머리가 새로 들어간 칸
+                    if (fi >= 0 && (fm & (1 << fi)) == 0) { fm |= (1 << fi); pg++; }
+                    if (L.Star >= 0 && body[0] == L.Star) sc = 1;   // 떨어지며 지나가도 줍는다
+                    continue;
                 }
-                int fi = L.Foods.IndexOf(body[0]);       // 머리가 새로 들어간 칸
-                if (fi >= 0 && (fm & (1 << fi)) == 0) { fm |= (1 << fi); pg++; }
-                if (L.Star >= 0 && body[0] == L.Star) sc = 1;   // 떨어지며 지나가도 줍는다
+                //  🔴 몸이 멈춘 뒤에 상자를 떨어뜨린다. **아래 것부터** — 아래가 비켜야 위가 내려온다.
+                if (bx == null || bx.Count == 0) return true;
+                int pick = -1;
+                for (int i = 0; i < bx.Count; i++)
+                    if (!BoxHeld(L, bx[i], dm, bx, body) && (pick < 0 || bx[i] > bx[pick])) pick = i;
+                if (pick < 0) return true;
+                int nb = bx[pick] + L.W;
+                if (nb >= L.W * L.H) return false;
+                bx[pick] = nb;
             }
             return false;
         }
@@ -282,8 +325,9 @@ namespace SlimeEscape
         {
             var body = new List<int> { L.Start };
             int fm = 0, pg = 0, sc = 0;
-            Settle(L, body, ref fm, ref pg, 0, ref sc, 0);   // 시작하자마자 떨어지며 먹을 수도 있다
-            return new State(body, fm, pg, 0, sc);
+            var bx = new List<int>(L.Boxes);
+            Settle(L, body, ref fm, ref pg, 0, ref sc, 0, bx);   // 시작하자마자 떨어지며 먹을 수도 있다
+            return new State(body, fm, pg, 0, sc, 0, bx);
         }
 
         public static bool IsEaten(State st, int foodIndex) => (st.Fm & (1 << foodIndex)) != 0;
@@ -348,8 +392,9 @@ namespace SlimeEscape
             int pm = st.Pm | mask;
             var body = new List<int> { st.Head };
             int fm = st.Fm, pg = 0, sc = st.Sc;
-            if (!Settle(L, body, ref fm, ref pg, st.Dm, ref sc, pm)) return false;
-            result = new State(body, fm, pg, st.Dm, sc, pm);
+            var bxd = new List<int>(st.Bx);
+            if (!Settle(L, body, ref fm, ref pg, st.Dm, ref sc, pm, bxd)) return false;
+            result = new State(body, fm, pg, st.Dm, sc, pm, bxd);
             return true;
         }
 
@@ -363,6 +408,23 @@ namespace SlimeEscape
 
             int nh = hy * L.W + hx;
             if (L.IsBlocked(nh, st.Dm)) return false;
+
+            // 🔴 상자를 민다 — **가로로만.** 위아래로 밀면 중력과 뜻이 겹쳐 읽히지 않는다.
+            //    🔴 tools/engine.js 의 같은 자리와 규칙이 **한 글자도 달라선 안 된다.**
+            var bx = new List<int>(st.Bx);
+            int bi = bx.IndexOf(nh);
+            if (bi >= 0)
+            {
+                if (dir != Dir.Left && dir != Dir.Right) return false;   // 위·아래로는 못 민다
+                int tx = hx + dx;
+                if (tx < 0 || tx >= L.W) return false;
+                int tc = hy * L.W + tx;
+                if (L.IsBlocked(tc, st.Dm)) return false;
+                if (L.IsSpent(tc, st.Dm)) return false;      // 굳은 몸이 박힌 칸엔 못 넣는다
+                if (bx.Contains(tc)) return false;           // 상자 둘은 한 번에 못 민다
+                if (st.Body.Contains(tc)) return false;
+                bx[bi] = tc;
+            }
 
             int fi = L.Foods.IndexOf(nh);
             bool grows = fi >= 0 && !IsEaten(st, fi);
@@ -380,9 +442,9 @@ namespace SlimeEscape
             int fm = grows ? (st.Fm | (1 << fi)) : st.Fm;
             int sc = st.Sc;
             if (L.Star >= 0 && nh == L.Star) sc = 1;
-            if (!Settle(L, body, ref fm, ref pg, st.Dm, ref sc, st.Pm)) return false;   // 🔬 중력 — 떨어질 데가 없으면 못 간다
+            if (!Settle(L, body, ref fm, ref pg, st.Dm, ref sc, st.Pm, bx)) return false;   // 🔬 중력 — 떨어질 데가 없으면 못 간다
 
-            var ns = new State(body, fm, pg, st.Dm, sc, st.Pm);
+            var ns = new State(body, fm, pg, st.Dm, sc, st.Pm, bx);
 
             // 🔴 문이 채워졌나 — 채워졌으면 **몸을 자물쇠에 두고 핵만 남는다.**
             int opened = MatchDoor(L, ns);
@@ -397,7 +459,7 @@ namespace SlimeEscape
                 }
                 // 🔴 문벽이 사라지면 발밑이 없어질 수 있다 — 그러면 떨어진다
                 int f2 = ns.Fm, p2 = ns.Pg, s2 = ns.Sc;
-                if (!Settle(L, ns.Body, ref f2, ref p2, ns.Dm, ref s2, ns.Pm)) return false;
+                if (!Settle(L, ns.Body, ref f2, ref p2, ns.Dm, ref s2, ns.Pm, ns.Bx)) return false;
                 ns.Fm = f2; ns.Pg = p2; ns.Sc = s2;
             }
 

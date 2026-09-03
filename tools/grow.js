@@ -167,15 +167,17 @@ function relevel(rows, body, dm, exceptCell) {
   const L = E.parse({ grid: rows, gravity: true, clear: 'all', id: 'g' });
   let fm = 0;
   for (let i = 0; i < L.foods.length; i++) if (L.foods[i] !== exceptCell) fm |= 1 << i;
-  return { L, st: { body: body.slice(), fm, pg: 0, dm, sc: 0, pm: 0 } };
+  //  🔴 상자는 지을 때 안 밀리므로 격자 자리가 곧 지금 자리다 (rev.10)
+  return { L, st: { body: body.slice(), fm, pg: 0, dm, sc: 0, pm: 0, bx: (L.boxes || []).slice() } };
 }
 
 /// 판 한 장을 **자라게** 만든다
 /// 🔴 무중력 구역(':')도 **지으면서** 넣는다 (rev.10, 2026-09-05).
 ///    다 만든 판에 나중에 얹으면 지름길만 생겨 판이 쉬워진다.
 ///    조각을 놓는 것과 같은 방식이다 — "지금 오르고 싶은데 못 오른다" 는 자리에 놓는다.
-function grow(r, W, H, doorLens, ratio, wanderMin, wanderMax, shape, zoneBudget) {
+function grow(r, W, H, doorLens, ratio, wanderMin, wanderMax, shape, zoneBudget, boxBudget) {
   let zoneLeft = zoneBudget || 0;
+  let boxLeft = boxBudget || 0;
   const g = carve(r, W, H, ratio, shape);
   if (!g) return null;
   const rows = () => g.map(row => row.join(''));
@@ -209,6 +211,33 @@ function grow(r, W, H, doorLens, ratio, wanderMin, wanderMax, shape, zoneBudget)
         if (ns) opts.push([d, ns]);
       }
       if (!opts.length) return null;
+
+      // 🔴 상자 — **바닥의 구멍을 메우는 발판**이다 (rev.10).
+      //    옆으로 가려는데 발밑이 비어 떨어지는 자리를 찾아, 그 아래에 상자를 놓는다.
+      //    ⚠️ 여기서는 아직 '밀기'가 아니라 '놓기'다. 미는 재미는 뒤에서
+      //       상자 처음 자리를 옆으로 물려 만든다 (shiftBoxes).
+      if (boxLeft > 0 && r() < 0.3) {
+        let placed = false;
+        for (const d of (r() < 0.5 ? [2, 3] : [3, 2])) {
+          const [dx] = E.DIRS[d];
+          const hx = body[0] % W + dx, hy = (body[0] / W) | 0;
+          if (hx <= 0 || hx >= W - 1) continue;
+          if (g[hy][hx] !== '.') continue;
+          const dest = hy * W + hx;
+          const ns0 = E.step(cur.L, cur.st, d);
+          if (!ns0 || ns0.body[0] === dest) continue;      // 안 떨어진다 = 상자가 필요 없다
+          const bcell = dest + W, by = (bcell / W) | 0, bxx = bcell % W;
+          if (by >= H - 1 || g[by][bxx] !== '.') continue;
+          g[by][bxx] = 'B';
+          const trial = relevel(rows(), body, dm, -1);
+          const ns = E.step(trial.L, trial.st, d);
+          if (ns && ns.body[0] === dest) {
+            cur = trial; cur.st = ns; body = ns.body; steps++; boxLeft--; placed = true; break;
+          }
+          g[by][bxx] = '.';
+        }
+        if (placed) continue;
+      }
 
       // 🔴 위로 한 칸 — 무중력 칸을 놓아 **길이 없이 오른다.**
       //    이게 이 기믹의 전부다: 오르기 규칙(길이 ≥ k+1)이 여기서만 꺼진다.
