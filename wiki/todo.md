@@ -196,3 +196,24 @@ python tools/subset-font.py "d:/Make_game/SalvageRun/game/Assets/_Project/Resour
     `t[:t.index('\n- [ ] **')]` 로 뒤를 잘랐더니, 그 표가 파일 **앞쪽에도** 있어서
     todo 108줄이 날아갔다. `git checkout` 으로 되돌렸다.
     자를 때는 **자른 길이를 먼저 세어 보고**, 지우는 줄이 예상보다 많으면 멈춘다.
+
+29. 🔴 **코드가 만든 그림에는 `HideAndDontSave` 를 붙인다** (09-05)
+    `PixelSprites` 가 만든 텍스처·스프라이트에 그게 없었다. 유니티는 스크립트를
+    다시 컴파일할 때 그런 것을 **지운다.** 지워진 걸 IMGUI 가 그리려다 터졌다 —
+    한 판에 `NullReferenceException` **8575건**.
+    ```
+    붙일 것:  new Texture2D(...) { hideFlags = HideFlags.HideAndDontSave }
+              sprite.hideFlags = HideFlags.HideAndDontSave;
+    막을 것:  그리기 함수에서 tex == null 이면 그냥 돌아간다
+    ```
+    ⚠️ **컴파일 0건이었다.** 「컴파일 = 검증 아님」이 이렇게 생겼다.
+    로그를 볼 때 `error CS` 만 세지 말고 `Exception` 도 센다.
+
+30. 🔴 **유니티 로그는 "마지막 컴파일 이후"만 봐야 한다** (09-05)
+    `grep -c "error CS"` 는 한 판(session) 전체를 센다. 로그가 90만 줄이면
+    아침에 고친 오류까지 같이 세어져 **지금 상태를 모른다.**
+    ```
+    좋음:  마지막 "Requested script compilation" 줄 번호를 찾고
+           awk 'NR>그줄' 로 잘라서 센다
+    ```
+    같은 이유로 **예외도** 그 뒤 것만 센다.
