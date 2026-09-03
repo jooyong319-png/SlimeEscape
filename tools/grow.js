@@ -175,9 +175,13 @@ function relevel(rows, body, dm, exceptCell) {
 /// 🔴 무중력 구역(':')도 **지으면서** 넣는다 (rev.10, 2026-09-05).
 ///    다 만든 판에 나중에 얹으면 지름길만 생겨 판이 쉬워진다.
 ///    조각을 놓는 것과 같은 방식이다 — "지금 오르고 싶은데 못 오른다" 는 자리에 놓는다.
-function grow(r, W, H, doorLens, ratio, wanderMin, wanderMax, shape, zoneBudget, boxBudget) {
+function grow(r, W, H, doorLens, ratio, wanderMin, wanderMax, shape, zoneBudget, boxBudget, portalPairs) {
   let zoneLeft = zoneBudget || 0;
   let boxLeft = boxBudget || 0;
+  //  🔴 포탈은 **홈을 채운 뒤**에야 켜진다. 그래서 둘째 홈부터의 걸음에서만 놓는다 —
+  //     그때 이미 앞 홈이 채워져 있어 짝이 살아 있다 (rev.11).
+  let portLeft = portalPairs || 0;
+  const PAIR = [['P', 'Q'], ['p', 'q']];
   const g = carve(r, W, H, ratio, shape);
   if (!g) return null;
   const rows = () => g.map(row => row.join(''));
@@ -211,6 +215,40 @@ function grow(r, W, H, doorLens, ratio, wanderMin, wanderMax, shape, zoneBudget,
         if (ns) opts.push([d, ns]);
       }
       if (!opts.length) return null;
+
+      // 🔴 포탈 — 지금 걷는 홈이 둘째 이상이면, 앞 홈이 켜둔 짝을 쓸 수 있다.
+      //    한 쪽은 **지금 가려는 칸**에 놓고, 다른 쪽은 **멀리** 놓는다.
+      //    멀지 않으면 걸어가는 것과 다를 게 없어 기믹이 안 된다.
+      if (portLeft > 0 && di >= 1 && di - 1 < PAIR.length && r() < 0.35) {
+        const [ga, gb] = PAIR[di - 1];
+        let done = false;
+        for (let d = 0; d < 4 && !done; d++) {
+          const [dx, dy] = E.DIRS[d];
+          const ax = body[0] % W + dx, ay = ((body[0] / W) | 0) + dy;
+          if (ax <= 0 || ay <= 0 || ax >= W - 1 || ay >= H - 1) continue;
+          if (g[ay][ax] !== '.') continue;
+          //  나갈 자리를 고른다 — 여덟 칸 넘게 떨어진 빈 칸 중에서
+          const far = [];
+          for (let y = 1; y < H - 1; y++) for (let x = 1; x < W - 1; x++) {
+            if (g[y][x] !== '.') continue;
+            if (Math.abs(x - ax) + Math.abs(y - ay) < 8) continue;
+            far.push(y * W + x);
+          }
+          if (!far.length) continue;
+          for (let k = 0; k < 12 && !done; k++) {
+            const b = far[Math.floor(r() * far.length)];
+            const bx2 = b % W, by2 = (b / W) | 0;
+            g[ay][ax] = ga; g[by2][bx2] = gb;
+            const trial = relevel(rows(), body, dm, -1);
+            const ns = E.step(trial.L, trial.st, d);
+            //  건너간 자리에 **머물러야** 뜻이 있다 (떨어져 딴 데로 가도 괜찮다)
+            if (ns && ns.body[0] !== ay * W + ax) {
+              cur = trial; cur.st = ns; body = ns.body; steps++; portLeft--; done = true;
+            } else { g[ay][ax] = '.'; g[by2][bx2] = '.'; }
+          }
+        }
+        if (done) continue;
+      }
 
       // 🔴 상자 — **바닥의 구멍을 메우는 발판**이다 (rev.10).
       //    옆으로 가려는데 발밑이 비어 떨어지는 자리를 찾아, 그 아래에 상자를 놓는다.

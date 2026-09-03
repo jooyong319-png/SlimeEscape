@@ -3102,6 +3102,7 @@ namespace SlimeEscape
         /// </summary>
         bool _demo;                       // 나는 시범용인가
         SnakeController _guide;           // 안내판에서 도는 시범 (본판만 가진다)
+        bool _guideBlew;                  // 안내판이 터진 적이 있나 (한 번만 남긴다)
         Camera _guideCam;
         int _guideSlide = -1;             // 시범이 지금 보여주는 장
         string _demoKeys = "";            // 눌러줄 방향들
@@ -3267,6 +3268,10 @@ namespace SlimeEscape
         /// 안내판에서 쓰는 네모·동그라미 한 장. 색은 GUI.color 로 준다.
         void Shape(Rect r, Color c, Texture2D tex)
         {
+            //  🔴 지워진 그림을 그리면 터진다. PixelSprites 가 만든 것은 스크립트가 다시
+            //     컴파일될 때 유니티가 지운다 — 이제 HideAndDontSave 를 붙였지만,
+            //     여기서도 한 번 막는다. **그리는 일이 게임을 멈추면 안 된다.**
+            if (tex == null) return;
             GUI.color = c; GUI.DrawTexture(r, tex); GUI.color = Color.white;
         }
         /// 모양 없는 네모 — 경계선처럼
@@ -4213,7 +4218,16 @@ namespace SlimeEscape
             //     (09-04 사장님: "튜토리얼 스테이지에서는 버튼 안 보여").
             if (def.tutorial)
             {
-                Guide(w, h);
+                //  🔴 여기서 매 프레임 NullReferenceException 이 났다 (09-05 에디터 로그에서
+                //     한 판에 8575건). 스택이 OnGUI 한 줄뿐이라 어느 문장인지 못 집었다.
+                //     원인으로 짚은 것은 **지워진 그림**이다 (PixelSprites 에 HideAndDontSave 가
+                //     없었다). 고쳤지만 확인은 못 했으니, **한 번만** 자세히 남겨 다음에 알게 한다.
+                //     ⚠️ 삼키는 게 아니라 **한 줄로 줄이는 것**이다 — 8575줄이면 아무도 안 본다.
+                try { Guide(w, h); }
+                catch (System.Exception e)
+                {
+                    if (!_guideBlew) { _guideBlew = true; Debug.LogError("[안내판] " + e); }
+                }
                 string ts0 = "";
                 int tg = Stars(def);
                 for (int k = 0; k < 3; k++) ts0 += k < tg ? "★" : "☆";

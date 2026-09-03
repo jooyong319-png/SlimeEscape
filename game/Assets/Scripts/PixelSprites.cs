@@ -18,9 +18,10 @@ namespace SlimeEscape
         public static Sprite Solid()
         {
             if (_solid != null) return _solid;
-            var t = new Texture2D(1, 1, TextureFormat.RGBA32, false) { filterMode = FilterMode.Point };
+            var t = new Texture2D(1, 1, TextureFormat.RGBA32, false) { filterMode = FilterMode.Point, hideFlags = HideFlags.HideAndDontSave };
             t.SetPixel(0, 0, Color.white); t.Apply();
             _solid = Sprite.Create(t, new Rect(0, 0, 1, 1), new Vector2(0.5f, 0.5f), 1, 0, SpriteMeshType.FullRect);
+            _solid.hideFlags = HideFlags.HideAndDontSave;
             return _solid;
         }
 
@@ -28,7 +29,7 @@ namespace SlimeEscape
         public static Sprite Disc(int size = 32)
         {
             if (_disc != null) return _disc;
-            var t = new Texture2D(size, size, TextureFormat.RGBA32, false) { filterMode = FilterMode.Bilinear };
+            var t = new Texture2D(size, size, TextureFormat.RGBA32, false) { filterMode = FilterMode.Bilinear, hideFlags = HideFlags.HideAndDontSave };
             float r = size * 0.5f - 0.5f, c = (size - 1) * 0.5f;
             for (int y = 0; y < size; y++)
                 for (int x = 0; x < size; x++)
@@ -39,6 +40,7 @@ namespace SlimeEscape
                 }
             t.Apply();
             _disc = Sprite.Create(t, new Rect(0, 0, size, size), new Vector2(0.5f, 0.5f), size, 0, SpriteMeshType.FullRect);
+            _disc.hideFlags = HideFlags.HideAndDontSave;
             return _disc;
         }
 
@@ -50,7 +52,7 @@ namespace SlimeEscape
         public static Sprite Diamond(int size = 64)
         {
             if (_diamond != null) return _diamond;
-            var t = new Texture2D(size, size, TextureFormat.RGBA32, false) { filterMode = FilterMode.Bilinear };
+            var t = new Texture2D(size, size, TextureFormat.RGBA32, false) { filterMode = FilterMode.Bilinear, hideFlags = HideFlags.HideAndDontSave };
             float h = size * 0.5f;
             for (int y = 0; y < size; y++)
                 for (int x = 0; x < size; x++)
@@ -61,6 +63,7 @@ namespace SlimeEscape
                 }
             t.Apply();
             _diamond = Sprite.Create(t, new Rect(0, 0, size, size), new Vector2(0.5f, 0.5f), size, 0, SpriteMeshType.FullRect);
+            _diamond.hideFlags = HideFlags.HideAndDontSave;
             return _diamond;
         }
 
@@ -89,7 +92,7 @@ namespace SlimeEscape
             if (_drops[level] != null) return _drops[level];
 
             float taper = 0.17f * level / (DropLevels - 1f);
-            var t = new Texture2D(size, size, TextureFormat.RGBA32, false) { filterMode = FilterMode.Bilinear };
+            var t = new Texture2D(size, size, TextureFormat.RGBA32, false) { filterMode = FilterMode.Bilinear, hideFlags = HideFlags.HideAndDontSave };
             float r = size * radius;
             for (int y = 0; y < size; y++)
             {
@@ -110,6 +113,7 @@ namespace SlimeEscape
             t.Apply();
             _drops[level] = Sprite.Create(t, new Rect(0, 0, size, size),
                                           new Vector2(0.5f, 0.5f), size, 0, SpriteMeshType.FullRect);
+            _drops[level].hideFlags = HideFlags.HideAndDontSave;
             return _drops[level];
         }
 
@@ -126,7 +130,7 @@ namespace SlimeEscape
         {
             if (_fade != null) return _fade;
             var t = new Texture2D(size, size, TextureFormat.RGBA32, false)
-                    { filterMode = FilterMode.Bilinear, wrapMode = TextureWrapMode.Clamp };
+                    { filterMode = FilterMode.Bilinear, wrapMode = TextureWrapMode.Clamp, hideFlags = HideFlags.HideAndDontSave };
             for (int x = 0; x < size; x++)
             {
                 float u = (x + 0.5f) / size;              // 0 = 왼쪽(꽉 참)
@@ -138,6 +142,7 @@ namespace SlimeEscape
             t.Apply();
             _fade = Sprite.Create(t, new Rect(0, 0, size, size),
                                   new Vector2(0.5f, 0.5f), size, 0, SpriteMeshType.FullRect);
+            _fade.hideFlags = HideFlags.HideAndDontSave;
             return _fade;
         }
 
@@ -152,7 +157,7 @@ namespace SlimeEscape
         public static Sprite Soft(int size = 96, float radius = 0.06f)
         {
             if (_soft != null) return _soft;
-            var t = new Texture2D(size, size, TextureFormat.RGBA32, false) { filterMode = FilterMode.Bilinear };
+            var t = new Texture2D(size, size, TextureFormat.RGBA32, false) { filterMode = FilterMode.Bilinear, hideFlags = HideFlags.HideAndDontSave };
             float r = size * radius;
             for (int y = 0; y < size; y++)
                 for (int x = 0; x < size; x++)
@@ -165,6 +170,7 @@ namespace SlimeEscape
             t.Apply();
             _soft = Sprite.Create(t, new Rect(0, 0, size, size),
                                   new Vector2(0.5f, 0.5f), size, 0, SpriteMeshType.FullRect);
+            _soft.hideFlags = HideFlags.HideAndDontSave;
             return _soft;
         }
 
@@ -183,7 +189,7 @@ namespace SlimeEscape
         {
             if (_speaker != null) return _speaker;
             var t = new Texture2D(size, size, TextureFormat.RGBA32, false)
-                    { filterMode = FilterMode.Bilinear, wrapMode = TextureWrapMode.Clamp };
+                    { filterMode = FilterMode.Bilinear, wrapMode = TextureWrapMode.Clamp, hideFlags = HideFlags.HideAndDontSave };
             for (int y = 0; y < size; y++)
                 for (int x = 0; x < size; x++)
                 {
@@ -197,6 +203,7 @@ namespace SlimeEscape
             t.Apply();
             _speaker = Sprite.Create(t, new Rect(0, 0, size, size),
                                      new Vector2(0.5f, 0.5f), size, 0, SpriteMeshType.FullRect);
+            _speaker.hideFlags = HideFlags.HideAndDontSave;
             return _speaker;
         }
 
@@ -233,7 +240,7 @@ namespace SlimeEscape
         public static Sprite Round(int size = 48, float radius = 0.30f)
         {
             if (_round != null) return _round;
-            var t = new Texture2D(size, size, TextureFormat.RGBA32, false) { filterMode = FilterMode.Bilinear };
+            var t = new Texture2D(size, size, TextureFormat.RGBA32, false) { filterMode = FilterMode.Bilinear, hideFlags = HideFlags.HideAndDontSave };
             float r = size * radius;
             for (int y = 0; y < size; y++)
                 for (int x = 0; x < size; x++)
@@ -246,6 +253,7 @@ namespace SlimeEscape
                 }
             t.Apply();
             _round = Sprite.Create(t, new Rect(0, 0, size, size), new Vector2(0.5f, 0.5f), size, 0, SpriteMeshType.FullRect);
+            _round.hideFlags = HideFlags.HideAndDontSave;
             return _round;
         }
     }

@@ -11,7 +11,6 @@
 const fs = require('fs');
 const E = require('./engine.js').SlimeEngine;
 const { grow, rng, SHAPES } = require('./grow.js');
-const { loadBearing } = require('./boxes.js');
 
 const OUT = 'tools/hard-pool.json';
 
@@ -24,27 +23,33 @@ const OUT = 'tools/hard-pool.json';
 //    그러니 기믹은 **다양성**으로 쓰고, 어려움은 덤 조각에 맡긴다.
 //    한 판에 기믹 하나씩만 — 셋을 겹치면 무슨 게임인지 안 읽힌다.
 const BANDS = [
-  // 작고 조이는 것 — 앞쪽 판
+  // ── 맨판 (대부분) ─────────────────────────────
   { d: 1, W: 11, H: 9,  ratio: 0.30, wmin: 3,  wmax: 8,  lens: [3] },
-  { d: 1, W: 11, H: 9,  ratio: 0.30, wmin: 4,  wmax: 10, lens: [3], box: 1 },
   { d: 1, W: 13, H: 10, ratio: 0.28, wmin: 6,  wmax: 14, lens: [4] },
-  { d: 1, W: 13, H: 10, ratio: 0.28, wmin: 6,  wmax: 14, lens: [4], zone: 2 },
   { d: 2, W: 13, H: 10, ratio: 0.28, wmin: 6,  wmax: 14, lens: [3, 3] },
-  { d: 2, W: 13, H: 10, ratio: 0.28, wmin: 6,  wmax: 14, lens: [3, 3], box: 1 },
   { d: 2, W: 15, H: 11, ratio: 0.27, wmin: 10, wmax: 20, lens: [4, 3] },
-  { d: 2, W: 15, H: 11, ratio: 0.27, wmin: 10, wmax: 20, lens: [4, 3], zone: 2 },
-  // 가운데
   { d: 2, W: 17, H: 12, ratio: 0.26, wmin: 14, wmax: 26, lens: [4, 4] },
+  { d: 2, W: 12, H: 15, ratio: 0.27, wmin: 12, wmax: 26, lens: [4, 4] },   // 세로로 긴 것
   { d: 3, W: 15, H: 11, ratio: 0.27, wmin: 10, wmax: 22, lens: [3, 3, 3] },
   { d: 3, W: 17, H: 12, ratio: 0.26, wmin: 14, wmax: 28, lens: [4, 3, 3] },
   { d: 3, W: 19, H: 13, ratio: 0.26, wmin: 18, wmax: 34, lens: [4, 4, 3] },
-  // 큰 판 — 🔴 **한 화면**을 지킨다. 카메라가 안 움직인다 (09-04 사장님)
-  { d: 3, W: 21, H: 13, ratio: 0.25, wmin: 22, wmax: 40, lens: [4, 4, 4] },
-  { d: 3, W: 23, H: 14, ratio: 0.25, wmin: 26, wmax: 46, lens: [5, 4, 4] },
-  // 세로로 긴 것 · 가로로 긴 것 — 생김새를 갈라놓는다
-  { d: 2, W: 12, H: 15, ratio: 0.27, wmin: 12, wmax: 26, lens: [4, 4] },
-  { d: 3, W: 26, H: 10, ratio: 0.26, wmin: 20, wmax: 38, lens: [4, 3, 3] },
+  { d: 3, W: 21, H: 12, ratio: 0.26, wmin: 20, wmax: 36, lens: [4, 3, 3] },
+  { d: 3, W: 22, H: 10, ratio: 0.26, wmin: 18, wmax: 32, lens: [4, 3, 3] },  // 가로로 긴 것
+  // ── 기믹 판 (한 판에 하나씩만) ────────────────
+  //  🔴 "적절히 배치해줘 너무 다 쓰지말고" (09-05 사장님).
+  //     셋을 겹치면 무슨 게임인지 안 읽힌다. 판마다 **하나만** 쓴다.
+  { d: 1, W: 13, H: 10, ratio: 0.28, wmin: 6,  wmax: 14, lens: [4],       zone: 2 },
+  { d: 2, W: 15, H: 11, ratio: 0.27, wmin: 10, wmax: 20, lens: [4, 3],    zone: 2 },
+  { d: 1, W: 11, H: 9,  ratio: 0.30, wmin: 4,  wmax: 10, lens: [3],       box: 1 },
+  { d: 2, W: 13, H: 10, ratio: 0.28, wmin: 6,  wmax: 14, lens: [3, 3],    box: 1 },
+  { d: 2, W: 15, H: 11, ratio: 0.28, wmin: 6,  wmax: 16, lens: [3, 3],    port: 1 },
+  { d: 3, W: 17, H: 12, ratio: 0.27, wmin: 12, wmax: 24, lens: [4, 3, 3], port: 1 },
 ];
+
+//  🔴 **재기 너무 비싼 판은 안 받는다.** 09-05 에 배웠다 — 큰 판은 어려운 게 아니라
+//     재기만 비싸다. 상태가 크면 덤 조각도 못 얹고 압박도 못 잰다.
+const MAXST = +(process.env.MAXST || 300000);
+
 
 const PER = +(process.env.PER || 22);
 const SEED0 = +(process.env.SEED || 1);
@@ -60,29 +65,38 @@ for (const b of BANDS) {
     const r = rng(seed * 7919 + b.W * 131 + b.H * 17 + Math.round(b.ratio * 1000));
     for (let n = 0; n < 120 && got < PER; n++) {
       const shape = SHAPES[Math.floor(r() * SHAPES.length)];
-      const grid = grow(r, b.W, b.H, b.lens, b.ratio, b.wmin, b.wmax, shape, b.zone || 0, b.box || 0);
+      const grid = grow(r, b.W, b.H, b.lens, b.ratio, b.wmin, b.wmax, shape,
+                        b.zone || 0, b.box || 0, b.port || 0);
       if (!grid) continue;
       //  🔴 기믹을 시켰는데 안 들어간 판은 안 받는다 — 그 띠가 있는 뜻이 없어진다
       if (b.zone && !grid.join('').includes(':')) continue;
       if (b.box && !grid.join('').includes('B')) continue;
-      //  🔴 상자는 **없으면 못 푸는** 것만. 없어도 풀리면 그건 장식이다 (17판 중 4판이 그랬다)
-      if (b.box && !loadBearing(grid)) continue;
+      if (b.port && !grid.join('').includes('P')) continue;
       const key = grid.join('');
       if (seen.has(key)) continue;
       const a = E.solve({ grid, gravity: true, clear: 'all', id: 'g' });
       //  최단해가 유일한 것만. 🔴 이것만으로는 안 어렵다는 걸 09-04 에 알았지만,
       //  여러 답이 다 최단이면 "정답을 찾았다" 가 흐려지긴 한다. 그대로 둔다.
       if (!a.ok || a.shortest !== 1 || a.moves < 8) continue;
+      if (a.states > MAXST) continue;
+      //  🔴 **기믹이 진짜 쓰이는지** 본다. 없애도 똑같이 풀리면 그건 장식이다 —
+      //     상자는 17판 중 4판, 포탈은 134판 중 19판이 그랬다 (09-05 측정).
+      if (b.zone || b.box || b.port) {
+        const strip = grid.map(x => x.replace(/[:BPQpq]/g, '.'));
+        const c = E.solve({ grid: strip, gravity: true, clear: 'all', id: 'x' });
+        if (c.ok && c.moves === a.moves) continue;      // 없어도 똑같다 = 장식
+      }
       seen.add(key);
       pool.push({
         doors: b.d, shape, grid, best: a.moves, sol: a.path,
         W: b.W, H: b.H, ratio: b.ratio,
-        zone: b.zone || 0, box: b.box || 0,
+        zone: b.zone || 0, box: b.box || 0, port: b.port || 0,
+        gim: b.box ? 'box' : b.port ? 'portal' : b.zone ? 'zone' : 'none',
       });
       got++;
     }
   }
-  const tag = b.box ? ' 상자' : b.zone ? ' 무중력' : '';
+  const tag = b.box ? ' 상자' : b.port ? ' 포탈' : b.zone ? ' 무중력' : '';
   console.log(`  ${b.d}홈 ${b.W}x${b.H} ratio ${b.ratio}${tag} → ${got}개`);
 }
 fs.writeFileSync(OUT, JSON.stringify(pool, null, 1) + '\n');

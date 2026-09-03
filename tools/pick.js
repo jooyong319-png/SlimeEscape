@@ -50,6 +50,10 @@ const picked = [];
 //  홈 둘이 된다. 못에 있는 만큼만 부드럽게 민다 (넘칠 때만, 아주 약하게).
 const quota = { 1: 14, 2: 21, 3: 12 };
 const mixCount = { 1: 0, 2: 0, 3: 0 };
+//  🔴 기믹은 **골고루, 너무 많지 않게** (09-05 사장님: "적절히 배치해줘 너무 다 쓰지말고").
+//     47판 중 기믹 판은 열두 개쯤. 나머지는 맨판이라 기믹이 '특별한 판'으로 읽힌다.
+const gimQuota = { none: 35, zone: 4, box: 4, portal: 4 };
+const gimCount = { none: 0, zone: 0, box: 0, portal: 0 };
 for (const w of want) {
   let best = null, bestD = Infinity;
   for (let i = 0; i < rows.length; i++) {
@@ -62,7 +66,15 @@ for (const w of want) {
     const early = (picked.length / N) < 0.25;
     const dr = r.doors || 1;
     const over = Math.max(0, mixCount[dr] - quota[dr]) * 0.06;
-    const d = (early && dr >= 3 ? 0.5 : 0) + over
+    const gm = r.gim || 'none';
+    //  정해둔 수를 넘으면 세게 민다 — 기믹이 판을 뒤덮으면 안 된다
+    const gOver = gimCount[gm] >= (gimQuota[gm] || 0) ? 3.0 : 0;
+    //  🔴 **처음 나오는 기믹은 앞쪽에 둔다.** 안 가르치는 기믹이 어려운 판에서 처음
+    //     나오면 그냥 벽으로 읽힌다. 첫 등장은 쉬운 자리(앞 40%)로 끌어온다.
+    const first = gm !== 'none' && gimCount[gm] === 0;
+    const spot = picked.length / N;
+    const gFirst = first ? (spot < 0.15 || spot > 0.45 ? 1.2 : -0.8) : 0;
+    const d = (early && dr >= 3 ? 0.5 : 0) + over + gOver + gFirst
             + Math.abs(r.press - w.press) * 4.0
             + Math.abs(r.moves - w.moves) / 60;
     if (d < bestD) { bestD = d; best = i; }
@@ -70,6 +82,7 @@ for (const w of want) {
   if (best === null) break;
   used.add(best);
   mixCount[rows[best].doors || 1]++;
+  gimCount[rows[best].gim || 'none']++;
   picked.push(rows[best]);
 }
 
@@ -83,7 +96,15 @@ for (const w of want) {
     return out;
   };
   const rm = rank(r => r.moves), rp = rank(r => r.press);
-  const scored = picked.map((r, i) => ({ r, s: rm[i] + rp[i] * 1.5 }));
+  //  🔴 기믹이 **처음 나오는 판**은 등수를 확 낮춰 앞으로 보낸다 —
+  //     안 그러면 어려움 순으로 세우다가 첫 등장이 맨 뒤로 밀린다.
+  const seenGim = {};
+  const firstOf = picked.map(r => {
+    const g = r.gim || 'none';
+    if (g === 'none' || seenGim[g]) return false;
+    seenGim[g] = true; return true;
+  });
+  const scored = picked.map((r, i) => ({ r, s: rm[i] + rp[i] * 1.5 - (firstOf[i] ? 60 : 0) }));
   scored.sort((x, y) => x.s - y.s);
   picked.length = 0;
   scored.forEach(x => picked.push(x.r));
@@ -109,6 +130,16 @@ console.log('평균 압박 ' + (avg(r => r.press) * 100).toFixed(1) + '%' +
             ' · 되짚기 ' + (avg(r => r.back) * 100).toFixed(0) + '%' +
             ' · 걸음 ' + avg(r => r.moves).toFixed(0) +
             ' · 덤 ' + avg(r => r.traps || 0).toFixed(1) + '개');
+{
+  const g = {};
+  for (const r of picked) g[r.gim || 'none'] = (g[r.gim || 'none'] || 0) + 1;
+  console.log('기믹 섞임: ' + Object.entries(g).map(([k, v]) => k + ' ' + v).join(' · '));
+  picked.forEach((r, i) => {
+    if ((r.gim || 'none') === 'none') return;
+    if (picked.findIndex(x => (x.gim || 'none') === r.gim) !== i) return;
+    console.log('  ' + r.gim + ' 첫 등장: ' + (i + 1) + '번 판');
+  });
+}
 console.log('홈 섞임: ' + mix + ' · 크기 ' +
             new Set(picked.map(r => r.w + 'x' + r.h)).size + '가지');
 { // 덤 조각 전과 견줘 본다 (press0 가 판마다 붙어 있다)
@@ -140,7 +171,7 @@ for (let k = 0; k < picked.length; k++) {
     best: a.moves, sol: a.path,
     bestStar: st.moves, cut: cutOf(st.moves),
     lost: 0, tight: p.tight, backtrack: p.back, states: p.states,
-    press: +p.press.toFixed(4), traps: p.traps || 0,
+    press: +p.press.toFixed(4), traps: p.traps || 0, gim: p.gim || 'none',
   });
 }
 console.log('별 박은 판 ' + out.length + ' · 자리 못 찾은 판 ' + noStar +
