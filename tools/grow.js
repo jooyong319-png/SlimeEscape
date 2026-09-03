@@ -171,7 +171,11 @@ function relevel(rows, body, dm, exceptCell) {
 }
 
 /// 판 한 장을 **자라게** 만든다
-function grow(r, W, H, doorLens, ratio, wanderMin, wanderMax, shape) {
+/// 🔴 무중력 구역(':')도 **지으면서** 넣는다 (rev.10, 2026-09-05).
+///    다 만든 판에 나중에 얹으면 지름길만 생겨 판이 쉬워진다.
+///    조각을 놓는 것과 같은 방식이다 — "지금 오르고 싶은데 못 오른다" 는 자리에 놓는다.
+function grow(r, W, H, doorLens, ratio, wanderMin, wanderMax, shape, zoneBudget) {
+  let zoneLeft = zoneBudget || 0;
   const g = carve(r, W, H, ratio, shape);
   if (!g) return null;
   const rows = () => g.map(row => row.join(''));
@@ -205,6 +209,22 @@ function grow(r, W, H, doorLens, ratio, wanderMin, wanderMax, shape) {
         if (ns) opts.push([d, ns]);
       }
       if (!opts.length) return null;
+
+      // 🔴 위로 한 칸 — 무중력 칸을 놓아 **길이 없이 오른다.**
+      //    이게 이 기믹의 전부다: 오르기 규칙(길이 ≥ k+1)이 여기서만 꺼진다.
+      if (zoneLeft > 0 && r() < 0.22) {
+        const hx = body[0] % W, hy = ((body[0] / W) | 0) - 1;
+        if (hy > 0 && g[hy][hx] === '.') {
+          g[hy][hx] = ':';
+          const trial = relevel(rows(), body, dm, -1);
+          const ns = E.step(trial.L, trial.st, 0);          // 0 = 위
+          //  올라간 자리에 그대로 떠 있어야 뜻이 있다 — 도로 떨어지면 무른다
+          if (ns && ns.body[0] === hy * W + hx) {
+            cur = trial; cur.st = ns; body = ns.body; steps++; zoneLeft--; continue;
+          }
+          g[hy][hx] = '.';
+        }
+      }
 
       if (needGrow && r() < 0.8) {
         // 🔴 들어가려는 칸에 조각을 놓는다 — 그 자리에서 몸이 자란다.

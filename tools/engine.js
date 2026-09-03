@@ -54,6 +54,10 @@
       // 🔴 출구 — 밟을 수 있는 바닥이다. 퍼즐엔 아무 영향이 없고, 게임이 여기서 맵을 넘긴다
       else if (c === 'o') { star = y * w + x; g[y][x] = '.'; }
       else if (c === 'T') { pads.push(y * w + x); g[y][x] = '.'; }
+      //  🔴 무중력 구역 ':' — 벽이 아니라 **뒷벽**이다 (rev.10, 2026-09-05).
+      //     지나갈 수 있고, 몸의 한 칸이라도 여기 걸쳐 있으면 안 떨어진다.
+      //     중력이 이 게임의 축이라 그걸 국소적으로 끄면 오르기 규칙(길이 ≥ k+1)이 통째로 비켜간다.
+      else if (c === ':') { zone.push(y * w + x); g[y][x] = '.'; }
       else if ('^v<>'.includes(c)) { signs.push({ cell: y * w + x, dir: '^v<>'.indexOf(c) }); g[y][x] = '.'; }
     }
     const open = doors.filter(d => d.cells.length);
@@ -110,8 +114,8 @@
   /// 뱀은 통째로 떨어진다(Snakebird와 같다).
   function supported(L, body, dm) {
     for (const c of body) {
-      // 🔬 무중력 구역('~') — 벽이 아니라 **뒷벽**이다. 지나갈 수 있고, 그 안에선 안 떨어진다.
-      //    규칙을 늘린 게 아니라 '지지대'의 뜻을 넓힌 것뿐이다.
+      // 🔴 무중력 구역(':') — 벽이 아니라 **뒷벽**이다. 지나갈 수 있고, 그 안에선 안 떨어진다.
+      //    '지지대'의 뜻을 넓힌 것이다. rev.10 에서 되살렸다 ('~' 는 홈 셋이 가져갔다).
       if (L.zoneSet.has(c)) return true;
       const below = c + L.w;
       if (below >= L.w * L.h || isBlocked(L, below, dm)) return true;
@@ -340,7 +344,7 @@
         else if (y * L.w + x === L.star) r += 'o';
         else if (L.padIdx.has(y * L.w + x))
           r += ((st.pm || 0) & (1 << L.padIdx.get(y * L.w + x))) ? 'Ⅰ' : 'T';
-        else if (L.zoneSet.has(y * L.w + x)) r += '~';
+        else if (L.zoneSet.has(y * L.w + x)) r += ':';
         else if (L.doors[1] && L.doors[1].set.has(y * L.w + x))
           r += (y * L.w + x) === L.doors[1].core ? '%' : '-';
         else if (L.doors[2] && L.doors[2].set.has(y * L.w + x))

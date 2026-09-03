@@ -54,6 +54,14 @@ namespace SlimeEscape
             public bool HasGates;
 
             /// <summary>
+            /// 🔴 무중력 구역 — 벽이 아니라 **뒷벽**이다. 기호 ':' (rev.10, 2026-09-05).
+            /// 지나갈 수 있고, 몸의 한 칸이라도 여기 걸쳐 있으면 **안 떨어진다.**
+            /// 중력이 이 게임의 축이라, 그걸 국소적으로 끄면 오르기 규칙(길이 ≥ k+1)이
+            /// 통째로 비켜간다. 🔴 tools/engine.js 의 zoneSet 과 **같아야 한다.**
+            /// </summary>
+            public HashSet<int> Zone = new HashSet<int>();
+
+            /// <summary>
             /// 🔴 맵을 넘는 자리. 밟을 수 있는 바닥이고 **퍼즐엔 아무 영향이 없다** —
             /// 게임이 여기서 다음 맵으로 넘긴다. 기호 '&gt;' 오른쪽 · '&lt;' 왼쪽.
             /// 들어온 출구의 **반대편**에서 나오게 해서 위치가 이어지게 한다.
@@ -193,6 +201,7 @@ namespace SlimeEscape
                         case '@': d2.Cells.Add(c); d2.Core = c; break;
                         case '1': case '2': case '3':
                             L.Gates[grid[y][x] - '1'].Add(c); L.HasGates = true; break;
+                        case ':': L.Zone.Add(c); break;
                         case 'o': L.Star = c; break;
                         case 'T': L.PadIdx[c] = L.Pads.Count; L.Pads.Add(c); break;
                         case '^': L.Signs.Add((c, 0)); break;
@@ -231,6 +240,8 @@ namespace SlimeEscape
         {
             foreach (int c in body)
             {
+                //  🔴 무중력 구역에 한 칸이라도 걸쳐 있으면 안 떨어진다 (rev.10)
+                if (L.Zone.Count > 0 && L.Zone.Contains(c)) return true;
                 int below = c + L.W;
                 if (below >= L.W * L.H || L.IsBlocked(below, dm)) return true;
                 if (L.IsSpent(below, dm)) return true;    // 🔴 두고 온 몸은 디딤돌이다

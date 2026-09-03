@@ -80,6 +80,11 @@ namespace SlimeEscape
         //    벽(Rock)과 색을 달리해서 "이건 열릴 수 있는 벽"으로 읽히게 한다.
         //  ⚠️ 갈색이었는데, 색이 있으면 "정보" 로 읽혀 조각(주황)과 다툰다.
         //     열릴 수 있는 벽이라는 건 **벽보다 밝다**는 것으로 말한다.
+        // 🔴 무중력 구역 — "여기선 안 떨어진다". 벽이 아니라 **뒷벽**이라
+        //    바닥보다 밝되 홈(목표)보다는 어둡다. 색 규칙 ③ 대로 무채색이다.
+        //    ⚠️ 홈처럼 테를 두르면 "여기 채워라"로 잘못 읽힌다 — 테는 두르지 않는다.
+        static readonly Color ZoneCol = new Color32(0x3a, 0x40, 0x48, 0xff);
+        static readonly Color ZoneDot = new Color32(0x9a, 0xa6, 0xb4, 0xff);
         static readonly Color GateCol  = new Color32(0x3c, 0x44, 0x50, 0xff);
         static readonly Color GateEdge = new Color32(0x6e, 0x7a, 0x8a, 0xff);
         /// 🔴 두고 온 몸 — 자물쇠에 남아 굳은 것. 밟고 지나갈 수 있다.
@@ -273,6 +278,9 @@ namespace SlimeEscape
         /// 다 빨아들이고 결과 화면까지 두는 사이
         const float WinDelay = 0.5f;
 
+        //  무중력 구역의 떠 있는 점 — (칸, 몇 번째, 그림)
+        readonly List<(int cell, int k, SpriteRenderer sr)> _zoneDots
+            = new List<(int, int, SpriteRenderer)>();
         readonly Dictionary<int, SpriteRenderer> _gateViews = new Dictionary<int, SpriteRenderer>();
         readonly Dictionary<int, int> _gateOf = new Dictionary<int, int>();   // 칸 -> 문 번호
         readonly Dictionary<int, SpriteRenderer> _gateInner = new Dictionary<int, SpriteRenderer>();
@@ -1266,6 +1274,7 @@ namespace SlimeEscape
             if (_root != null) Destroy(_root.gameObject);
             _root = new GameObject("Board").transform;
             _segs.Clear(); _foodViews.Clear(); _foodExtra.Clear(); _links.Clear();
+            _zoneDots.Clear();
 
             for (int y = 0; y < _L.H; y++)
                 for (int x = 0; x < _L.W; x++)
@@ -1281,6 +1290,28 @@ namespace SlimeEscape
                     //  빈 칸은 높이에 따라 밝기가 다르다 — 위가 밝고 아래가 가라앉는다
                     sr.color = wall ? Rock
                              : Color.Lerp(FloorLit, FloorDim, _L.H < 2 ? 0f : (float)y / (_L.H - 1));
+
+                    //  🔴 무중력 구역 — 뒷벽처럼 한 겹 깔고, 떠 있는 점 몇 개를 얹는다.
+                    //     점이 **안 오르고 제자리에서 흔들리는** 것이 이 칸의 뜻이다
+                    //     (홈의 불빛은 위로 오른다 — 헷갈리면 안 된다).
+                    if (!wall && _L.Zone.Contains(c))
+                    {
+                        var z = NewSprite("Zone", -3);
+                        z.sprite = PixelSprites.Soft();
+                        //  🔴 같은 차례끼리는 번갈아 이긴다 — z 로 못박는다
+                        z.transform.position = (Vector3)CellPos(c) + new Vector3(0, 0, -0.01f);
+                        z.transform.localScale = new Vector3(0.96f, 0.96f, 1f);
+                        z.color = ZoneCol;
+                        for (int k = 0; k < 2; k++)
+                        {
+                            var dsr = NewSprite("ZoneDot", -2);
+                            dsr.sprite = PixelSprites.Disc();
+                            dsr.transform.localScale = new Vector3(0.1f, 0.1f, 1f);
+                            var dc = ZoneDot; dc.a = 0.5f;
+                            dsr.color = dc;
+                            _zoneDots.Add((c, k, dsr));
+                        }
+                    }
 
                     if (wall)
                     {
@@ -1877,6 +1908,17 @@ namespace SlimeEscape
             // 🔴 문이 열리면 그 문벽이 사라지고, 그 홈은 "두고 온 몸"이 된다.
             //    화면을 매번 다시 만들지 않고 색만 바꾼다 — 몸이 움직이는 중에도 안 튄다.
             // 🔴 문벽이 툭 사라지면 허전하다 — 스르르 꺼지게 한다
+            //  🔴 무중력 점은 **제자리에서 떠 있다.** 위로 오르면 홈의 불빛과 헷갈린다.
+            for (int i = 0; i < _zoneDots.Count; i++)
+            {
+                var (zc, zk, zsr) = _zoneDots[i];
+                if (zsr == null) continue;
+                float ph = zc * 0.7f + zk * 2.1f;
+                float ox = Mathf.Sin(Time.time * 0.9f + ph) * 0.22f;
+                float oy = Mathf.Cos(Time.time * 0.7f + ph * 1.3f) * 0.22f;
+                zsr.transform.position = (Vector3)CellPos(zc) + new Vector3(ox, oy, -0.02f);
+            }
+
             if (_shownDm != _st.Dm) { _shownDm = _st.Dm; _gateFade = 0f; }
             _gateFade = Mathf.Min(1f, _gateFade + Time.deltaTime / 0.45f);
             foreach (var kv in _gateViews)
