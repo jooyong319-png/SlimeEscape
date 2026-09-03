@@ -1,38 +1,45 @@
-// 🔴 **어려움으로 고른다** (2026-09-04).
+// 🔴 **어려움으로 고른다** (2026-09-04, 09-05 다시 씀).
 //
 // 지금까지는 `best`(걸음 수) 하나로 골랐다 — 난이도 곡선이 사실 **길이 곡선**이었다.
-// 이제 **압박(press)** 을 함께 본다.
+// 이제 **압박(press)** 을 함께 본다. 압박은 "갈림길에서 지는 쪽이 몇 할이냐" 다.
 //
 //   node tools/pick.js                   골라서 보여만 준다
-//   WRITE=1 node tools/pick.js           levels.json 에 쓴다
+//   WRITE=1 node tools/pick.js           levels.json 에 쓴다 (사본 먼저 뜬다)
 //
-// ⚠️ 자료를 쓰기 전에 사본을 뜬다 (tools/levels.bak.json).
+//   POOL=... STAT=... N=40 으로 바꿀 수 있다.
 'use strict';
 const fs = require('fs');
+const path = require('path');
+const E = require('./engine.js').SlimeEngine;
+const { rng } = require('./grow.js');
+const { putStar, cutOf } = require('./star.js');
 
-const STAT = 'tools/poolstat.json';      // poolstat.js 가 남긴 잰 값
-const POOL = 'tools/hard-pool.json';
-const OUT  = 'game/Assets/Resources/levels.json';
+const POOL = process.env.POOL || 'tools/trap-pool.json';
+const STAT = process.env.STAT || 'tools/trapstat-after.json';
+const LP   = path.join(__dirname, '../game/Assets/Resources/levels.json');
+const BAK  = path.join(__dirname, 'levels.bak.json');
 const N    = +(process.env.N || 40);     // 튜토리얼 뒤로 몇 판
 
-const stat = JSON.parse(fs.readFileSync(STAT, 'utf8'));
 const pool = JSON.parse(fs.readFileSync(POOL, 'utf8'));
-console.log('잰 판', stat.length, '· 못', pool.length);
+const stat = JSON.parse(fs.readFileSync(STAT, 'utf8'));
+console.log('못', pool.length, '· 잰 판', stat.length);
 
-// 🔴 **곡선은 여전히 있어야 한다.** 1-1 이 어려우면 아무도 2판까지 못 간다.
-//    앞은 쉽고 짧게, 뒤로 갈수록 조이고 길게.
-//    두 값을 **함께** 본다 — 하나만 보면 또 엉뚱한 걸 재게 된다.
+// 잰 값과 판을 붙인다. **못 잰 판은 버린다** — 못 잰 걸 곡선에 끼우면
+// 압박을 0 으로 보고 앞쪽에 몰아넣게 된다 (그게 09-04 의 '길이 곡선' 이었다).
 const rows = stat.map(r => Object.assign({}, r, pool[r.i]))
                  .filter(r => r.grid && r.moves >= 8);
+console.log('쓸 수 있는 판', rows.length);
+if (rows.length < N) console.log('⚠️ ' + N + '판을 채우기엔 모자란다 — 있는 만큼만 고른다');
 
-// 띠마다 "이 정도 압박 · 이 정도 길이" 를 목표로 잡고 제일 가까운 것을 집는다
+// 🔴 **곡선은 여전히 있어야 한다.** 1-1 이 어려우면 아무도 2판까지 못 간다.
+//    앞은 쉽고 짧게, 뒤로 갈수록 조이고 길게. 두 값을 **함께** 본다.
 const want = [];
 for (let k = 0; k < N; k++) {
   const t = k / (N - 1);                       // 0 → 1
   want.push({
-    press: 0.03 + 0.22 * t * t,                // 3% → 25% (뒤에서 가파르게)
-    moves: 10 + 55 * t,                        // 10 → 65 걸음
-    doors: t < 0.25 ? 1 : t < 0.6 ? 2 : 3,
+    press: 0.03 + 0.32 * t * t,                // 3% → 35% (뒤에서 가파르게)
+    moves: 10 + 45 * t,                        // 10 → 55 걸음
+    doors: t < 0.30 ? 1 : t < 0.65 ? 2 : 3,
   });
 }
 
@@ -43,11 +50,9 @@ for (const w of want) {
   for (let i = 0; i < rows.length; i++) {
     if (used.has(i)) continue;
     const r = rows[i];
-    //  홈 개수는 되도록 맞추고, 나머지는 거리로
-    const dDoor = Math.abs((r.doors || 1) - w.doors) * 0.9;
-    const dPress = Math.abs(r.press - w.press) * 4.0;
-    const dMoves = Math.abs(r.moves - w.moves) / 60;
-    const d = dDoor + dPress + dMoves;
+    const d = Math.abs((r.doors || 1) - w.doors) * 0.9
+            + Math.abs(r.press - w.press) * 4.0
+            + Math.abs(r.moves - w.moves) / 60;
     if (d < bestD) { bestD = d; best = i; }
   }
   if (best === null) break;
@@ -55,27 +60,91 @@ for (const w of want) {
   picked.push(rows[best]);
 }
 
+// 🔴 **줄어들면 안 된다.** 홈 개수 차례는 그대로 두고, 띠 안에서 다시 세운다.
+//    길이만으로 세우면 또 길이 곡선이 되니 **걸음과 압박의 등수를 더해서** 센다.
+{
+  const byDoor = { 1: [], 2: [], 3: [] };
+  for (const p of picked) (byDoor[p.doors] || byDoor[3]).push(p);
+  const rank = (arr, get) => {
+    const ord = arr.map((_, i) => i).sort((a, b) => get(arr[a]) - get(arr[b]));
+    const out = new Array(arr.length);
+    ord.forEach((idx, pos) => { out[idx] = pos; });
+    return out;
+  };
+  picked.length = 0;
+  for (const k of [1, 2, 3]) {
+    const a = byDoor[k];
+    const rm = rank(a, r => r.moves), rp = rank(a, r => r.press);
+    a.map((r, i) => ({ r, s: rm[i] + rp[i] }))
+     .sort((x, y) => x.s - y.s)
+     .forEach(x => picked.push(x.r));
+  }
+}
+
 console.log('\n고른 판', picked.length);
-console.log('번호  홈  크기     걸음   압박    되짚기   상태');
-console.log('-'.repeat(52));
+console.log('번호  홈  크기      걸음   압박    되짚기   덤   상태');
+console.log('-'.repeat(58));
 picked.forEach((r, k) => {
   if (k % 4 !== 0 && k !== picked.length - 1) return;   // 네 판마다 한 줄만
   console.log(String(k + 1).padStart(4) + String(r.doors).padStart(4) +
-    ('  ' + r.w + 'x' + r.h).padEnd(9) +
+    ('  ' + r.w + 'x' + r.h).padEnd(10) +
     String(r.moves).padStart(5) +
     (r.press * 100).toFixed(1).padStart(7) + '%' +
     (r.back * 100).toFixed(0).padStart(7) + '%' +
+    String(r.traps == null ? '-' : r.traps).padStart(5) +
     String(r.states).padStart(9));
 });
 const avg = f => picked.reduce((s, r) => s + f(r), 0) / picked.length;
-console.log('-'.repeat(52));
+console.log('-'.repeat(58));
 console.log('평균 압박 ' + (avg(r => r.press) * 100).toFixed(1) + '%' +
             ' · 되짚기 ' + (avg(r => r.back) * 100).toFixed(0) + '%' +
-            ' · 걸음 ' + avg(r => r.moves).toFixed(0));
+            ' · 걸음 ' + avg(r => r.moves).toFixed(0) +
+            ' · 덤 ' + avg(r => r.traps || 0).toFixed(1) + '개');
+{ // 덤 조각 전과 견줘 본다 (press0 가 판마다 붙어 있다)
+  const has = picked.filter(r => typeof r.press0 === 'number');
+  if (has.length)
+    console.log('덤 조각 전 평균 압박 ' + (has.reduce((s, r) => s + r.press0, 0) / has.length * 100).toFixed(1) +
+                '% → 지금 ' + (has.reduce((s, r) => s + r.press, 0) / has.length * 100).toFixed(1) + '%');
+}
 
 if (process.env.WRITE !== '1') {
   console.log('\n(보여주기만 했다. 쓰려면 WRITE=1)');
   process.exit(0);
 }
-console.log('\n⚠️ levels.json 에 쓰려면 별·커트라인을 다시 박아야 한다 —');
-console.log('   putStar 가 make40.js 안에 있어서 아직 못 쓴다. 다음 걸음.');
+
+// ---- 별·커트라인 박기 ----
+console.log('\n별을 박는다…');
+const out = [];
+let noStar = 0, moved = 0;
+for (let k = 0; k < picked.length; k++) {
+  const p = picked[k];
+  const st = putStar(p.grid, p.moves, rng(k * 7919 + 13), p.doors >= 3 ? 8 : 14, p.doors >= 3 ? 5 : 8);
+  if (!st) { noStar++; continue; }
+  // 🔴 별을 얹고 **별 없는 최단이 그대로인지** 확인한다. 안 그러면 1별 커트가 어긋난다.
+  const a = E.solve({ grid: st.grid, gravity: true, clear: 'all', id: 'c' });
+  if (!a.ok) { noStar++; continue; }
+  if (a.moves !== p.moves) moved++;
+  out.push({
+    grid: st.grid, clear: 'all',
+    best: a.moves, sol: a.path,
+    bestStar: st.moves, cut: cutOf(st.moves),
+    lost: 0, tight: p.tight, backtrack: p.back, states: p.states,
+    press: +p.press.toFixed(4), traps: p.traps || 0,
+  });
+}
+console.log('별 박은 판 ' + out.length + ' · 자리 못 찾은 판 ' + noStar +
+            ' · 별 때문에 최단이 바뀐 판 ' + moved);
+
+const d = JSON.parse(fs.readFileSync(LP, 'utf8'));
+const tut = d.levels.find(l => l.tutorial);
+if (!tut) { console.log('🔴 튜토리얼 판이 없다 — 그만둔다'); process.exit(1); }
+tut.id = '1-0';
+// ⚠️ 여긴 git 이 아니다. 덮어쓰기 전에 사본을 뜬다.
+fs.writeFileSync(BAK, fs.readFileSync(LP));
+console.log('사본 → ' + BAK);
+
+d.levels = [tut, ...out.map((l, i) => Object.assign({ id: '1-' + (i + 1) }, l))];
+d.chapter = 1;
+fs.writeFileSync(LP, JSON.stringify(d, null, 2) + '\n');
+console.log('판 자료에 썼다 · 판 ' + (d.levels.length - 1) + '개 (+튜토리얼)');
+console.log('다음: node tools/verify.js  또는 유니티 ConformanceCheck');
