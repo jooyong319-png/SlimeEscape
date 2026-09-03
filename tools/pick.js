@@ -39,8 +39,9 @@ const want = [];
 for (let k = 0; k < N; k++) {
   const t = k / (N - 1);                       // 0 → 1
   want.push({
-    press: 0.03 + 0.33 * t * t,                // 3% → 36% (뒤에서 가파르게)
-    moves: 10 + 22 * t,                        // 10 → 32
+    press: 0.04 + 0.38 * t * t,                // 4% → 42% (뒤에서 가파르게)
+    moves: 8 + 26 * t,                         // 8 → 34
+    doors: t < 0.22 ? 1 : t < 0.6 ? 2 : 3,     // 앞은 홈 하나부터
   });
 }
 
@@ -59,24 +60,22 @@ for (const w of want) {
   for (let i = 0; i < rows.length; i++) {
     if (used.has(i)) continue;
     const r = rows[i];
-    // 🔴 홈 개수는 **난이도가 아니다.** 09-05 측정: 홈 1/2/3 의 압박 중앙값이
-    //    14.3 / 13.9 / 14.1% 로 같았다. 예전엔 홈 개수를 난이도 띠로 썼는데,
-    //    그 탓에 홈 셋 열여덟 판을 압박과 상관없이 죄다 뒤쪽에 끌어다 썼다.
-    //    이제는 "앞쪽엔 복잡해 보이는 판을 안 준다" 정도로만 쓴다.
-    const early = (picked.length / N) < 0.25;
     const dr = r.doors || 1;
     const over = Math.max(0, mixCount[dr] - quota[dr]) * 0.06;
     const gm = r.gim || 'none';
     //  정해둔 수를 넘으면 세게 민다 — 기믹이 판을 뒤덮으면 안 된다
     const gOver = gimCount[gm] >= (gimQuota[gm] || 0) ? 3.0 : 0;
-    //  🔴 **처음 나오는 기믹은 앞쪽에 둔다.** 안 가르치는 기믹이 어려운 판에서 처음
-    //     나오면 그냥 벽으로 읽힌다. 첫 등장은 쉬운 자리(앞 40%)로 끌어온다.
-    const first = gm !== 'none' && gimCount[gm] === 0;
-    const spot = picked.length / N;
-    const gFirst = first ? (spot < 0.15 || spot > 0.45 ? 1.2 : -0.8) : 0;
-    const d = (early && dr >= 3 ? 0.5 : 0) + over + gOver + gFirst
+    //  홈은 난이도가 아니라 **보기의 결**이다 — 부드럽게 민다 (09-05 측정:
+    //  홈 1/2/3 압박 중앙값이 14.3/13.9/14.1% 로 같았다). 다만 첫 판은 단순해야 한다.
+    const d = Math.abs(dr - w.doors) * 0.35 + over + gOver
             + Math.abs(r.press - w.press) * 4.0
-            + Math.abs(r.moves - w.moves) / 60;
+            //  🔴 걸음 무게를 60 으로 나눴더니 **압박이 다 이겨서** 8걸음짜리가 여덟 판
+            //     뽑혔다 (뒤쪽에 셋이 연달아 왔다). 09-05 에 "길이 곡선"을 버렸다고
+            //     이번엔 길이를 아예 안 본 것이다 — 둘 다 봐야 한다.
+            + Math.abs(r.moves - w.moves) / 22
+            //  🔴 뒤로 갈수록 **너무 짧은 판은 안 받는다.** 짧고 조이는 판은 쉼표로 쓸 만하지만
+            //     연달아 나오면 "쉬워졌다"로 읽힌다.
+            + (picked.length > N * 0.3 && r.moves < 12 ? 1.5 : 0);
     if (d < bestD) { bestD = d; best = i; }
   }
   if (best === null) break;
@@ -96,18 +95,28 @@ for (const w of want) {
     return out;
   };
   const rm = rank(r => r.moves), rp = rank(r => r.press);
-  //  🔴 기믹이 **처음 나오는 판**은 등수를 확 낮춰 앞으로 보낸다 —
-  //     안 그러면 어려움 순으로 세우다가 첫 등장이 맨 뒤로 밀린다.
-  const seenGim = {};
-  const firstOf = picked.map(r => {
-    const g = r.gim || 'none';
-    if (g === 'none' || seenGim[g]) return false;
-    seenGim[g] = true; return true;
-  });
-  const scored = picked.map((r, i) => ({ r, s: rm[i] + rp[i] * 1.5 - (firstOf[i] ? 60 : 0) }));
+  const scored = picked.map((r, i) => ({ r, s: rm[i] + rp[i] * 1.5 }));
   scored.sort((x, y) => x.s - y.s);
   picked.length = 0;
   scored.forEach(x => picked.push(x.r));
+}
+
+// 🔴 기믹이 **처음 나오는 판을 정해진 칸에 꽂는다** (09-05).
+//    점수로 밀었더니 셋이 1·2·3판에 몰렸다 — 아직 기본도 못 배운 자리다.
+//      상자  6번  — 제일 알기 쉽다. 밀면 밀린다, 그게 전부다
+//      무중력 11번 — 튜토리얼에서 봤지만 실제로 쓰는 건 여기가 처음
+//      포탈  18번 — **튜토리얼에서 안 가르친다** (홈을 채워야 켜져서 5칸 시범에 안 들어간다).
+//                   홈을 여러 번 채워본 뒤라야 "홈을 채우면 켜진다"가 읽힌다
+{
+  //  ⚠️ 하나만 옮기면 **같은 기믹의 다른 판이 앞에 남는다** (09-05 에 그랬다).
+  //     그 기믹 판을 **전부** 데뷔 칸 뒤로 민다. 칸이 작은 것부터 처리한다.
+  const SLOT = [['box', 5], ['zone', 10], ['portal', 17]];   // 0부터 세는 자리
+  for (const [g, slot] of SLOT) {
+    const early = [];
+    for (let i = picked.length - 1; i >= 0; i--)
+      if (i < slot && (picked[i].gim || 'none') === g) early.unshift(picked.splice(i, 1)[0]);
+    if (early.length) picked.splice(Math.min(slot, picked.length), 0, ...early);
+  }
 }
 
 console.log('\n고른 판', picked.length);
@@ -157,10 +166,31 @@ if (process.env.WRITE !== '1') {
 // ---- 별·커트라인 박기 ----
 console.log('\n별을 박는다…');
 const out = [];
-let noStar = 0, moved = 0;
+let noStar = 0, moved = 0, swapped = 0;
+//  🔴 별을 못 박은 판을 그냥 버리면 **판 수가 모자라진다** (09-05 에 47 -> 45 가 됐다).
+//     자리를 더 뒤져보고, 그래도 안 되면 **비슷한 판으로 갈아 끼운다.**
+function stampStar(p, seed) {
+  return putStar(p.grid, p.moves, rng(seed), p.doors >= 3 ? 28 : 40, p.doors >= 3 ? 5 : 8);
+}
 for (let k = 0; k < picked.length; k++) {
-  const p = picked[k];
-  const st = putStar(p.grid, p.moves, rng(k * 7919 + 13), p.doors >= 3 ? 8 : 14, p.doors >= 3 ? 5 : 8);
+  let p = picked[k];
+  let st = stampStar(p, k * 7919 + 13);
+  if (!st) {
+    //  같은 자리의 목표에 제일 가까운, 아직 안 쓴 판으로 바꿔 본다
+    const w = want[Math.min(k, want.length - 1)];
+    const cand = rows
+      .map((r, i) => ({ r, i }))
+      .filter(x => !used.has(x.i))
+      .sort((a, b) =>
+        (Math.abs(a.r.press - w.press) * 4 + Math.abs(a.r.moves - w.moves) / 22) -
+        (Math.abs(b.r.press - w.press) * 4 + Math.abs(b.r.moves - w.moves) / 22))
+      .slice(0, 6);
+    for (const c of cand) {
+      const s2 = stampStar(c.r, k * 7919 + 101);
+      if (!s2) continue;
+      used.add(c.i); p = c.r; st = s2; swapped++; break;
+    }
+  }
   if (!st) { noStar++; continue; }
   // 🔴 별을 얹고 **별 없는 최단이 그대로인지** 확인한다. 안 그러면 1별 커트가 어긋난다.
   const a = E.solve({ grid: st.grid, gravity: true, clear: 'all', id: 'c' });
@@ -174,7 +204,7 @@ for (let k = 0; k < picked.length; k++) {
     press: +p.press.toFixed(4), traps: p.traps || 0, gim: p.gim || 'none',
   });
 }
-console.log('별 박은 판 ' + out.length + ' · 자리 못 찾은 판 ' + noStar +
+console.log('별 박은 판 ' + out.length + ' · 갈아 끼운 판 ' + swapped + ' · 끝내 못 박은 판 ' + noStar +
             ' · 별 때문에 최단이 바뀐 판 ' + moved);
 
 const d = JSON.parse(fs.readFileSync(LP, 'utf8'));
