@@ -95,7 +95,7 @@ for (const l of d.levels) {
   const a = E.solve({ grid, gravity: true, clear: 'all', id: l.id });
   const s = E.solve({ grid, gravity: true, clear: 'all', id: l.id }, { needStar: true });
   l.grid = grid; l.best = a.moves; l.sol = a.path;
-  if (s.ok) { l.bestStar = s.moves; l.cut = s.moves + Math.max(6, Math.ceil(s.moves * 0.4)); }
+  if (s.ok) { l.bestStar = s.moves; l.cut = s.moves + Math.max(2, Math.round(s.moves * 0.10)); }
   added += put; done++;
   console.log(l.id.padEnd(6) + '덤 조각 ' + put + '개 · ' + a.moves + '걸음 (그대로)');
 }

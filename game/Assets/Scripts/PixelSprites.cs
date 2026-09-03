@@ -141,6 +141,95 @@ namespace SlimeEscape
             return _fade;
         }
 
+        static Sprite _soft;
+
+        /// <summary>
+        /// 🔴 **살짝만 둥근 네모** (09-04 사장님). <see cref="Round"/> 는 모서리가 30% 라
+        /// 단추처럼 길게 늘이면 알약이 된다. 이건 6% 라 늘여도 네모로 남는다.
+        ///
+        /// 크게 구워야 한다 — 작게 구워 늘이면 모서리 계단이 그대로 늘어난다.
+        /// </summary>
+        public static Sprite Soft(int size = 96, float radius = 0.06f)
+        {
+            if (_soft != null) return _soft;
+            var t = new Texture2D(size, size, TextureFormat.RGBA32, false) { filterMode = FilterMode.Bilinear };
+            float r = size * radius;
+            for (int y = 0; y < size; y++)
+                for (int x = 0; x < size; x++)
+                {
+                    float dx = Mathf.Max(0f, Mathf.Max(r - (x + 0.5f), (x + 0.5f) - (size - r)));
+                    float dy = Mathf.Max(0f, Mathf.Max(r - (y + 0.5f), (y + 0.5f) - (size - r)));
+                    float d = Mathf.Sqrt(dx * dx + dy * dy);
+                    t.SetPixel(x, y, new Color(1, 1, 1, Mathf.Clamp01(r - d + 0.5f)));
+                }
+            t.Apply();
+            _soft = Sprite.Create(t, new Rect(0, 0, size, size),
+                                  new Vector2(0.5f, 0.5f), size, 0, SpriteMeshType.FullRect);
+            return _soft;
+        }
+
+        static Sprite _speaker;
+
+        /// <summary>
+        /// 🔴 **확성기** (09-04 사장님). 몸통 + 벌어지는 원뿔 + 소리 결 둘.
+        ///
+        /// 이모지로 못 한다 — 잘라낸 글꼴에 없어서 **빌드에서만** 빈칸이 된다
+        /// (rev.7-a 의 ※ 사건). 도형으로도 못 한다 — 사다리꼴도 호도 없다.
+        /// 그래서 <see cref="Drop"/> · <see cref="Fade"/> 처럼 **모양을 직접 굽는다.**
+        ///
+        /// 가장자리는 3×3 으로 재서 부드럽게 한다. 안 그러면 원뿔의 빗변이 계단이 된다.
+        /// </summary>
+        public static Sprite Speaker(int size = 96)
+        {
+            if (_speaker != null) return _speaker;
+            var t = new Texture2D(size, size, TextureFormat.RGBA32, false)
+                    { filterMode = FilterMode.Bilinear, wrapMode = TextureWrapMode.Clamp };
+            for (int y = 0; y < size; y++)
+                for (int x = 0; x < size; x++)
+                {
+                    float a = 0f;
+                    for (int sy = 0; sy < 3; sy++)
+                        for (int sx = 0; sx < 3; sx++)
+                            a += Inside((x + (sx + 0.5f) / 3f) / size,
+                                        (y + (sy + 0.5f) / 3f) / size) ? 1f : 0f;
+                    t.SetPixel(x, y, new Color(1, 1, 1, a / 9f));
+                }
+            t.Apply();
+            _speaker = Sprite.Create(t, new Rect(0, 0, size, size),
+                                     new Vector2(0.5f, 0.5f), size, 0, SpriteMeshType.FullRect);
+            return _speaker;
+        }
+
+        /// 확성기 안쪽인가. u·v 는 0~1 (v 는 아래가 0)
+        static bool Inside(float u, float v)
+        {
+            float dy = Mathf.Abs(v - 0.5f);
+
+            //  몸통 — 네모
+            if (u >= 0.13f && u <= 0.34f && dy <= 0.14f) return true;
+
+            //  원뿔 — 오른쪽으로 갈수록 벌어진다
+            if (u > 0.34f && u <= 0.56f)
+            {
+                float k = (u - 0.34f) / 0.22f;
+                if (dy <= Mathf.Lerp(0.14f, 0.38f, k)) return true;
+            }
+
+            //  소리 결 둘 — 원뿔 입 앞쪽으로 퍼지는 두 겹
+            float ex = u - 0.56f;
+            if (ex > 0.01f)
+            {
+                float d = Mathf.Sqrt(ex * ex + dy * dy);
+                //  앞쪽 100도 안에서만 (뒤로 감기면 원이 된다)
+                if (Mathf.Abs(Mathf.Atan2(v - 0.5f, ex)) < 0.90f)
+                {
+                    if (Mathf.Abs(d - 0.13f) < 0.030f) return true;
+                    if (Mathf.Abs(d - 0.24f) < 0.030f) return true;
+                }
+            }
+            return false;
+        }
+
         public static Sprite Round(int size = 48, float radius = 0.30f)
         {
             if (_round != null) return _round;

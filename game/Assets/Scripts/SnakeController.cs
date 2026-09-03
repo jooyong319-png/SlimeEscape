@@ -532,6 +532,37 @@ namespace SlimeEscape
         bool _askReset;
         const string IntroKey = "snakeSeenIntro";
 
+        /// <summary>
+        /// 🔴 **타이틀 화면** (09-04 사장님). 게임을 켜면 제일 먼저 나온다.
+        ///
+        /// 전에는 켜자마자 설명 화면(처음)이나 판 고르기(두 번째부터)로 떨어졌다 —
+        /// **"게임을 켰다"는 순간이 없었다.** 앱으로 낼 거면 이 자리가 있어야 한다.
+        /// </summary>
+        bool _title = true;
+        bool _settings;                    // 설정 화면
+        /// 설정에 **어디서** 들어왔나 — 0 타이틀 · 1 판 · 2 판 고르기.
+        /// 이게 없으면 판을 하다 설정에 들어갔을 때 타이틀로 튕겨 나간다.
+        int _settingsFrom;
+        bool _askWipe;                     // "새로시작" 이 진행을 지워도 되는지 묻는 중
+        const string MuteKey = "snakeMute";
+        const string VolKey  = "snakeVol";
+        bool _mute;
+        /// 소리 크기 0~1. 🔴 음소거와 **따로** 둔다 —
+        /// 음소거를 풀었을 때 원래 크기로 돌아와야 하기 때문이다.
+        float _volume = 1f;
+        /// 소리 조절이 펼쳐져 있나 (판 화면 위쪽)
+        bool _volPanel;
+        bool _volDrag;
+
+        /// <summary>
+        /// 🔴 **시작 연출** (09-04 사장님: "슬라임이 쏙 들어가는 연출").
+        /// 누르면 곧바로 안 넘어간다 — 타이틀의 슬라임이 홈으로 들어가고,
+        /// 그 빨려듦이 끝나면서 게임으로 넘어간다. **탈출이 곧 시작**이다.
+        /// </summary>
+        float _startAt = -1f;
+        int _startWhat;              // 0 새로 하기 · 1 이어하기
+        const float StartShow = 1.25f;
+
         // ---- 손가락 조작 ----
         // 🔴 휴대폰엔 키보드가 없다. 그리고 한 판에 100걸음을 넘기기도 하므로
         //    스와이프만 두면 손이 아프다 — 방향 패드를 같이 둔다.
@@ -592,8 +623,13 @@ namespace SlimeEscape
             _set = SnakeLevels.Load();
             _gravity = _set.gravity;
             LoadProgress();
-            _intro = PlayerPrefs.GetInt(IntroKey, 0) == 0;
-            _menu  = !_intro;    // 🔴 안내를 이미 본 사람은 바로 판 목록으로. 안 그러면 목록을 볼 길이 없다
+            //  🔴 켜면 **타이틀부터**. 설명은 "새로시작" 을 고른 사람에게만 보여준다 —
+            //     두 번째부터 켠 사람에게 설명을 다시 들이밀 이유가 없다.
+            _mute = PlayerPrefs.GetInt(MuteKey, 0) == 1;
+            _volume = Mathf.Clamp01(PlayerPrefs.GetFloat(VolKey, 1f));
+            _title = true;
+            _intro = false;
+            _menu  = false;
 
             //  🔴 안내판에서 돌 **진짜 게임**을 하나 세운다 (09-03 사장님).
             //     본판과 겹치지 않게 멀리 놓고, 제 카메라로만 비춘다.
@@ -615,15 +651,28 @@ namespace SlimeEscape
             _guideCam.depth = _cam.depth + 1;
             gg.SetActive(true);
 
-            int start = 0;
-            while (start < _set.levels.Length && Cleared(_set.levels[start].id)) start++;
-            Load(start >= _set.levels.Length ? 0 : start);
+            Load(NextUncleared());
         }
 
         /// 테스트 맵 하나. 🔴 판 설계가 아니다 — 움직임만 보려고 둔 것이다.
         /// 넓은 빈 방 + 기둥 몇 개 + 먹이 여럿.
 
         SnakeLevelJson Def => _set.levels[_index];
+
+        /// 이어할 게 있나. 한 판이라도 깼으면 이어하기가 열린다.
+        bool HasSave => _recs != null && _recs.Count > 0;
+
+        /// <summary>
+        /// 🔴 **아직 안 깬 첫 판.** 이어하기가 여기로 바로 간다 (09-04 사장님).
+        /// 목록을 거치지 않는다 — 이어하려는 사람은 이미 어디까지 왔는지 안다.
+        /// 다 깼으면 마지막 판으로.
+        /// </summary>
+        int NextUncleared()
+        {
+            int i = 0;
+            while (i < _set.levels.Length && Cleared(_set.levels[i].id)) i++;
+            return Mathf.Clamp(i, 0, _set.levels.Length - 1);
+        }
 
         int IndexOf(string id)
         {
@@ -635,6 +684,7 @@ namespace SlimeEscape
 
         void Load(int i)
         {
+            _volPanel = false;
             _index = Mathf.Clamp(i, 0, _set.levels.Length - 1);
             //  🔴 밖에서 상태를 알 수 있게 한 줄 남긴다. 화면을 눈으로 확인하지 않고도
             //     "지금 어느 판이 열렸는가"를 로그로 알 수 있어야 자동 확인이 된다 (09-02).
@@ -718,7 +768,7 @@ namespace SlimeEscape
 
         void Ding(int i)
         {
-            if (_demo) return;
+            if (_demo || _mute || _volume <= 0.001f) return;
             if (_audio == null)
             {
                 _audio = gameObject.AddComponent<AudioSource>();
@@ -726,7 +776,7 @@ namespace SlimeEscape
                 // 세 음이 올라간다 — A5 · C#6 · E6
                 _dings = new[] { MakeDing(880f, 0.5f), MakeDing(1109f, 0.5f), MakeDing(1319f, 0.7f) };
             }
-            _audio.PlayOneShot(_dings[Mathf.Clamp(i, 0, 2)]);
+            _audio.PlayOneShot(_dings[Mathf.Clamp(i, 0, 2)], _volume);
         }
 
         /// <summary>
@@ -2046,6 +2096,18 @@ namespace SlimeEscape
         // ---------------- 입력 ----------------
         void Update()
         {
+            //  타이틀·설정에서는 판 입력을 안 받는다. 화살표를 눌러도 슬라임이 움직이면 안 된다.
+            if (!_demo && (_title || _settings))
+            {
+                //  🔴 판 1-0 은 안내판 자리를 비워두려고 카메라 폭을 줄여 놓는다.
+                //     타이틀에서는 그 자리를 아무도 안 비춰서 쓰레기 화소가 뜬다
+                //     (09-04 밤에 안내판에서 겪은 그것). 화면을 다 쓰게 되돌린다.
+                if (_cam != null && _cam.rect.width < 0.999f)
+                    _cam.rect = new Rect(0f, 0f, 1f, 1f);
+                Animate(Time.deltaTime);
+                return;
+            }
+
             //  🔴 시범은 사람 입력을 안 받는다. 정해진 방향을 스스로 누르고,
             //     다 하면 처음으로 돌아간다. 그리는 것은 본판과 똑같이 돈다.
             if (_demo)
@@ -2081,8 +2143,14 @@ namespace SlimeEscape
                 while (_shown < 3 && el >= StarLead + _shown * StarBeat)
                 { if (_shown < _resultStars) Ding(_shown); _shown++; }
 
-                if (el > StarLead + 3 * StarBeat &&
-                    (Input.anyKeyDown || Input.GetMouseButtonDown(0) || Input.touchCount > 0))
+                //  🔴 이제 결과 화면에 **단추가 있다.** 마우스·터치로도 넘기면
+                //     단추를 누르는 순간 Update 가 먼저 넘겨버려서, OnGUI 가 화면을
+                //     안 그리고 **단추가 클릭을 받을 기회가 없다.**
+                //     (안내 화면에서 08-30 에 똑같이 겪었다 — "초기화가 안 되는데")
+                //     그래서 여기서는 **키보드만** 받는다. 손가락은 단추가 받는다.
+                bool mouse = Input.GetMouseButtonDown(0) || Input.GetMouseButtonDown(1)
+                          || Input.GetMouseButtonDown(2) || Input.touchCount > 0;
+                if (el > StarLead + 3 * StarBeat && Input.anyKeyDown && !mouse)
                 { AdvanceNow(); return; }
                 Animate(Time.deltaTime);
                 return;
@@ -2097,8 +2165,19 @@ namespace SlimeEscape
                 //     T 를 같은 뜻으로 둔다 — 혼자 확인할 때 필요하다.
                 if (Input.GetKeyDown(KeyCode.F1) || Input.GetKeyDown(KeyCode.T))
                 { _dev = !_dev; if (!_dev) _showPanel = false; }
+                //  🔴 판 고르기에서 **나가는 길**이 없었다. Esc 로 타이틀까지 돌아간다.
+                if (Input.GetKeyDown(KeyCode.Escape)) { _menu = false; _title = true; return; }
                 if (_dev && Input.GetKeyDown(KeyCode.N)) { _menu = false; _allDone = false; Load(_index + 1); return; }
                 if (_dev && Input.GetKeyDown(KeyCode.P)) { _menu = false; _allDone = false; Load(_index - 1); return; }
+                Animate(Time.deltaTime);
+                return;
+            }
+
+            //  🔴 소리 팝업이 열려 있으면 판은 **멈춘 것처럼** 둔다.
+            //     연출은 계속 돌지만 걸음·되돌리기는 안 받는다.
+            if (_volPanel)
+            {
+                if (Input.GetKeyDown(KeyCode.Escape)) _volPanel = false;
                 Animate(Time.deltaTime);
                 return;
             }
@@ -2544,20 +2623,17 @@ namespace SlimeEscape
         {
             float b = Mathf.Clamp(Mathf.Min(w, h) * 0.12f, 46f, 108f);   // 버튼 한 변
             float m = b * 0.28f;                                          // 가장자리 여백
-            var big = new GUIStyle(GUI.skin.button) { fontSize = Px(20 * _uiScale) };
-            var small = new GUIStyle(GUI.skin.button) { fontSize = Px(13 * _uiScale) };
-
-            // 왼쪽 아래 십자
+            // 왼쪽 아래 십자 — 판의 단추와 **같은 말투**로 (형광 테 + 어두운 속)
             float px = m, py = h - m - b * 3f;
-            if (GUI.Button(new Rect(px + b, py, b, b), "↑", big)) Step(SnakeEngine.Dir.Up);
-            if (GUI.Button(new Rect(px, py + b, b, b), "←", big)) Step(SnakeEngine.Dir.Left);
-            if (GUI.Button(new Rect(px + b * 2f, py + b, b, b), "→", big)) Step(SnakeEngine.Dir.Right);
-            if (GUI.Button(new Rect(px + b, py + b * 2f, b, b), "↓", big)) Step(SnakeEngine.Dir.Down);
+            if (Btn(new Rect(px + b, py, b, b), "↑")) Step(SnakeEngine.Dir.Up);
+            if (Btn(new Rect(px, py + b, b, b), "←")) Step(SnakeEngine.Dir.Left);
+            if (Btn(new Rect(px + b * 2f, py + b, b, b), "→")) Step(SnakeEngine.Dir.Right);
+            if (Btn(new Rect(px + b, py + b * 2f, b, b), "↓")) Step(SnakeEngine.Dir.Down);
 
             // 오른쪽 아래 — 되돌리기 · 다시
             float qx = w - m - b * 1.6f;
-            if (GUI.Button(new Rect(qx, py + b, b * 1.6f, b), "되돌리기", small)) Undo();
-            if (GUI.Button(new Rect(qx, py + b * 2f + m * 0.4f, b * 1.6f, b * 0.8f), "다시", small))
+            if (Btn(new Rect(qx, py + b, b * 1.6f, b), "되돌리기")) Undo();
+            if (Btn(new Rect(qx, py + b * 2f + m * 0.4f, b * 1.6f, b * 0.8f), "다시"))
             {
                 if (_run != null) _run.restart++;
                 Restart();
@@ -2579,8 +2655,12 @@ namespace SlimeEscape
             _askReset = false;
             _steps = 0;
             Load(0);
+            //  🔴 화면은 **부르는 쪽이 정한다.** 전에는 여기서 안내 화면을 켰는데,
+            //     새로 하기는 이제 튜토리얼 판으로 바로 간다 (09-04 사장님).
             _menu = false;
-            _intro = true;      // 안내 화면부터 다시
+            _title = false;
+            _settings = false;
+            _intro = false;
         }
 
         /// <summary>
@@ -2636,9 +2716,24 @@ namespace SlimeEscape
                               "새 기록", _sSmall);
             }
 
+            //  🔴 **다시 하기**를 여기 둔다. 별 셋을 놓친 사람은 지금 다시 하고 싶다 —
+            //     전에는 다음 판으로 넘어간 뒤 목록에서 되돌아와야 했다.
             if (el > StarLead + 3 * StarBeat)
-                GUI.Label(new Rect(0, h - 56f * _uiScale, w, 22f * _uiScale),
-                          Touchy ? "화면을 누르면 다음" : "아무 키나 누르면 다음", _sSmall);
+            {
+                float bw2 = Mathf.Clamp(w * 0.20f, 130f, 240f);
+                float bh2 = Mathf.Clamp(h * 0.070f, 36f, 54f);
+                float gap2 = bw2 * 0.12f;
+                float by2 = h - bh2 - h * 0.10f;
+                float bx2 = w * 0.5f - bw2 - gap2 * 0.5f;
+
+                if (Btn(new Rect(bx2, by2, bw2, bh2), "다시 하기"))
+                { _result = false; Restart(); return; }
+                if (Btn(new Rect(bx2 + bw2 + gap2, by2, bw2, bh2), "다음 판"))
+                { AdvanceNow(); return; }
+
+                GUI.Label(new Rect(0, by2 + bh2 + 6f * _uiScale, w, 22f * _uiScale),
+                          "판 고르기로 가려면 뒤로", _sSmall);
+            }
         }
 
         Texture2D _solid;
@@ -2790,12 +2885,13 @@ namespace SlimeEscape
             GUI.color = Color.white;
 
             // ---- 머리글 ----
-            GUI.Label(new Rect(0, 18f * _uiScale, w, 34f * _uiScale),
-                      "제 " + Mathf.Max(1, _set.chapter) + " 굴", _sBig);
+            //  🔴 여기도 나가는 길이 Esc 뿐이었다. 띠를 얹어 타이틀로 돌아간다.
             int got = 0;
             foreach (var l in _set.levels) got += Stars(l);
-            GUI.Label(new Rect(0, 52f * _uiScale, w, 22f * _uiScale),
-                      "★ " + got + " / " + (n * 3), _sMid);
+            float barH = TopBar(w, h, "제 " + Mathf.Max(1, _set.chapter) + " 굴" +
+                                      "    ★ " + got + " / " + (n * 3),
+                                () => { _menu = false; _title = true; }, false, false);
+            _ = barH;
 
             // ---- 가리키는 판 설명 ----
             if (hover >= 0 && Unlocked(hover))
@@ -2854,6 +2950,14 @@ namespace SlimeEscape
         string _demoKeys = "";            // 눌러줄 방향들
         int _demoAt;                      // 지금 몇 번째
         float _demoNext;                  // 다음 걸음 시각
+        /// <summary>
+        /// 🔴 **몰아붙이기.** 타이틀에서 게임으로 넘어갈 때, 남은 걸음을
+        /// 빠르게 밟아 홈까지 들어가게 한다 — 그 빨려듦이 곧 "시작" 연출이다.
+        /// 다 하면 **되돌아가지 않는다.** 빨려드는 걸 끝까지 보여줘야 하니까.
+        /// </summary>
+        bool _demoRush;
+        const float DemoRushStep = 0.11f;
+        public void DemoRush() { _demoRush = true; _demoNext = 0f; }
         /// 시범이 처음부터 끝까지 몇 번 돌았나. 본판이 이걸 보고 장을 넘긴다.
         public int DemoLoops { get; private set; }
         Vector2 _org;                     // 판을 놓을 자리 (시범은 멀리 떨어뜨린다)
@@ -2918,6 +3022,22 @@ namespace SlimeEscape
                     "#####" },
         };
         //  마침표는 **한 박자 쉼** — 상태를 보여주려면 멈출 줄도 알아야 한다
+        /// <summary>
+        /// 🔴 **타이틀에서 도는 판** (09-04 사장님: "실제 플레이어 캐릭터로").
+        /// 장식 그림이 아니라 진짜 게임이다 — 출렁이고 거품 내고 홈으로 빨려든다.
+        /// 조각 하나를 먹고 홈에 들어가는 데까지, **탈출을 되풀이한다.**
+        /// </summary>
+        static readonly string[] TitleMap =
+        {
+            ".....",
+            ".....",
+            "S+.=*",
+            "#####",
+        };
+        const string TitleKeys = ">>>>";
+        /// _guideSlide 에 넣는 표 — 지금 시범이 **타이틀 것**이라는 뜻
+        const int GuideTitle = -2;
+
         static readonly string[] DemoKeys =
         { ">>>>", ">>>", "<<<", ">>>", ">>>", ">>^>", ">>>..>" };
 
@@ -2935,6 +3055,7 @@ namespace SlimeEscape
             _demoAt = 0;
             _demoNext = 0f;
             DemoLoops = 0;
+            _demoRush = false;
             _gravity = gravity;
             _L = SnakeEngine.Parse(grid, "demo", gravity);
             BuildBoard();
@@ -2961,6 +3082,8 @@ namespace SlimeEscape
 
             if (_demoAt >= _demoKeys.Length)
             {
+                //  몰아붙이는 중이면 처음으로 안 돌아간다 — 빨려드는 걸 끝까지 본다
+                if (_demoRush) { _demoNext = float.MaxValue; return; }
                 _demoNext = Time.time + DemoHold;
                 _demoAt = 0;
                 DemoLoops++;
@@ -2971,7 +3094,7 @@ namespace SlimeEscape
             //     먹자마자 다음 걸음을 밟아버리면 "삼킨 조각"이 한 순간에 지나간다.
             if (_demoKeys[_demoAt] != '.') Step(DirOf(_demoKeys[_demoAt]));
             _demoAt++;
-            _demoNext = Time.time + DemoStep;
+            _demoNext = Time.time + (_demoRush ? DemoRushStep : DemoStep);
         }
         /// <summary>
         /// 🔴 한 장에 시범을 **딱 두 번**만 보여준다 (09-03 사장님).
@@ -3021,13 +3144,15 @@ namespace SlimeEscape
             var ts = new GUIStyle(_sMid) { alignment = TextAnchor.UpperCenter, wordWrap = true,
                                            fontSize = Px(Mathf.Clamp(pw * 0.075f, 11f, 22f)) };
             ts.normal.textColor = new Color(1, 1, 1, 0.92f);
-            GUI.Label(new Rect(box.x + pad, h * 0.06f, pw - pad * 2, h * 0.10f), "튜토리얼", ts);
+            //  🔴 상단 띠가 화면 전체 폭이라, 안내판도 그 **아래에서** 시작한다.
+            //     안 내리면 띠의 설정·? 단추가 "튜토리얼" 글자를 덮는다.
+            GUI.Label(new Rect(box.x + pad, h * 0.115f, pw - pad * 2, h * 0.10f), "튜토리얼", ts);
 
             // ---- 무대 ----
             // 🔴 무대는 **격자에 딱 맞춰야** 한다. 상자만 크고 칸이 작으면
             //    격자로 안 읽히고 그냥 빈 검은 상자로 보인다 (08-31 화면).
             float c = Mathf.Floor(Mathf.Min((pw - pad * 2f) / 5f, h * 0.30f / 3f));
-            var stage = new Rect(box.x + (pw - c * 5f) * 0.5f, h * 0.20f, c * 5f, c * 3f);
+            var stage = new Rect(box.x + (pw - c * 5f) * 0.5f, h * 0.245f, c * 5f, c * 3f);
             //  🔴 바탕은 무대에 **딱 붙여** 칠한다. 사이에 틈을 두면
             //     그 띠는 **어느 카메라도 안 지우는 자리**가 되어 쓰레기 화소가 그대로 비친다
             //     (09-03 사장님 화면: 위아래에 흰 줄). 본 카메라는 이 오른쪽을 안 비춘다.
@@ -3043,6 +3168,7 @@ namespace SlimeEscape
                 if (_guideSlide != slide)
                 {
                     _guideSlide = slide;
+                    _guideCam.backgroundColor = StageBg;   // 타이틀에서 BgCol 로 바꿔 놨다
                     _guide.SetupDemo(_guideCam, DemoMap[slide % DemoMap.Length],
                                      DemoKeys[slide % DemoKeys.Length], _gravity);
                 }
@@ -3287,6 +3413,7 @@ namespace SlimeEscape
         void CloseIntro()
         {
             _intro = false;
+            _title = false;
             _menu = true;              // 🔴 안내 다음은 판 고르기다
             PlayerPrefs.SetInt(IntroKey, 1);
             PlayerPrefs.Save();
@@ -3312,6 +3439,493 @@ namespace SlimeEscape
             }
             var t2 = new GUIStyle(st) { alignment = TextAnchor.MiddleLeft };
             GUI.Label(new Rect(x + s * 1.5f, y - 2, 620, s + 4), text, t2);
+        }
+
+        /// <summary>
+        /// 🔴 **상단 띠.** 어느 화면에서나 같은 자리다 — 왼쪽에 나가는 길,
+        /// 가운데에 지금 어디인지, 오른쪽에 도움과 설정.
+        ///
+        /// 이게 없어서 **판에 들어가면 나올 길이 Esc 키뿐**이었다.
+        /// 폰에는 Esc 가 없다 — 한 번 들어가면 그 판을 깨기 전엔 못 나왔다 (09-04 사장님).
+        ///
+        /// 🔴 이모지를 안 쓴다. 잘라낸 글꼴에 없어서 **빌드에서만** 빈칸이 된다
+        /// (rev.7-a 의 ※ 사건과 같은 종류다).
+        /// </summary>
+        /// <summary>
+        /// 🔴 **조용한 단추** (09-04 사장님: "버튼들 때문에 좀 지저분해 보임").
+        ///
+        /// 전에는 홈처럼 형광 테를 둘렀는데, 이 게임에서 형광은 **"여기가 목표다"** 라는 뜻이다.
+        /// 단추마다 두르니 그 뜻이 묽어지고 실제 홈과 경쟁했다 —
+        /// rev.8 의 색 규칙 ③ **색이 있으면 그건 정보다** 를 UI 가 어기고 있었던 것이다.
+        ///
+        /// 그래서 UI 는 무채색만 쓴다. 손이 올라가면 **밝아질 뿐**이다.
+        /// </summary>
+        bool Btn(Rect r, string label, bool on = true)
+        {
+            bool hot = on && r.Contains(Event.current.mousePosition);
+            Color fill = !on ? new Color(1, 1, 1, 0.035f)
+                       : hot ? new Color(1, 1, 1, 0.155f)
+                             : new Color(1, 1, 1, 0.075f);
+            Shape(r, fill, PixelSprites.Soft().texture);
+
+            if (!string.IsNullOrEmpty(label))
+            {
+                var ls = new GUIStyle(_sMid)
+                {
+                    fontSize = Px(Mathf.Clamp(r.height * 0.42f, 12f, 20f)),
+                    alignment = TextAnchor.MiddleCenter,
+                };
+                ls.normal.textColor = !on ? new Color(1, 1, 1, 0.30f)
+                                    : hot ? Color.white
+                                          : new Color(1, 1, 1, 0.78f);
+                GUI.Label(r, label, ls);
+            }
+            return on && GUI.Button(r, GUIContent.none, GUIStyle.none);
+        }
+
+        /// <summary>
+        /// 🔴 **소리 아이콘** — 글자 "소리" 대신 눈금 셋 (09-04 사장님).
+        /// 이모지는 못 쓴다. 잘라낸 글꼴에 없어서 **빌드에서만** 빈칸이 된다
+        /// (rev.7-a 의 ※ 사건과 같은 종류다). 그래서 우리 도형으로 직접 그린다.
+        /// 꺼져 있으면 흐려지고 빗금이 그어진다.
+        /// </summary>
+        void IconSound(Rect r, bool muted)
+        {
+            Color c = muted ? new Color(1, 1, 1, 0.34f) : new Color(1, 1, 1, 0.84f);
+            Shape(r, c, PixelSprites.Speaker().texture);
+            if (muted)
+            {
+                //  꺼진 것은 **빗금**으로. 흐리게만 하면 "덜 중요한 것" 으로 보인다.
+                var mm = GUI.matrix;
+                GUIUtility.RotateAroundPivot(-34f, r.center);
+                Shape(new Rect(r.center.x - r.width * 0.44f, r.center.y - r.height * 0.05f,
+                               r.width * 0.88f, r.height * 0.10f),
+                      new Color(1, 1, 1, 0.78f), PixelSprites.Soft().texture);
+                GUI.matrix = mm;
+            }
+        }
+
+        /// <summary>
+        /// 🔴 **소리 막대.** 유니티 기본 슬라이더는 회색이라 이 게임의 어느 것과도 안 닮았다.
+        /// 홈과 같은 말투로 — 어두운 속에 형광이 찬 만큼 들어찬다.
+        ///
+        /// 끌기는 손을 뗄 때까지 이어진다. 막대 밖으로 나가도 놓치지 않는다.
+        /// </summary>
+        float VolumeBar(Rect r, float v)
+        {
+            var e = Event.current;
+            if (e.type == EventType.MouseDown && r.Contains(e.mousePosition)) _volDrag = true;
+            if (e.rawType == EventType.MouseUp) _volDrag = false;
+            if (_volDrag && (e.type == EventType.MouseDrag || e.type == EventType.MouseDown))
+            {
+                v = Mathf.Clamp01((e.mousePosition.x - r.x) / Mathf.Max(1f, r.width));
+                e.Use();
+            }
+
+            Shape(r, HoleCol, PixelSprites.Soft().texture);
+            if (v > 0.001f)
+            {
+                float fw = Mathf.Max(r.height, r.width * v);
+                Shape(new Rect(r.x, r.y, fw, r.height), FrameCol, PixelSprites.Soft().texture);
+            }
+            //  잡는 자리 — 어디를 끌면 되는지 보여준다
+            float hx = r.x + Mathf.Clamp(r.width * v, r.height * 0.5f, r.width - r.height * 0.5f);
+            Shape(new Rect(hx - r.height * 0.34f, r.y - r.height * 0.34f,
+                           r.height * 0.68f, r.height * 1.68f),
+                  Color.white, PixelSprites.Round().texture);
+            return v;
+        }
+
+        /// <summary>
+        /// 🔴 **가운데 팝업**으로 여는 소리 조절 (09-04 사장님).
+        /// 판 위 구석에 펼치던 것을 화면 한가운데로 옮겼다 — 판을 가리더라도
+        /// 지금 무엇을 만지는지가 분명한 쪽이 낫다.
+        ///
+        /// 게임 안에서는 설정 전체가 아니라 **소리만** 연다.
+        /// 판을 하다 바꾸고 싶은 것은 소리뿐이다.
+        /// </summary>
+        void VolumeModal(float w, float h)
+        {
+            float pw2 = Mathf.Clamp(w * 0.32f, 260f, 420f);
+            float ph2 = Mathf.Clamp(h * 0.30f, 190f, 280f);
+            var box = new Rect(w * 0.5f - pw2 * 0.5f, h * 0.5f - ph2 * 0.5f, pw2, ph2);
+
+            //  뒤를 어둡게. 바깥을 누르면 닫힌다 — 닫는 길이 하나뿐이면 갇힌 느낌이 든다.
+            GUI.DrawTexture(new Rect(0, 0, w, h), Solid(new Color(0, 0, 0, 0.62f)));
+            var ev = Event.current;
+            if (ev.type == EventType.MouseDown && !box.Contains(ev.mousePosition))
+            { _volPanel = false; ev.Use(); return; }
+
+            //  형광 테를 두르면 팝업이 **홈처럼** 보인다. 얇은 회색 선만 남긴다.
+            Shape(box, new Color(1, 1, 1, 0.14f), PixelSprites.Soft().texture);
+            float m2 = Mathf.Max(1.5f, ph2 * 0.008f);
+            Shape(new Rect(box.x + m2, box.y + m2, box.width - m2 * 2f, box.height - m2 * 2f),
+                  new Color(0.055f, 0.065f, 0.078f, 1f), PixelSprites.Soft().texture);
+
+            float ix = box.x + pw2 * 0.10f, iw = pw2 * 0.80f;
+
+            var hs = new GUIStyle(_sMid)
+                     { alignment = TextAnchor.MiddleCenter, fontSize = Px(Mathf.Clamp(ph2 * 0.115f, 14f, 22f)) };
+            hs.normal.textColor = new Color(1, 1, 1, 0.92f);
+            GUI.Label(new Rect(ix, box.y + ph2 * 0.09f, iw, ph2 * 0.16f),
+                      _mute ? "소리 꺼짐" : "소리  " + Mathf.RoundToInt(_volume * 100) + "%", hs);
+
+            var barR = new Rect(ix, box.y + ph2 * 0.36f, iw, Mathf.Max(8f, ph2 * 0.075f));
+            if (_mute)
+            {
+                Shape(barR, HoleCol, PixelSprites.Soft().texture);
+            }
+            else
+            {
+                float nv = VolumeBar(barR, _volume);
+                if (!Mathf.Approximately(nv, _volume))
+                {
+                    _volume = nv;
+                    PlayerPrefs.SetFloat(VolKey, _volume); PlayerPrefs.Save();
+                }
+            }
+
+            //  🔴 단추를 **아래에서부터** 쌓는다. 위에서 내려 쌓았더니 닫기가
+            //     팝업 밑변에 붙어(여백 1.5%) 넘친 것처럼 보였다 (09-04 사장님).
+            float bhh = ph2 * 0.175f, bgap = ph2 * 0.05f;
+            float ybot = box.yMax - ph2 * 0.10f;      // 아래 여백
+            float y2 = ybot - bhh;                    // 닫기
+            float y1 = y2 - bgap - bhh;               // 음소거
+            if (Btn(new Rect(ix, y1, iw, bhh), _mute ? "소리 켜기" : "음소거"))
+            {
+                _mute = !_mute;
+                PlayerPrefs.SetInt(MuteKey, _mute ? 1 : 0); PlayerPrefs.Save();
+            }
+            if (Btn(new Rect(ix, y2, iw, bhh), "닫기")) _volPanel = false;
+        }
+
+        float TopBar(float w, float h, string mid, System.Action back, bool help, bool sound)
+        {
+            //  🔴 **어디서나 같은 자리다.** 가르치는 판만 폭을 72% 로 줄여놨더니
+            //     설정이 화면 오른쪽 끝이 아니라 가운데쯤에, 이름표도 36% 자리에 있었다 —
+            //     같은 것이 화면마다 다른 데 있으면 그게 제일 어색하다 (09-04 사장님).
+            //     안내판 내용은 이 띠 아래에서 시작하게 내려놨다 (Guide 참고).
+            float bw = w;
+            float bh = Mathf.Clamp(h * 0.052f, 30f, 44f);
+            //  🔴 가장자리에서 **떼어 놓는다.** 여백이 10픽셀뿐이라 화면 테두리에 붙어
+            //     "잘린 것" 처럼 보였다 (09-04 사장님 화면). 좌우도 같은 만큼 띄운다.
+            float pad = Mathf.Clamp(h * 0.026f, 14f, 30f);
+
+            //  🔴 어두운 **띠를 안 깐다.** 가르치는 판에서는 이 띠가 화면 72% 에서 뚝 끊기고,
+            //     거기부터 안내판의 다른 어두운 색이 시작해서 위쪽에 이음매가 생겼다
+            //     (09-04 사장님: "상단 버튼 위치가 좀 이상함").
+            //     단추는 테와 속을 이미 갖고 있어서 판 위에 그냥 띄워도 읽힌다.
+
+            //  🔴 글자 대신 **화살표 하나**. 단추가 작아질수록 화면이 조용해진다.
+            float bwid = bh;
+            float by0 = pad, bh0 = bh;
+            if (back != null && Btn(new Rect(pad, by0, bwid, bh0), "←"))
+            { back(); return by0 + bh0; }
+
+            //  가운데 이름표 — 판 위에 글자만 두면 밝은 돌 위에서 안 읽힌다.
+            //  단추와 같은 어두운 속을 깔고 그 위에 쓴다 (테는 없다 — 누르는 게 아니다).
+            var ms = new GUIStyle(_sMid) { fontSize = Px(Mathf.Clamp(bh * 0.40f, 13f, 19f)) };
+            ms.normal.textColor = new Color(1, 1, 1, 0.88f);
+            float mw = Mathf.Max(ms.CalcSize(new GUIContent(mid)).x + bh * 1.1f, bh * 2.6f);
+            var mr = new Rect(bw * 0.5f - mw * 0.5f, by0, mw, bh0);
+            var plate = HoleCol; plate.a = 0.82f;
+            Shape(mr, plate, PixelSprites.Soft().texture);
+            GUI.Label(mr, mid, ms);
+
+            float rx = bw - pad;
+            float sw = sound ? bh : Mathf.Clamp(bh * 1.7f, 56f, 96f);
+            rx -= sw;
+            if (sound)
+            {
+                //  여기서는 **켜기만** 한다. 팝업은 맨 마지막에 그려야 다른 것 위에 온다.
+                var sr = new Rect(rx, by0, sw, bh0);
+                bool click = Btn(sr, null);
+                IconSound(new Rect(sr.x + sr.width * 0.22f, sr.y + sr.height * 0.22f,
+                                   sr.width * 0.56f, sr.height * 0.56f), _mute);
+                if (click) _volPanel = !_volPanel;
+            }
+            else if (Btn(new Rect(rx, by0, sw, bh0), "설정"))
+            {
+                _settingsFrom = _menu ? 2 : 1;
+                _menu = false; _settings = true; _askReset = false; _volPanel = false;
+            }
+            if (help)
+            {
+                float qw = Mathf.Clamp(bh * 0.9f, 30f, 52f);
+                rx -= qw + pad * 0.45f;
+                if (Btn(new Rect(rx, by0, qw, bh0), "?"))
+                { _intro = true; _askReset = false; }
+            }
+            return by0 + bh0;
+        }
+
+        /// <summary>
+        /// 🔴 **테두리 없는 글자 단추** (09-04 사장님: "테두리 두르지 말고 깔끔하게").
+        /// 판 안의 단추(<see cref="Btn"/>)는 홈처럼 테를 두르지만, 타이틀은 글자만 둔다 —
+        /// 여기는 눌러야 할 것이 넷뿐이라 테로 구분해 줄 이유가 없다.
+        ///
+        /// 손이 올라간 줄에만 **작은 마름모**가 왼쪽에 붙는다.
+        /// 색만 바꾸면 어느 줄에 있는지 한눈에 안 들어온다.
+        /// </summary>
+        bool BtnText(Rect r, string label, bool on = true)
+        {
+            bool hot = on && r.Contains(Event.current.mousePosition);
+            var ls = new GUIStyle(_sMid)
+            {
+                fontSize = Px(Mathf.Clamp(r.height * 0.46f, 14f, 24f)),
+                alignment = TextAnchor.MiddleRight,
+            };
+            ls.normal.textColor = !on ? new Color(1, 1, 1, 0.26f)
+                                : hot ? Color.white
+                                      : new Color(1, 1, 1, 0.76f);
+            GUI.Label(r, label, ls);
+
+            if (hot)
+            {
+                //  글자가 오른쪽에 붙어 있으니 표는 **글자 폭을 재서** 그 왼쪽에 둔다
+                float tw = ls.CalcSize(new GUIContent(label)).x;
+                float d = r.height * 0.26f;
+                Shape(new Rect(r.xMax - tw - d * 1.9f, r.center.y - d * 0.58f,
+                               d * 0.80f, d * 1.16f), FrameCol,
+                      PixelSprites.Diamond().texture);
+            }
+            return on && GUI.Button(r, GUIContent.none, GUIStyle.none);
+        }
+
+        /// <summary>
+        /// 시작 연출을 켠다. 🔴 여기서 게임으로 넘어가지 **않는다** —
+        /// 슬라임이 홈에 들어가고 빨려드는 걸 다 보여준 뒤에 넘어간다.
+        /// </summary>
+        void StartShowBegin(int what)
+        {
+            _startWhat = what;
+            _startAt = Time.time;
+            if (_guide != null) _guide.DemoRush();
+        }
+
+        /// <summary>
+        /// 🔴 **타이틀.** 로고는 가운데 위, 고를 것은 오른쪽.
+        ///
+        /// 슬라임 모양은 뺐다 (09-04 사장님) — 뒤에 진짜 슬라임이 돌고 있어서
+        /// 로고의 슬라임과 섞여 보였다. 이름 하나로 간다.
+        /// </summary>
+        void Title(float w, float h)
+        {
+            //  🔴 왼쪽 아래에 **진짜 플레이어 캐릭터**가 돈다 (09-04 사장님, 시안 2).
+            //     뒤의 판을 비추는 게 아니라, 시범 인스턴스로 **작은 판 하나**를 따로 돌린다 —
+            //     그래야 큰 판이 비쳐서 지저분해지는 일이 없다.
+            float sw2 = w * 0.34f, sh2 = h * 0.34f;
+            float sx2 = w * 0.055f, sy2 = h - h * 0.09f - sh2;
+
+            if (_guide != null && _guideCam != null)
+            {
+                if (_guideSlide != GuideTitle)
+                {
+                    _guideSlide = GuideTitle;
+                    _guide.SetupDemo(_guideCam, TitleMap, TitleKeys, _gravity);
+                }
+                //  🔴 배경을 타이틀과 **같은 색**으로. 안내판 무대 색(StageBg) 이면
+                //     여기서 네모난 상자로 떠 보인다.
+                _guideCam.backgroundColor = BgCol;
+                _guideCam.rect = new Rect(sx2 / w, 1f - (sy2 + sh2) / h, sw2 / w, sh2 / h);
+                _guideCam.enabled = true;
+            }
+
+            //  🔴 가림막을 **네 조각**으로 — 슬라임 자리만 비운다.
+            //     통째로 덮으면 IMGUI 가 카메라보다 위라 슬라임이 가려진다.
+            //     (틈을 두면 어느 카메라도 안 지우는 자리가 생긴다 — 딱 붙인다)
+            var scrim = BgCol; scrim.a = 1f;
+            var st = Solid(scrim);
+            GUI.DrawTexture(new Rect(0, 0, w, sy2), st);
+            GUI.DrawTexture(new Rect(0, sy2 + sh2, w, h - sy2 - sh2), st);
+            GUI.DrawTexture(new Rect(0, sy2, sx2, sh2), st);
+            GUI.DrawTexture(new Rect(sx2 + sw2, sy2, w - sx2 - sw2, sh2), st);
+
+            //  ---- 시작 연출 : 슬라임이 홈으로 들어가는 동안 글자가 사라진다 ----
+            float fade = 1f;
+            if (_startAt >= 0f)
+            {
+                float u = (Time.time - _startAt) / StartShow;
+                fade = Mathf.Clamp01(1f - u / 0.26f);        // 글자·단추가 먼저 빠진다
+                float cover = Mathf.Clamp01((u - 0.74f) / 0.26f);
+
+                if (cover > 0f)
+                {
+                    //  마지막에 화면을 덮는다 — 슬라임 자리까지 같이
+                    var cc = BgCol; cc.a = cover;
+                    GUI.DrawTexture(new Rect(0, 0, w, h), Solid(cc));
+                }
+                if (u >= 1f)
+                {
+                    _startAt = -1f;
+                    if (_guideCam != null) _guideCam.enabled = false;
+                    _title = false;
+                    if (_startWhat == 1)
+                    {
+                        //  목록을 안 거치고 **하던 데로** 바로
+                        _menu = false; Load(NextUncleared());
+                    }
+                    else
+                    {
+                        //  진행을 지우고 **튜토리얼 판(1-0)으로** 바로. ResetAll 이 Load(0) 한다
+                        ResetAll();
+                    }
+                    return;
+                }
+            }
+
+            //  ---- 로고 : 가운데, 위에서 조금 내려온 자리 ----
+            var big = new GUIStyle(_sBig)
+            {
+                fontSize = Px(Mathf.Clamp(Mathf.Min(w, h) * 0.085f, 24f, 64f)),
+                alignment = TextAnchor.MiddleCenter,
+            };
+            big.normal.textColor = new Color(1, 1, 1, 0.96f * fade);
+            float ly = h * 0.145f;
+            float lh = big.fontSize * 1.6f;
+            GUI.Label(new Rect(0, ly, w, lh), "SlimeEscape", big);
+
+            //  이름 아래 얇은 형광 줄 — 글자 폭에 맞춘다
+            float tw2 = big.CalcSize(new GUIContent("SlimeEscape")).x;
+            var rule = FrameCol; rule.a = 0.55f * fade;
+            Bar(new Rect(w * 0.5f - tw2 * 0.34f, ly + lh * 0.86f, tw2 * 0.68f,
+                         Mathf.Max(2f, h * 0.0035f)), rule);
+
+            //  ---- 고를 것 : 오른쪽 ----
+            float rowH = Mathf.Clamp(h * 0.085f, 38f, 64f);
+            float colW = Mathf.Clamp(w * 0.30f, 200f, 380f);
+            float rx = w - Mathf.Clamp(w * 0.10f, 28f, 120f) - colW;
+            float ry = h * 0.44f, gap = rowH * 1.12f;
+
+            //  연출이 도는 동안에는 아무것도 못 누른다 — 두 번 누르면 두 번 넘어간다
+            if (_startAt >= 0f) return;
+
+            if (_askWipe)
+            {
+                var ws = new GUIStyle(_sMid)
+                         { alignment = TextAnchor.MiddleRight,
+                           fontSize = Px(Mathf.Clamp(rowH * 0.36f, 12f, 18f)) };
+                ws.normal.textColor = new Color(1, 0.82f, 0.62f, 0.95f);
+                GUI.Label(new Rect(rx, ry - rowH, colW, rowH), "지금까지 한 것이 지워집니다", ws);
+
+                if (BtnText(new Rect(rx, ry, colW, rowH), "지우고 새로 하기"))
+                { _askWipe = false; StartShowBegin(0); return; }
+                if (BtnText(new Rect(rx, ry + gap, colW, rowH), "그만두기"))
+                { _askWipe = false; return; }
+                return;
+            }
+
+            if (BtnText(new Rect(rx, ry, colW, rowH), "새로 하기"))
+            {
+                if (HasSave) { _askWipe = true; return; }
+                StartShowBegin(0); return;
+            }
+            //  이어할 게 없으면 못 누른다 — BtnText 가 흐리게 그린다
+            if (BtnText(new Rect(rx, ry + gap, colW, rowH), "이어하기", HasSave))
+            { StartShowBegin(1); return; }
+
+            if (BtnText(new Rect(rx, ry + gap * 2f, colW, rowH), "설정"))
+            {
+                //  안 끄면 설정 화면 왼쪽에 슬라임이 그대로 남는다
+                if (_guideCam != null) _guideCam.enabled = false;
+                _title = false; _settingsFrom = 0; _settings = true; return;
+            }
+
+            if (BtnText(new Rect(rx, ry + gap * 3f, colW, rowH), "나가기"))
+            {
+                //  🔴 웹에서는 아무 일도 안 일어난다 — 브라우저 탭은 게임이 못 닫는다.
+                //     윈도우·안드로이드·iOS 에서만 실제로 꺼진다.
+#if UNITY_EDITOR
+                UnityEditor.EditorApplication.isPlaying = false;
+#else
+                Application.Quit();
+#endif
+                return;
+            }
+        }
+
+        /// <summary>
+        /// 설정. 🔴 **정말 쓰는 것만** 둔다 — 안 쓰는 항목을 늘어놓으면
+        /// 고르는 데 시간만 들고, 저마다 저장·불러오기 자리가 하나씩 는다.
+        /// </summary>
+        void Settings(float w, float h)
+        {
+            var scrim2 = BgCol; scrim2.a = 1f;
+            GUI.DrawTexture(new Rect(0, 0, w, h), Solid(scrim2));
+
+            //  타이틀과 **같은 짜임**이라야 넘어갈 때 어색하지 않다 — 오른쪽에 글자만.
+            var big = new GUIStyle(_sBig)
+            {
+                fontSize = Px(Mathf.Clamp(Mathf.Min(w, h) * 0.085f, 24f, 64f)),
+                alignment = TextAnchor.MiddleCenter,
+            };
+            big.normal.textColor = new Color(1, 1, 1, 0.96f);
+            float ly2 = h * 0.17f, lh2 = big.fontSize * 1.6f;
+            GUI.Label(new Rect(0, ly2, w, lh2), "설정", big);
+            float tw3 = big.CalcSize(new GUIContent("설정")).x;
+            var rule2 = FrameCol; rule2.a = 0.55f;
+            Bar(new Rect(w * 0.5f - tw3 * 0.60f, ly2 + lh2 * 0.86f, tw3 * 1.20f,
+                         Mathf.Max(2f, h * 0.0035f)), rule2);
+
+            float bh = Mathf.Clamp(h * 0.085f, 38f, 64f);
+            float bw = Mathf.Clamp(w * 0.30f, 200f, 380f);
+            float bx = w - Mathf.Clamp(w * 0.10f, 28f, 120f) - bw;
+            float by = h * 0.44f, gap = bh * 1.12f;
+
+            //  판 안의 소리 조절과 **같은 막대**를 쓴다 — 두 군데 생김새가 다르면 딴 기능처럼 보인다
+            var vr = new Rect(bx, by + bh * 0.42f, bw, Mathf.Max(6f, bh * 0.16f));
+            if (_mute)
+            {
+                Shape(vr, HoleCol, PixelSprites.Round().texture);
+            }
+            else
+            {
+                float nv2 = VolumeBar(vr, _volume);
+                if (!Mathf.Approximately(nv2, _volume))
+                {
+                    _volume = nv2;
+                    PlayerPrefs.SetFloat(VolKey, _volume); PlayerPrefs.Save();
+                }
+            }
+            var vs = new GUIStyle(_sSmall)
+                     { alignment = TextAnchor.MiddleRight, fontSize = Px(Mathf.Clamp(bh * 0.30f, 11f, 16f)) };
+            vs.normal.textColor = new Color(1, 1, 1, _mute ? 0.30f : 0.72f);
+            GUI.Label(new Rect(bx, by - bh * 0.05f, bw, bh * 0.42f),
+                      _mute ? "소리 꺼짐" : "소리  " + Mathf.RoundToInt(_volume * 100) + "%", vs);
+
+            if (BtnText(new Rect(bx, by + gap, bw, bh), _mute ? "소리 켜기" : "음소거"))
+            {
+                _mute = !_mute;
+                PlayerPrefs.SetInt(MuteKey, _mute ? 1 : 0); PlayerPrefs.Save();
+            }
+            if (BtnText(new Rect(bx, by + gap * 2f, bw, bh), "조작 안내 다시 보기"))
+            { _settings = false; _intro = true; return; }
+
+            if (_askReset)
+            {
+                if (BtnText(new Rect(bx, by + gap * 3f, bw, bh), "정말 지웁니다"))
+                {
+                    _settings = false; ResetAll();
+                    //  지우고 나면 타이틀로 — 거기서 이어하기가 흐려진 걸 봐야 지워진 게 보인다
+                    _title = true; _guideSlide = -1;
+                    return;
+                }
+                if (BtnText(new Rect(bx, by + gap * 4f, bw, bh), "그만두기"))
+                { _askReset = false; return; }
+            }
+            else
+            {
+                if (BtnText(new Rect(bx, by + gap * 3f, bw, bh), "진행 지우기"))
+                { _askReset = true; return; }
+                if (BtnText(new Rect(bx, by + gap * 4f, bw, bh), "돌아가기"))
+                {
+                    _settings = false;
+                    if (_settingsFrom == 2) _menu = true;
+                    else if (_settingsFrom == 1) { }        // 판으로 그냥 돌아간다
+                    else _title = true;
+                    return;
+                }
+            }
         }
 
         void Intro(float w, float h)
@@ -3380,13 +3994,20 @@ namespace SlimeEscape
             if (_demo) return;          // 시범은 판만 보여준다. 글자는 본판이 그린다.
             //  🔴 안내판이 안 뜨는 판에서는 시범 카메라를 꺼둔다.
             //     안 끄면 화면 한 귀퉁이에 시범이 그대로 남는다.
-            if (_guideCam != null && _guideCam.enabled && (!Def.tutorial || _menu || _intro))
+            //  타이틀은 시범을 **직접 켠다** (아래 Title 참고). 여기서 끄면 안 된다.
+            if (_guideCam != null && _guideCam.enabled && !_title
+                && (!Def.tutorial || _menu || _intro || _settings))
                 _guideCam.enabled = false;
             Styles();
             float w = Screen.width, h = Screen.height;
             var def = Def;
             int filled = SnakeEngine.Filled(_L, _st);
             int need = _L.Target.Count;
+
+            //  🔴 타이틀·설정이 제일 앞이다. 뒤에 두면 판 화면이 먼저 그려져
+            //     한 프레임 깜빡인다.
+            if (_title)   { Title(w, h); return; }
+            if (_settings) { Settings(w, h); return; }
 
             if (_intro)
             {
@@ -3431,7 +4052,18 @@ namespace SlimeEscape
 
             // 🔴 가르치는 판은 **오른쪽 안내판이 전부**다. 판 위에는 아무것도 안 얹는다.
             //    제목·남은 홈·걸음·커트가 네 줄로 쌓여 어디를 볼지 몰랐다 (08-31).
-            if (def.tutorial) { Guide(w, h); return; }
+            //  🔴 튜토리얼 판은 여기서 **빠져나간다.** 띠를 아래에 두면 안 그려진다
+            //     (09-04 사장님: "튜토리얼 스테이지에서는 버튼 안 보여").
+            if (def.tutorial)
+            {
+                Guide(w, h);
+                string ts0 = "";
+                int tg = Stars(def);
+                for (int k = 0; k < 3; k++) ts0 += k < tg ? "★" : "☆";
+                TopBar(w, h, def.id + "   " + ts0, () => { _menu = true; _volPanel = false; }, true, true);
+                if (_volPanel) VolumeModal(w, h);
+                return;
+            }
 
             // ---- 플레이어가 보는 것 : 번호 · 남은 홈 · 조작. 그게 전부다 ----
             // 🔴 판 이름은 없앴다. 생성기가 붙인 이름은 열네 판이 전부 "홈 하나"라
@@ -3463,6 +4095,14 @@ namespace SlimeEscape
                 GUI.Label(new Rect(0, 88, w, 20),
                     string.Join(" › ", _trail.GetRange(Mathf.Max(0, _trail.Count - 6), Mathf.Min(6, _trail.Count))),
                     _sSmall);
+
+            //  🔴 상단 띠 — **나가는 길**이 여기 있다. 이기든 지든 늘 보인다.
+            {
+                string stars = "";
+                int got = Stars(def);
+                for (int k = 0; k < 3; k++) stars += k < got ? "★" : "☆";
+                TopBar(w, h, def.id + "   " + stars, () => { _menu = true; _volPanel = false; }, true, true);
+            }
 
             if (_won)
             {
@@ -3510,11 +4150,6 @@ namespace SlimeEscape
                           ? "← ↑ ↓ →      Space  몸 놓기      Z  되돌리기      R  처음부터"
                           : "← ↑ ↓ →      Z  되돌리기      R  처음부터", _sSmall);
 
-                // 🔴 다시 볼 길을 남긴다. 한 번 보고 잊으면 물어볼 데가 없다.
-                var qs = new GUIStyle(GUI.skin.button) { fontSize = Mathf.RoundToInt(15 * _uiScale) };
-                float qb = Mathf.Clamp(28f * _uiScale, 28f, 56f);
-                if (GUI.Button(new Rect(w - qb - 10, 10, qb, qb), "?", qs)) { _intro = true; _askReset = false; }
-
                 // 🔴 안내는 필요한 순간에만 뜬다. 늘 떠 있으면 아무도 안 읽는다.
                 //    (08-30 동생 둘 다: "처음에 뭘 하라는 건지 모르겠다" — 가만히 있는
                 //     설명은 안 읽힌다. **지금 상태를 보고** 다음 한 가지만 말해준다)
@@ -3534,6 +4169,9 @@ namespace SlimeEscape
                     $"정답 재생 중  {_replayAt}/{def.sol.Length}   (아무 키나 누르면 멈춤)", _sMid);
 
             if (Touchy && !_replay) Pad(w, h);
+
+            //  🔴 팝업은 **맨 마지막**에 그린다. 앞에 두면 십자·힌트 단추가 그 위에 얹힌다.
+            if (_volPanel) VolumeModal(w, h);
 
             // ---- 개발자가 보는 것 : F1 ----
             if (!_dev) { GUI.Label(new Rect(w - 60, h - 22, 52, 18), "F1", _sSmall); return; }

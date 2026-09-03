@@ -1,0 +1,21 @@
+[Licensing::Module] Trying to connect to existing licensing client channel...
+Built from '6000.3/staging' branch; Version is '6000.3.22f1 (1c726e1fb402) revision 1864302'; Using compiler version '194234433'; Build Type 'Release'
+OS: 'Windows 11  (10.0.22621) Core' Language: 'ko' Physical Memory: 32703 MB
+[Licensing::IpcConnector] Successfully connected to: "LicenseClient-jooy3" at "2026-09-03T01:30:21.0995703Z"
+BatchMode: 1, IsHumanControllingUs: 0, StartBugReporterOnCrash: 0, Is64bit: 1
+System  architecture: x64
+Process architecture: x64
+Date: 2026-09-03T01:30:21Z
+
+COMMAND LINE ARGUMENTS:
+C:\Program Files\Unity\Hub\Editor\6000.3.22f1\Editor\Unity.exe
+-batchmode
+-quit
+-nographics
+-projectPath
+d:\Make_game\SlimeEscape\game
+-logFile
+d:\Make_game\SlimeEscape\compile.log
+Successfully changed project path to: d:\Make_game\SlimeEscape\game
+D:/Make_game/SlimeEscape/game
+Exiting without the bug reporter. Application will terminate with return code 1

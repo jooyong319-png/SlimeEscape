@@ -67,7 +67,11 @@ for (const b of HUNT) {
       pool.push({
         doors: b.d, shape, grid: st.grid, best: a.moves, sol: a.path,
         bestStar: st.moves, det: st.det,
-        cut: st.moves + Math.max(6, Math.ceil(st.moves * 0.4)),
+        // 🔴 커트는 **별을 먹은 최단(bestStar)** 기준이다. 별 없는 최단(best)으로
+        //    잡으면 별을 주우러 도는 걸음이 빠져서 3별이 아예 불가능해진다
+        //    (2026-09-04: 그렇게 잡았다가 47판 중 34판이 불가능해졌다).
+        //    여기 st.moves 는 별을 먹고 돈 값이라 맞다.
+        cut: st.moves + Math.max(2, Math.round(st.moves * 0.10)),
       });
       got++;
       console.log(`[홈${b.d} ${b.lens.join('+')}] ${got}/${b.want}  ${a.moves}걸음  (${((Date.now() - t0) / 1000).toFixed(0)}초)`);
