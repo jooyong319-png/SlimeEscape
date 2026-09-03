@@ -42,8 +42,7 @@ namespace SlimeEscape.EditorTools
             foreach (var d in set.levels)
             {
                 //  🔴 구경용 판은 건너뛴다 — 안 깨지는 게 정상이다
-                if (d.demo) { log.Append($"· {d.id} 구경용 — 건너뜀
-"); continue; }
+                if (d.demo) { log.Append($"· {d.id} 구경용 — 건너뜀\n"); continue; }
                 //  🔴 **안 쟴 판을 달리 센다.** 상태가 40만을 넘으면
                 //     측정을 포기하고 lost 가 0 으로 남는다. 그걸 "쉽다"로 읽으면
                 //     **제일 큰 판 다섯이 항상 경고로 뜼다** — 빨간불이 틀리면

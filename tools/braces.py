@@ -17,6 +17,7 @@ os.chdir(ROOT)
 for p in sorted(glob.glob('Scripts/*.cs') + glob.glob('Editor/*.cs')):
     t = io.open(p, encoding='utf-8').read()
     out, i, n = [], 0, len(t)
+    broke = 0            # 문자열이 줄을 넘어버린 줄 번호
     st = None
     while i < n:
         c = t[i]; d = t[i:i+2]
@@ -38,14 +39,27 @@ for p in sorted(glob.glob('Scripts/*.cs') + glob.glob('Editor/*.cs')):
             if c == '"': st = None
             i += 1; continue
         if st in ('str', 'chr'):
+            #  🔴 **끊긴 문자열**을 잡는다 (2026-09-05, 네 번째다).
+            #     패치를 헤어독으로 넘길 때 \\n 이 **진짜 줄바꿈**으로 바뀌어
+            #     C# 문자열이 거기서 끝나버렸다. 괄호는 멀줦하게 맞아서 안 걸렸다.
+            #     @"" 는 줄을 넘어도 되므로('verb') 여기는 안 온다.
+            if c == chr(10):
+                nl = t.count(chr(10), 0, i) + 1
+                broke = broke or nl
+                st = None; out.append(c); i += 1; continue
             if c == BS: i += 2; continue
             if (st == 'str' and c == '"') or (st == 'chr' and c == "'"): st = None
             i += 1; continue
 
     s = ''.join(out)
     pairs = {'{': '}', '(': ')', '[': ']'}
-    stack, err = [], None
+    #  🔴 끊긴 문자열을 **먼저** 말한다 — 그게 원인이고 괄호는 결과다
+    err = None
+    if broke:
+        err = '%d번째 줄 문자열이 줄을 넘어간다 (\\n 이 진짜 줄바꿈이 됐나?)' % broke
+    stack = []
     for k, ch in enumerate(s):
+        if err: break
         if ch in pairs: stack.append((ch, k))
         elif ch in '}])':
             if not stack or pairs[stack[-1][0]] != ch:
