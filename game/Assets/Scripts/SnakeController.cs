@@ -456,7 +456,9 @@ namespace SlimeEscape
         //    09-05: 덤 조각 공정으로 47판을 통째 갈았다 → rev3.
         //    09-05 밤: rev.11 기믹 공정으로 47판을 또 통째 갈았다 → rev4.
         //    09-05 낮: 길게 다시 뽑은 47판 → rev5.
-        const string ProgressKey = "snakeRecords_rev7";
+        //  🔴 rev.12 에서 판이 통째로 바뀌었다 — 옛 기록을 그대로 두면
+        //     안 깬 판에 별이 붙어 있다 (09-05 화면에서 0~6번에 별이 남아 있었다).
+        const string ProgressKey = "snakeRecords_rev8";
         readonly Dictionary<string, int> _recs = new Dictionary<string, int>();
 
         bool Cleared(string id) => _recs.ContainsKey(id);
@@ -1377,25 +1379,34 @@ namespace SlimeEscape
                     //  🔴 얼음 — 바닥보다 밝은 판에 **가로 결** 둘. 결이 누운 쪽이 곧 미끄러지는 쪽이다.
                     if (!wall && _L.Ice.Contains(c))
                     {
+                        //  🔴 **얼음은 물건이 아니라 바닥이다** (09-05 화면).
+                        //     둥근 네모로 그렸더니 낱개 블록으로 보여 **상자와 헷갈렸다.**
+                        //     칸 끝까지 네모로 채워 옆 칸과 이어 붙인다 — 여러 칸이 한 장의
+                        //     언 바닥으로 읽혀야 "여기 들어가면 쭉 미끄러진다"가 보인다.
                         var ice = NewSprite("Ice", -3);
-                        ice.sprite = PixelSprites.Round();
+                        ice.sprite = PixelSprites.Solid();
                         ice.transform.position = (Vector3)CellPos(c) + new Vector3(0, 0, -0.008f);
-                        ice.transform.localScale = new Vector3(0.98f, 0.98f, 1f);
+                        ice.transform.localScale = new Vector3(1f, 1f, 1f);
                         ice.color = IceCol;
-                        for (int k = 0; k < 2; k++)
+                        //  결 — 가늘고 길게. 누운 쪽이 곧 미끄러지는 쪽이다.
+                        for (int k = 0; k < 3; k++)
                         {
                             var ln = NewSprite("IceLine", -2);
                             ln.sprite = PixelSprites.Solid();
-                            ln.transform.position = (Vector3)CellPos(c)
-                                + new Vector3(k == 0 ? -0.06f : 0.08f, k == 0 ? 0.16f : -0.14f, -0.009f);
-                            ln.transform.localScale = new Vector3(k == 0 ? 0.44f : 0.34f, 0.045f, 1f);
-                            var lc = IceLine; lc.a = 0.30f;
+                            float oy = k == 0 ? 0.24f : k == 1 ? 0.02f : -0.22f;
+                            float ox = k == 0 ? -0.10f : k == 1 ? 0.12f : -0.04f;
+                            ln.transform.position = (Vector3)CellPos(c) + new Vector3(ox, oy, -0.009f);
+                            ln.transform.localScale = new Vector3(k == 1 ? 0.62f : 0.40f, 0.030f, 1f);
+                            var lc = IceLine; lc.a = k == 1 ? 0.34f : 0.24f;
                             ln.color = lc;
                         }
                         //  지나가는 빛 한 줄기 — Animate 에서 좌우로 흐른다
                         var sh = NewSprite("IceShine", -2);
-                        sh.sprite = PixelSprites.Solid();
-                        sh.transform.localScale = new Vector3(0.16f, 0.7f, 1f);
+                        //  🔴 **가장자리가 있으면 기둥으로 읽힌다** (09-05 확대 화면).
+                        //     각진 네모를 세워 놨더니 가로 결과 싸워 얼음 위에 막대가 섰다.
+                        //     부드러운 것으로 바꾸고 아주 흐리게 — 무늬가 아니라 **윤기**다.
+                        sh.sprite = PixelSprites.Soft();
+                        sh.transform.localScale = new Vector3(0.34f, 0.86f, 1f);
                         var sc2 = IceShine; sc2.a = 0f;
                         sh.color = sc2;
                         _iceShines.Add((c, sh));
@@ -1420,15 +1431,18 @@ namespace SlimeEscape
                         //  금 둘 — 갈라진 자리
                         cr.l1 = NewSprite("CrackLine", -2);
                         cr.l1.sprite = PixelSprites.Solid();
-                        cr.l1.transform.position = (Vector3)CellPos(c) + new Vector3(-0.12f, 0.02f, -0.010f);
-                        cr.l1.transform.localScale = new Vector3(0.055f, 0.62f, 1f);
-                        cr.l1.transform.localRotation = Quaternion.Euler(0, 0, 24f);
+                        //  🔴 둘을 서로 반대로 기울였더니 「V」 자로 읽혔다 (09-05 화면).
+                        //     글자처럼 보이면 무늬가 아니라 표시가 된다 — **같은 쪽**으로 눕혀
+                        //     엇갈리게 놓는다. 그래야 쪼개진 결로 보인다.
+                        cr.l1.transform.position = (Vector3)CellPos(c) + new Vector3(-0.14f, 0.08f, -0.010f);
+                        cr.l1.transform.localScale = new Vector3(0.050f, 0.56f, 1f);
+                        cr.l1.transform.localRotation = Quaternion.Euler(0, 0, 22f);
                         cr.l1.color = CrackLine;
                         cr.l2 = NewSprite("CrackLine", -2);
                         cr.l2.sprite = PixelSprites.Solid();
-                        cr.l2.transform.position = (Vector3)CellPos(c) + new Vector3(0.16f, -0.10f, -0.010f);
-                        cr.l2.transform.localScale = new Vector3(0.045f, 0.42f, 1f);
-                        cr.l2.transform.localRotation = Quaternion.Euler(0, 0, -34f);
+                        cr.l2.transform.position = (Vector3)CellPos(c) + new Vector3(0.13f, -0.16f, -0.010f);
+                        cr.l2.transform.localScale = new Vector3(0.040f, 0.34f, 1f);
+                        cr.l2.transform.localRotation = Quaternion.Euler(0, 0, 30f);
                         cr.l2.color = CrackLine;
                         _cracks.Add(cr);
                     }
@@ -2200,8 +2214,9 @@ namespace SlimeEscape
                 isr.transform.position = (Vector3)CellPos(ic)
                     + new Vector3(Mathf.Lerp(-0.62f, 0.62f, u), 0f, -0.0095f);
                 var sc3 = IceShine;
-                //  가장자리에선 안 보이고 가운데를 지날 때만 — 스치는 빛으로 읽힌다
-                sc3.a = 0.22f * Mathf.Sin(u * Mathf.PI);
+                //  가장자리에선 안 보이고 가운데를 지날 때만 — 스치는 빛으로 읽힌다.
+                //  🔴 0.22 는 너무 진했다 (막대로 보였다). 있는 듯 없는 듯이 남긴다.
+                sc3.a = 0.085f * Mathf.Sin(u * Mathf.PI);
                 isr.color = sc3;
             }
 
@@ -2237,8 +2252,8 @@ namespace SlimeEscape
                 {
                     //  밟고 있으면 금이 굵고 진해진다
                     float wgt = load ? 1.9f : 1f;
-                    cr.l1.transform.localScale = new Vector3(0.055f * wgt, 0.62f, 1f);
-                    cr.l2.transform.localScale = new Vector3(0.045f * wgt, 0.42f, 1f);
+                    cr.l1.transform.localScale = new Vector3(0.050f * wgt, 0.56f, 1f);
+                    cr.l2.transform.localScale = new Vector3(0.040f * wgt, 0.34f, 1f);
                     var lc1 = CrackLine; lc1.a = load ? 1f : 0.75f;
                     cr.l1.color = lc1; cr.l2.color = lc1;
                     //  밟으면 살짝 내려앉는다 — 무게가 실린 것으로 읽힌다
@@ -2258,8 +2273,8 @@ namespace SlimeEscape
                 cr.slab.transform.localScale = new Vector3(0.94f * (1f - 0.22f * t), 0.94f * (1f - 0.30f * t), 1f);
                 cr.slab.transform.localRotation = Quaternion.Euler(0, 0, -18f * e);
                 cr.top.transform.position = (Vector3)CellPos(cr.cell) + new Vector3(0, 0.40f + dy, -0.009f);
-                cr.l1.transform.position = (Vector3)CellPos(cr.cell) + new Vector3(-0.12f, 0.02f + dy, -0.010f);
-                cr.l2.transform.position = (Vector3)CellPos(cr.cell) + new Vector3(0.16f, -0.10f + dy, -0.010f);
+                cr.l1.transform.position = (Vector3)CellPos(cr.cell) + new Vector3(-0.14f, 0.08f + dy, -0.010f);
+                cr.l2.transform.position = (Vector3)CellPos(cr.cell) + new Vector3(0.13f, -0.16f + dy, -0.010f);
                 if (t >= 1f)
                 {
                     cr.slab.enabled = false; cr.top.enabled = false;
