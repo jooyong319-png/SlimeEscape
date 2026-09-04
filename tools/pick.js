@@ -26,8 +26,25 @@ console.log('못', pool.length, '· 잰 판', stat.length);
 
 // 잰 값과 판을 붙인다. **못 잰 판은 버린다** — 못 잰 걸 곡선에 끼우면
 // 압박을 0 으로 보고 앞쪽에 몰아넣게 된다 (그게 09-04 의 '길이 곡선' 이었다).
-const rows = stat.map(r => Object.assign({}, r, pool[r.i]))
-                 .filter(r => r.grid && r.moves >= 8);
+//  🔴 **못 잰 판도 쓴다** (09-05 밤). 재는 게 비싼 것과 판이 안 좋은 것은 다르다 —
+//     상태가 커서 못 잰 판이 곧 **긴 판**이라, 버리면 뒤쪽이 또 짧아진다.
+//     실제로 35걸음 넘는 판 47개 중 35개가 '못 잰 판' 이었다.
+//     못 잰 판은 압박을 **모른다**(null)고 두고, 길이로 고른다.
+const byIdx = new Map(stat.map(r => [r.i, r]));
+const rows = pool.map((p, i) => {
+  const s = byIdx.get(i);
+  return Object.assign({}, s || {}, p, {
+    moves: p.best,
+    //  크기는 격자에서 바로 읽는다 — 잰 값에만 있으면 못 잰 판이 undefined 로 찍힌다
+    w: p.grid[0].length, h: p.grid.length,
+    doors: p.doors,
+    press: s ? s.press : null,
+    back: s ? s.back : 0,
+    tight: s ? s.tight : 0,
+    states: s ? s.states : 0,
+  });
+}).filter(r => r.grid && r.moves >= 8);
+console.log('그중 압박을 못 잰 판 ' + rows.filter(r => r.press === null).length + '개 — 길이로만 본다');
 //  🔴 **기믹이 정말 쓰이는지 여기서 다시 본다** (09-05 밤).
 //     못을 만들 때 한 번 걸렀는데, 그 뒤 **덤 조각을 얹으면서 정답이 바뀌어**
 //     기믹이 안 쓰이게 된 판이 생겼다. 하필 그게 포탈 첫 등장 판이었다 —
@@ -92,8 +109,12 @@ for (const w of want) {
     const gOver = gimCount[gm] >= (gimQuota[gm] || 0) ? 3.0 : 0;
     //  홈은 난이도가 아니라 **보기의 결**이다 — 부드럽게 민다 (09-05 측정:
     //  홈 1/2/3 압박 중앙값이 14.3/13.9/14.1% 로 같았다). 다만 첫 판은 단순해야 한다.
-    const d = Math.abs(dr - w.doors) * 0.35 + over + gOver
-            + Math.abs(r.press - w.press) * 4.0
+    //  앞쪽에서는 홈 개수를 더 세게 본다 — 첫 판이 홈 둘이면 시작이 무겁다
+    const doorW = (picked.length / N) < 0.25 ? 1.6 : 0.3;
+    const d = Math.abs(dr - w.doors) * doorW + over + gOver
+            //  압박을 모르는 판은 **중간쯤 페널티**를 준다 — 아는 판이 같은 조건이면 이기되,
+            //  길이가 훨씬 잘 맞으면 모르는 판도 뽑히게 (길이 20 차이 = 0.9 이다)
+            + (r.press === null ? 0.35 : Math.abs(r.press - w.press) * 4.0)
             //  🔴 걸음 무게를 60 으로 나눴더니 **압박이 다 이겨서** 8걸음짜리가 여덟 판
             //     뽑혔다 (뒤쪽에 셋이 연달아 왔다). 09-05 에 "길이 곡선"을 버렸다고
             //     이번엔 길이를 아예 안 본 것이다 — 둘 다 봐야 한다.
@@ -121,8 +142,13 @@ for (const w of want) {
     ord.forEach((idx, pos) => { out[idx] = pos; });
     return out;
   };
-  const rm = rank(r => r.moves), rp = rank(r => r.press);
-  const scored = picked.map((r, i) => ({ r, s: rm[i] + rp[i] * 1.5 }));
+  //  못 잰 판은 압박 등수를 **가운데**로 놓는다 (모르는 것을 0 으로 치면 앞으로 쏠린다)
+  const known = picked.filter(r => r.press !== null).map(r => r.press).sort((a, b) => a - b);
+  const midPress = known.length ? known[Math.floor(known.length / 2)] : 0.1;
+  const rm = rank(r => r.moves), rp = rank(r => r.press === null ? midPress : r.press);
+  //  🔴 **길이에 더 무게**를 준다 (09-05 사장님: "게임이 너무 쉽다").
+  //     사람이 느끼는 어려움은 길이 쪽이 컸다 — 압박은 거들게 둔다.
+  const scored = picked.map((r, i) => ({ r, s: rm[i] * 1.6 + rp[i] * 0.9 }));
   scored.sort((x, y) => x.s - y.s);
   picked.length = 0;
   scored.forEach(x => picked.push(x.r));
@@ -162,7 +188,12 @@ picked.forEach((r, k) => {
 const avg = f => picked.reduce((s, r) => s + f(r), 0) / picked.length;
 const mix = [1, 2, 3].map(d => d + '홈 ' + picked.filter(r => r.doors === d).length).join(' · ');
 console.log('-'.repeat(58));
-console.log('평균 압박 ' + (avg(r => r.press) * 100).toFixed(1) + '%' +
+{
+  const k = picked.filter(r => r.press !== null);
+  console.log('압박 잰 판 ' + k.length + '/' + picked.length +
+              ' · 그중 평균 ' + (k.reduce((s, r) => s + r.press, 0) / Math.max(1, k.length) * 100).toFixed(1) + '%');
+}
+console.log('평균 압박 ' + (avg(r => r.press || 0) * 100).toFixed(1) + '%' +
             ' · 되짚기 ' + (avg(r => r.back) * 100).toFixed(0) + '%' +
             ' · 걸음 ' + avg(r => r.moves).toFixed(0) +
             ' · 덤 ' + avg(r => r.traps || 0).toFixed(1) + '개');
@@ -197,7 +228,15 @@ let noStar = 0, moved = 0, swapped = 0;
 //  🔴 별을 못 박은 판을 그냥 버리면 **판 수가 모자라진다** (09-05 에 47 -> 45 가 됐다).
 //     자리를 더 뒤져보고, 그래도 안 되면 **비슷한 판으로 갈아 끼운다.**
 function stampStar(p, seed) {
-  return putStar(p.grid, p.moves, rng(seed), p.doors >= 3 ? 28 : 40, p.doors >= 3 ? 5 : 8);
+  //  🔴 먼저 한 번 풀어 **그 판이 얼마나 무거운지** 본다. 별 자리 시험은 그 세 배에서 끊는다.
+  //     안 끊으면 못 가는 자리 하나에 수십 초가 간다 (09-05 밤에 70분을 헛돌았다).
+  const base = E.solve({ grid: p.grid, gravity: true, clear: 'all', id: 's' }, { cap: 1200000 });
+  if (!base.ok) return null;
+  const cap = Math.min(1200000, base.states * 3 + 50000);
+  //  무거운 판은 시험 자리도 줄인다 — 어차피 한 자리만 되면 충분하다
+  const heavy = base.states > 150000;
+  const tries = heavy ? 12 : (p.doors >= 3 ? 28 : 40);
+  return putStar(p.grid, base.moves, rng(seed), tries, p.doors >= 3 ? 5 : 8, cap);
 }
 for (let k = 0; k < picked.length; k++) {
   let p = picked[k];
@@ -228,7 +267,8 @@ for (let k = 0; k < picked.length; k++) {
     best: a.moves, sol: a.path,
     bestStar: st.moves, cut: cutOf(st.moves),
     lost: 0, tight: p.tight, backtrack: p.back, states: p.states,
-    press: +p.press.toFixed(4), traps: p.traps || 0, gim: p.gim || 'none',
+    //  -1 = 못 쟀다 (0 이 아니다 — 0 이면 '쉽다'로 잘못 읽힌다)
+    press: p.press === null ? -1 : +p.press.toFixed(4), traps: p.traps || 0, gim: p.gim || 'none',
   });
 }
 console.log('별 박은 판 ' + out.length + ' · 갈아 끼운 판 ' + swapped + ' · 끝내 못 박은 판 ' + noStar +

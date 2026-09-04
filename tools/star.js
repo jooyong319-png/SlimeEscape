@@ -9,7 +9,7 @@ const E = require('./engine.js').SlimeEngine;
 
 /// 별 자리 — 칸마다 다시 푸는 건 너무 느리다. 몇 개만 뽑아 보고 충분하면 멈춘다.
 /// grid 에 'o' 를 하나 얹은 판과, 별을 먹고 도는 최단(moves), 돌아가는 값(det)을 준다.
-function putStar(grid, base, r, tries, goodEnough) {
+function putStar(grid, base, r, tries, goodEnough, cap) {
   const G = grid.map(row => row.split(''));
   const H = G.length, W = G[0].length;
   const cells = [];
@@ -23,7 +23,11 @@ function putStar(grid, base, r, tries, goodEnough) {
     const g2 = grid.map(row => row.split(''));
     g2[y][x] = 'o';
     const gg = g2.map(row => row.join(''));
-    const s = E.solve({ grid: gg, gravity: true, clear: 'all', id: 's' }, { needStar: true });
+    //  🔴 **상한을 건다** (09-05 밤). 별을 못 가는 자리에 놓으면 솔버가 판 전체를
+    //     다 뒤진 뒤에야 "안 된다"고 한다 — 긴 판에선 그게 수십 초다.
+    //     마흔 자리를 시험하니 한 판에 몇 분이 갔다. 넘으면 그냥 다음 자리로 간다.
+    const s = E.solve({ grid: gg, gravity: true, clear: 'all', id: 's' },
+                      cap ? { needStar: true, cap } : { needStar: true });
     if (!s.ok) continue;
     const det = s.moves - base;
     if (!best || det > best.det) best = { grid: gg, det, moves: s.moves };

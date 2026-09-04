@@ -41,6 +41,11 @@ function addTraps(grid, want) {
   const def = { grid, gravity: true, clear: 'all', id: 't' };
   const base = E.solve(def);
   if (!base.ok) return null;
+  //  🔴 **시험 풀이는 일찍 끊는다** (09-05 밤). 긴 판이 들어오면서 한 판에 3분씩 걸렸다 —
+  //     후보 칸마다 판 전체를 상한 120만까지 다시 풀고 있었다.
+  //     조각을 하나 얹어 상태가 원래의 세 배를 넘으면 그건 **다른 판이 된 것**이라
+  //     어차피 안 받는다. 그러니 거기서 끊는 게 맞다.
+  const trialCap = Math.min(1200000, base.states * 3 + 40000);
   const walked = headPath(E.parse(def), base.path);
   const G = grid.map(r => r.split(''));
   const H = G.length, W = G[0].length;
@@ -56,12 +61,20 @@ function addTraps(grid, want) {
       if (near) cand.push([x, y]);
     }
 
-  let put = 0;
+  //  🔴 후보를 다 훑지 않는다. 긴 판은 빈 칸이 백 개가 넘어 그것만으로 몇 분이 간다.
+  //     섞어서 앞에서부터 스물다섯 개만 본다 — 세 개 얹는 데 그만하면 넉넉하다.
+  for (let i = cand.length - 1; i > 0; i--) {
+    const j = (i * 2654435761 + cand.length) % (i + 1);
+    const tmp = cand[i]; cand[i] = cand[j]; cand[j] = tmp;
+  }
+  let put = 0, tried = 0;
   for (const [x, y] of cand) {
-    if (put >= want) break;
+    //  🔴 열 번만 본다. 세 개 얹는 데 그만하면 넉넉하고, 스물다섯 번은 두 배 반 느리다.
+    if (put >= want || tried >= 10) break;
+    tried++;
     G[y][x] = '+';
     const g2 = G.map(r => r.join(''));
-    const a = E.solve({ grid: g2, gravity: true, clear: 'all', id: 't' });
+    const a = E.solve({ grid: g2, gravity: true, clear: 'all', id: 't' }, { cap: trialCap });
     if (a.ok && a.moves === base.moves && a.shortest === 1) put++;
     else G[y][x] = '.';
   }
@@ -77,8 +90,23 @@ const start = out.length;
 console.log(IN, '—', pool.length, '개 ·', WANT, '개씩 얹는다' +
             (start ? ' · ' + start + '개는 이미 했다' : ''));
 let none = 0;
+//  🔴 **긴 판에는 안 얹는다** (09-05 밤). 긴 판은 바탕 풀이부터 무거워
+//     한 판에 3분씩 걸렸다 — 360판이면 열 시간이다.
+//     그리고 긴 판은 **이미 길이로 어렵다.** 덤 조각이 제일 값어치 있는 자리는
+//     짧은 판이다 (거기엔 길이 말고 어려울 거리가 없다).
+const LONG = +(process.env.LONG || 30);
+let skipped = 0;
 for (let i = start; i < pool.length; i++) {
   const p = pool[i];
+  if (p.best > LONG) {
+    skipped++;
+    out.push(Object.assign({}, p, { traps: 0 }));
+    if ((i + 1) % 20 === 0) {
+      fs.writeFileSync(OUT, JSON.stringify(out, null, 1) + '\n');
+      process.stderr.write('  ' + (i + 1) + '/' + pool.length + ' (저장함)\n');
+    }
+    continue;
+  }
   const r = addTraps(p.grid, WANT);
   if (!r) { none++; out.push(Object.assign({}, p, { traps: 0 })); continue; }
   //  🔴 정답 수순은 그대로다 (최단해가 안 바뀌는 것만 받았다). 그래도 다시 풀어 못박는다.
