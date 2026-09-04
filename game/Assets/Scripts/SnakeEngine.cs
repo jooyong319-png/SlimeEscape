@@ -482,6 +482,19 @@ namespace SlimeEscape
 
             var ns = new State(body, fm, pg, st.Dm, sc, st.Pm, bx);
 
+            // 🔴 **포탈로 나온 자리에서 도로 떨어져 오면 그 걸음은 막힌다** (09-05 사장님:
+            //    "포탈을 밑에서 위로 가면 이상해"). 나온 자리가 허공이면 그대로 떨어져
+            //    **출발 자리로 돌아온다** — 판 반대편으로 번쩍했다 끌려오는 걸로 보인다.
+            //    ⚠️ 몸이 길면 떨어진 자리가 **제 몸과 겹친다** — 자기 몸 검사를 포탈 나온
+            //       칸에서만 했기 때문이다. 🔴 tools/engine.js 와 **같아야 한다.**
+            if (warped)
+            {
+                if (ns.Body[0] == st.Body[0]) return false;
+                for (int i = 1; i < ns.Body.Count; i++)
+                    for (int j = 0; j < i; j++)
+                        if (ns.Body[i] == ns.Body[j]) return false;
+            }
+
             // 🔴 문이 채워졌나 — 채워졌으면 **몸을 자물쇠에 두고 핵만 남는다.**
             int opened = MatchDoor(L, ns);
             if (opened >= 0 && (ns.Dm & (1 << opened)) == 0)

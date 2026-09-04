@@ -255,11 +255,13 @@
     //       그래서 settle() 은 포탈을 안 본다. 포탈 위에 내려앉는 건 그냥 그 칸에 서는 것이다.
     //    ⚠️ 한 번만 통한다 — 나간 자리가 또 포탈이어도 다시 안 보낸다.
     let nh = ny * L.w + nx;
+    let warped = false;
     if (L.portal.size) {
       const hit = L.portal.get(nh);
       //  그 짝의 홈을 채웠을 때만 켜진다. 안 켜졌으면 그냥 바닥이다.
       if (hit && ((st.dm || 0) & (1 << hit[1]))) {
         nh = hit[0];
+        warped = true;
         if (isBlocked(L, nh, st.dm || 0)) return null;
       }
     }
@@ -301,6 +303,17 @@
     const r = settle(L, body, grows ? (st.fm | (1 << fi)) : st.fm, pg, st.dm || 0, sc, st.pm || 0, bx);
     if (!r) return null;
     const ns = { body: r.body, fm: r.fm, pg: r.pg, sc: r.sc, dm: st.dm || 0, pm: st.pm || 0, bx: r.bx };
+
+    // 🔴 **포탈로 나온 자리에서 도로 떨어져 오면 그 걸음은 막힌다** (rev.11, 09-05 사장님:
+    //    "포탈을 밑에서 위로 가면 이상해"). 아래에서 위로 들어가면 나온 자리가 허공이라
+    //    그대로 떨어져 **출발 자리로 돌아온다** — 판 반대편으로 번쩍했다 끌려오는 걸로 보인다.
+    //    ⚠️ 그리고 몸이 길면 떨어진 자리가 **제 몸과 겹친다.** 자기 몸 검사는 포탈 나온 칸에서
+    //       했지 떨어진 뒤 자리에서는 안 했기 때문이다. 둘 다 여기서 막는다.
+    if (warped) {
+      if (ns.body[0] === st.body[0]) return null;              // 아무것도 안 바뀐 걸음
+      for (let i = 1; i < ns.body.length; i++)                 // 몸이 겹쳤다
+        for (let j = 0; j < i; j++) if (ns.body[i] === ns.body[j]) return null;
+    }
 
     // 🔴 문이 채워졌나 — 채워졌으면 **몸을 자물쇠에 두고 핵만 남는다.**
     //    (몸이 문 칸을 정확히 덮고 있으므로, 남는 몸의 모양은 곧 그 문이다)

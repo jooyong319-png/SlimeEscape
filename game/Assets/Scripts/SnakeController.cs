@@ -17,6 +17,8 @@ namespace SlimeEscape
         // ⚠ 판 크기는 이제 고정이 아니다. 판마다 grid에서 읽는다(_L.W/_L.H).
         //    이 상수는 판이 없을 때의 기본값으로만 쓴다.
         public const int BoardW = 20, BoardH = 12;
+        //  이 묶음에서 제일 큰 판 (판 자료를 읽을 때 한 번 잰다). 0 이면 아직 안 쟀다.
+        int _setW, _setH;
 
         // ⚠️ 색 컨셉은 **아직 안 정해졌다** (09-02).
         //
@@ -434,7 +436,7 @@ namespace SlimeEscape
         //    09-05: 덤 조각 공정으로 47판을 통째 갈았다 → rev3.
         //    09-05 밤: rev.11 기믹 공정으로 47판을 또 통째 갈았다 → rev4.
         //    09-05 낮: 길게 다시 뽑은 47판 → rev5.
-        const string ProgressKey = "snakeRecords_rev5";
+        const string ProgressKey = "snakeRecords_rev6";
         readonly Dictionary<string, int> _recs = new Dictionary<string, int>();
 
         bool Cleared(string id) => _recs.ContainsKey(id);
@@ -675,6 +677,15 @@ namespace SlimeEscape
             if (_cam.GetComponent<AudioListener>() == null) _cam.gameObject.AddComponent<AudioListener>();
 
             _set = SnakeLevels.Load();
+            //  🔴 묶음에서 제일 큰 판을 한 번 잰다 — 카메라 배율의 기준이 된다.
+            //     구경용 판도 센다. 그것만 크면 다른 판이 다 작아지니 그때는 빼야 한다.
+            _setW = _setH = 0;
+            foreach (var lv in _set.levels)
+            {
+                if (lv?.grid == null || lv.grid.Length == 0) continue;
+                if (lv.grid[0].Length > _setW) _setW = lv.grid[0].Length;
+                if (lv.grid.Length > _setH) _setH = lv.grid.Length;
+            }
             _gravity = _set.gravity;
             LoadProgress();
             //  🔴 켜면 **타이틀부터**. 설명은 "새로시작" 을 고른 사람에게만 보여준다 —
@@ -997,7 +1008,14 @@ namespace SlimeEscape
             float mg = _demo ? 0.45f : 0.9f;
             float fit = Mathf.Max(halfH + mg, (halfW + mg) / asp);
             // 작은 화면에선 읽기를 택한다 (2026-08-29)
-            float refFit = Mathf.Max(BoardH * 0.5f + 0.6f, (BoardW * 0.5f + 0.6f) / asp);
+            //  🔴 **한 묶음 안에서는 칸 크기가 안 바뀌어야 한다** (09-05 사장님:
+            //     "27,28,31,41은 갑자기 카메라가 작아진다 — 맵이 작아보여").
+            //     기준이 20x12 로 못박혀 있어서 그보다 높은 판만 축소됐다 —
+            //     세로 15칸짜리는 15x7 짜리보다 칸이 40% 작게 보인다. 판마다 튄다.
+            //     기준을 **이 묶음에서 제일 큰 판**으로 잡으면 모두 같은 배율이 된다.
+            //     작은 판은 여백이 넓어질 뿐, 칸 크기는 그대로다.
+            float refW = _setW > 0 ? _setW : BoardW, refH = _setH > 0 ? _setH : BoardH;
+            float refFit = Mathf.Max(refH * 0.5f + 0.9f, (refW * 0.5f + 0.9f) / asp);
             //  🔴 시범은 **기준 판 크기(20×12)를 안 본다.** 그걸 최소 배율로 삼으면
             //     5×3 짜리 시범이 큰 판 기준으로 축소돼 점처럼 작아진다 (09-03 사장님 화면).
             float size = Mathf.Max(_demo ? 0f : refFit, fit);
