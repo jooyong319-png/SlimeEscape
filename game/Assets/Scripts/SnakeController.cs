@@ -436,7 +436,7 @@ namespace SlimeEscape
         //    09-05: 덤 조각 공정으로 47판을 통째 갈았다 → rev3.
         //    09-05 밤: rev.11 기믹 공정으로 47판을 또 통째 갈았다 → rev4.
         //    09-05 낮: 길게 다시 뽑은 47판 → rev5.
-        const string ProgressKey = "snakeRecords_rev6";
+        const string ProgressKey = "snakeRecords_rev7";
         readonly Dictionary<string, int> _recs = new Dictionary<string, int>();
 
         bool Cleared(string id) => _recs.ContainsKey(id);
