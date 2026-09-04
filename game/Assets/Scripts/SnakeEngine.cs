@@ -508,6 +508,18 @@ namespace SlimeEscape
                 for (int i = 1; i < ns.Body.Count; i++)
                     for (int j = 0; j < i; j++)
                         if (ns.Body[i] == ns.Body[j]) return false;
+                // 🔴 **사슬은 한 군데만 끊길 수 있다** (09-05 사장님).
+                //    몸이 포탈에 걸쳐 있는데 머리가 **또** 들어가면 두 군데가 끊긴다:
+                //      ㅁㅁ(포탈)ㅁㅇ  ← 왼쪽 →  ㅁㅇ(포탈)ㅁㅁ
+                //    한 몸이 판 여기저기 흩어지는 셈이라 무슨 일이 난 건지 안 읽힌다.
+                //    🔴 tools/engine.js 와 **같아야 한다.**
+                int breaks = 0;
+                for (int i = 1; i < ns.Body.Count; i++)
+                {
+                    int a = ns.Body[i - 1], b = ns.Body[i];
+                    if (System.Math.Abs(L.X(a) - L.X(b)) + System.Math.Abs(L.Y(a) - L.Y(b)) != 1) breaks++;
+                }
+                if (breaks > 1) return false;
             }
 
             // 🔴 문이 채워졌나 — 채워졌으면 **몸을 자물쇠에 두고 핵만 남는다.**

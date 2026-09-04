@@ -23,7 +23,26 @@ for (const l of d.levels) {
   if (!a.ok) { console.log('🔴 ' + l.id + ' 안 풀린다 — 빼야 한다'); broke++; continue; }
   const s = solve(l.grid, { needStar: true });
   const nb = a.moves, ns = s.ok ? s.moves : a.moves;
-  if (nb === l.best && ns === l.bestStar && a.shortest === 1) { same++; continue; }
+  //  🔴 **걸음 수가 같아도 그 길이 아직 통하는지 되짚어 봐야 한다** (09-05).
+  //     1-4 는 best 가 22 로 그대로였는데 적어둔 수순이 막혀 있었다 —
+  //     규칙이 바뀌면서 같은 길이의 **다른 길**만 남은 것이다.
+  //     걸음 수만 보고 "그대로"라고 하면 거짓말을 그대로 둔다.
+  let solOk = false;
+  try {
+    const L = E.parse({ grid: l.grid, gravity: true, clear: 'all', id: l.id });
+    let st = E.startState(L);
+    solOk = true;
+    for (const ch of (l.sol || '')) {
+      const dir = { '↑': 0, '↓': 1, '←': 2, '→': 3, '↧': 4 }[ch];
+      if (dir === undefined) continue;
+      const nx = E.step(L, st, dir);
+      if (!nx) { solOk = false; break; }
+      st = nx;
+    }
+    if (solOk) solOk = E.isWin(L, st);
+  } catch (e) { solOk = false; }
+  if (solOk && nb === l.best && ns === l.bestStar && a.shortest === 1) { same++; continue; }
+  if (!solOk) console.log('  ' + l.id.padEnd(7) + '적어둔 수순이 막혔다 — 다시 박는다');
   console.log('  ' + l.id.padEnd(7) + '걸음 ' + l.best + '→' + nb +
               ' · 별먹고 ' + l.bestStar + '→' + ns +
               (a.shortest !== 1 ? ' · ⚠️ 최단해가 ' + a.shortest + '개' : ''));

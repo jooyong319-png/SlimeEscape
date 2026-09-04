@@ -326,6 +326,19 @@
       if (ns.body[0] === st.body[0]) return null;              // 아무것도 안 바뀐 걸음
       for (let i = 1; i < ns.body.length; i++)                 // 몸이 겹쳤다
         for (let j = 0; j < i; j++) if (ns.body[i] === ns.body[j]) return null;
+      // 🔴 **사슬은 한 군데만 끊길 수 있다** (09-05 사장님).
+      //    몸이 포탈에 걸쳐 있는데 머리가 **또** 포탈로 들어가면 사슬이 두 군데 끊긴다:
+      //      ㅁㅁ(포탈)ㅁㅇ  ← 왼쪽 →  ㅁㅇ(포탈)ㅁㅁ
+      //    한 몸이 판 여기저기에 흩어지는 셈이라 무슨 일이 난 건지 안 읽힌다.
+      //    한 번 걸친 동안은 **다 나올 때까지** 다시 못 들어간다.
+      let breaks = 0;
+      for (let i = 1; i < ns.body.length; i++) {
+        const a = ns.body[i - 1], b = ns.body[i];
+        const dx = Math.abs((a % L.w) - (b % L.w));
+        const dy = Math.abs(((a / L.w) | 0) - ((b / L.w) | 0));
+        if (dx + dy !== 1) breaks++;
+      }
+      if (breaks > 1) return null;
     }
 
     // 🔴 문이 채워졌나 — 채워졌으면 **몸을 자물쇠에 두고 핵만 남는다.**
