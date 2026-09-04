@@ -2497,11 +2497,26 @@ namespace SlimeEscape
             //    머리가 걸음만 했을 때의 줄보다 얼마나 아래에 있는지가 곧 낙하 칸수다.
             int steppedRow = fromHead / _L.W + SnakeEngine.Delta[(int)dir].dy;
             _fall = Mathf.Max(0, _st.Head / _L.W - steppedRow);
+            // 🔴 **포탈을 지났으면 낙하 칸수를 못 센다** (09-05 사장님: "몸이 휘이익").
+            //    위 셈은 "머리가 걸음만 했을 때의 줄보다 얼마나 아래인가" 인데,
+            //    포탈은 머리를 판 반대편으로 보내버려서 7 같은 엉뚱한 값이 나온다.
+            //    그러면 _mid[i] = 몸[i] - 7*가로 가 **음수 칸**이 되어 화면 밖으로 날아간다.
+            //    건너뛴 걸음은 낙하 연출을 안 쓴다 — 어차피 뚝 건너가는 걸음이다.
+            {
+                var dl = SnakeEngine.Delta[(int)dir];
+                int stepCell = fromHead + dl.dy * _L.W + dl.dx;
+                if (_L.Portal.Count > 0 && stepCell >= 0 && stepCell < _L.W * _L.H
+                    && _L.Portal.TryGetValue(stepCell, out var hop2)
+                    && (hadDm & (1 << hop2.Door)) != 0)
+                    _fall = 0;
+            }
             _landed = _fall == 0;
 
             // 떨어지기 직전 자리 = 최종 자리에서 낙하한 만큼 도로 올린 것
             _mid.Clear();
-            for (int i = 0; i < _st.Length; i++) _mid.Add(CellPos(_st.Body[i] - _fall * _L.W));
+            //  🔴 판 밖 칸은 안 만든다 — 음수가 들어오면 화면 밖 좌표가 나온다
+            for (int i = 0; i < _st.Length; i++)
+                _mid.Add(CellPos(Mathf.Max(0, _st.Body[i] - _fall * _L.W)));
 
             // 🔴 이번 걸음의 '출발선'을 지금 그려지는 자리로 잡는다.
             //    (걸음이 끝나기 전에 또 누르면 튀지 않게)
