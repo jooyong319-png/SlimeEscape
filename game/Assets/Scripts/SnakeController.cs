@@ -1,4 +1,4 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using UnityEngine;
 
 namespace SlimeEscape
@@ -100,6 +100,19 @@ namespace SlimeEscape
         static readonly Color PortOn   = new Color32(0xa8, 0x75, 0xe8, 0xff);
         static readonly Color PortGlow = new Color32(0x7a, 0x4f, 0xc0, 0xff);
         static readonly Color PortHole = new Color32(0x17, 0x10, 0x28, 0xff);
+        // 🔴 얼음 (rev.12) — 색 규칙 ③ 대로 **무채색**이다. 파란 물감을 쓰면 홈 2(하늘빛)와 다툰다.
+        //    차가움은 중성회색을 **푸른 쪽으로 아주 살짝** 기울여서 낸다.
+        //    ⚠️ "여기서 미끄러진다"를 말하는 건 색이 아니라 **가로 결**이다 —
+        //       결이 좌우로 누워 있으니 좌우로 미끄러진다는 게 그림만 봐도 읽힌다.
+        static readonly Color IceCol   = new Color32(0x22, 0x2a, 0x34, 0xff);  // 얼음판 (바닥보다 밝다)
+        static readonly Color IceLine  = new Color32(0x8f, 0xa6, 0xbe, 0xff);  // 결
+        static readonly Color IceShine = new Color32(0xdf, 0xec, 0xf8, 0xff);  // 미끄러져 지나가는 빛
+        // 🔴 금 간 바닥 (rev.12) — **딛고 설 수 있는 것**이라 벽(Rock)과 같은 계열이다.
+        //    벽과 가르는 건 **따뜻한 쪽으로 기운 어두움 + 금**. "돌인데 삭았다".
+        //    ⚠️ 색을 주면 정보로 읽혀 조각(주황)과 다툰다 — 갈색이 아니라 **따뜻한 회색**이다.
+        static readonly Color CrackCol  = new Color32(0x38, 0x33, 0x2e, 0xff);
+        static readonly Color CrackTop  = new Color32(0x5e, 0x55, 0x4c, 0xff);
+        static readonly Color CrackLine = new Color32(0x14, 0x12, 0x10, 0xff);
         static readonly Color ZoneCol = new Color32(0x3a, 0x40, 0x48, 0xff);
         static readonly Color ZoneDot = new Color32(0x9a, 0xa6, 0xb4, 0xff);
         static readonly Color GateCol  = new Color32(0x3c, 0x44, 0x50, 0xff);
@@ -321,6 +334,13 @@ namespace SlimeEscape
         int _warpIn = -1, _warpOut = -1;
         float _warpT = 9f;
         //  무중력 구역의 떠 있는 점 — (칸, 몇 번째, 그림)
+        //  🔴 얼음 — 결 위를 지나가는 빛. 가만있는 그림이면 "그냥 다른 바닥"으로 읽힌다.
+        readonly List<(int cell, SpriteRenderer sr)> _iceShines
+            = new List<(int, SpriteRenderer)>();
+        //  🔴 금 간 바닥 — 부서지면 사라진다. 부서지는 **동안**을 보여줘야
+        //     "내가 밟아서 무너졌다"가 읽힌다 (그냥 사라지면 버그로 보인다).
+        struct Crack { public int cell; public SpriteRenderer slab, top, l1, l2; public float t; }
+        readonly List<Crack> _cracks = new List<Crack>();
         readonly List<(int cell, int k, SpriteRenderer sr)> _zoneDots
             = new List<(int, int, SpriteRenderer)>();
         readonly Dictionary<int, SpriteRenderer> _gateViews = new Dictionary<int, SpriteRenderer>();
@@ -1337,6 +1357,7 @@ namespace SlimeEscape
             _root = new GameObject("Board").transform;
             _segs.Clear(); _foodViews.Clear(); _foodExtra.Clear(); _links.Clear();
             _zoneDots.Clear(); _boxViews.Clear(); _boxTops.Clear(); _ports.Clear();
+            _iceShines.Clear(); _cracks.Clear();
 
             for (int y = 0; y < _L.H; y++)
                 for (int x = 0; x < _L.W; x++)
@@ -1352,6 +1373,65 @@ namespace SlimeEscape
                     //  빈 칸은 높이에 따라 밝기가 다르다 — 위가 밝고 아래가 가라앉는다
                     sr.color = wall ? Rock
                              : Color.Lerp(FloorLit, FloorDim, _L.H < 2 ? 0f : (float)y / (_L.H - 1));
+
+                    //  🔴 얼음 — 바닥보다 밝은 판에 **가로 결** 둘. 결이 누운 쪽이 곧 미끄러지는 쪽이다.
+                    if (!wall && _L.Ice.Contains(c))
+                    {
+                        var ice = NewSprite("Ice", -3);
+                        ice.sprite = PixelSprites.Round();
+                        ice.transform.position = (Vector3)CellPos(c) + new Vector3(0, 0, -0.008f);
+                        ice.transform.localScale = new Vector3(0.98f, 0.98f, 1f);
+                        ice.color = IceCol;
+                        for (int k = 0; k < 2; k++)
+                        {
+                            var ln = NewSprite("IceLine", -2);
+                            ln.sprite = PixelSprites.Solid();
+                            ln.transform.position = (Vector3)CellPos(c)
+                                + new Vector3(k == 0 ? -0.06f : 0.08f, k == 0 ? 0.16f : -0.14f, -0.009f);
+                            ln.transform.localScale = new Vector3(k == 0 ? 0.44f : 0.34f, 0.045f, 1f);
+                            var lc = IceLine; lc.a = 0.30f;
+                            ln.color = lc;
+                        }
+                        //  지나가는 빛 한 줄기 — Animate 에서 좌우로 흐른다
+                        var sh = NewSprite("IceShine", -2);
+                        sh.sprite = PixelSprites.Solid();
+                        sh.transform.localScale = new Vector3(0.16f, 0.7f, 1f);
+                        var sc2 = IceShine; sc2.a = 0f;
+                        sh.color = sc2;
+                        _iceShines.Add((c, sh));
+                    }
+
+                    //  🔴 금 간 바닥 — 벽처럼 딛고 서지만 지나가면 무너진다.
+                    //     벽 덩어리에 안 붙이고 **낱장**으로 그린다. "이건 따로 떨어진 판이다".
+                    if (!wall && _L.CrackIdx.ContainsKey(c))
+                    {
+                        var cr = new Crack { cell = c, t = 0f };
+                        cr.slab = NewSprite("Crack", -3);
+                        cr.slab.sprite = PixelSprites.Round();
+                        cr.slab.transform.position = (Vector3)CellPos(c) + new Vector3(0, 0, -0.008f);
+                        cr.slab.transform.localScale = new Vector3(0.94f, 0.94f, 1f);
+                        cr.slab.color = CrackCol;
+                        //  윗면 — "딛고 설 수 있다"는 신호. 벽·상자와 같은 말이다.
+                        cr.top = NewSprite("CrackTop", -2);
+                        cr.top.sprite = PixelSprites.Solid();
+                        cr.top.transform.position = (Vector3)CellPos(c) + new Vector3(0, 0.40f, -0.009f);
+                        cr.top.transform.localScale = new Vector3(0.90f, 0.10f, 1f);
+                        cr.top.color = CrackTop;
+                        //  금 둘 — 갈라진 자리
+                        cr.l1 = NewSprite("CrackLine", -2);
+                        cr.l1.sprite = PixelSprites.Solid();
+                        cr.l1.transform.position = (Vector3)CellPos(c) + new Vector3(-0.12f, 0.02f, -0.010f);
+                        cr.l1.transform.localScale = new Vector3(0.055f, 0.62f, 1f);
+                        cr.l1.transform.localRotation = Quaternion.Euler(0, 0, 24f);
+                        cr.l1.color = CrackLine;
+                        cr.l2 = NewSprite("CrackLine", -2);
+                        cr.l2.sprite = PixelSprites.Solid();
+                        cr.l2.transform.position = (Vector3)CellPos(c) + new Vector3(0.16f, -0.10f, -0.010f);
+                        cr.l2.transform.localScale = new Vector3(0.045f, 0.42f, 1f);
+                        cr.l2.transform.localRotation = Quaternion.Euler(0, 0, -34f);
+                        cr.l2.color = CrackLine;
+                        _cracks.Add(cr);
+                    }
 
                     //  🔴 무중력 구역 — 뒷벽처럼 한 겹 깔고, 떠 있는 점 몇 개를 얹는다.
                     //     점이 **안 오르고 제자리에서 흔들리는** 것이 이 칸의 뜻이다
@@ -2110,6 +2190,83 @@ namespace SlimeEscape
                 }
             }
 
+            //  🔴 얼음 — 결 위로 **빛이 한 줄기 흘러간다.** 가만있으면 그냥 다른 바닥으로 읽힌다.
+            //     칸마다 어긋나게 흘려서 판 전체가 한꺼번에 번쩍이지 않게 한다.
+            for (int i = 0; i < _iceShines.Count; i++)
+            {
+                var (ic, isr) = _iceShines[i];
+                if (isr == null) continue;
+                float u = Mathf.Repeat(Time.time * 0.26f + (ic * 0.37f), 1f);
+                isr.transform.position = (Vector3)CellPos(ic)
+                    + new Vector3(Mathf.Lerp(-0.62f, 0.62f, u), 0f, -0.0095f);
+                var sc3 = IceShine;
+                //  가장자리에선 안 보이고 가운데를 지날 때만 — 스치는 빛으로 읽힌다
+                sc3.a = 0.22f * Mathf.Sin(u * Mathf.PI);
+                isr.color = sc3;
+            }
+
+            //  🔴 금 간 바닥 — 세 단계로 말한다.
+            //     ① 평소     : 가는 금
+            //     ② 밟는 중  : **금이 굵어진다** — "곧 무너진다"를 미리 알려준다 (안 알려주면 함정이다)
+            //     ③ 부서짐   : 아래로 기울어 떨어지며 사라진다
+            for (int i = 0; i < _cracks.Count; i++)
+            {
+                var cr = _cracks[i];
+                if (cr.slab == null) continue;
+                bool gone = _L.CrackIdx.TryGetValue(cr.cell, out int cbi)
+                            && (_st.Cm & (1 << cbi)) != 0;
+                if (gone) cr.t = Mathf.Min(1f, cr.t + Time.deltaTime / 0.24f);
+                else if (cr.t > 0f)
+                {
+                    //  🔴 되돌리기(Z)·다시하기(R) — 부서진 게 **도로 붙는다.**
+                    //     안 되돌리면 화면에서만 사라진 채로 남아 판이 깨진 것처럼 보인다.
+                    cr.t = 0f;
+                    cr.slab.enabled = true; cr.top.enabled = true;
+                    cr.l1.enabled = true; cr.l2.enabled = true;
+                    cr.slab.transform.localRotation = Quaternion.identity;
+                    cr.slab.transform.localScale = new Vector3(0.94f, 0.94f, 1f);
+                }
+                _cracks[i] = cr;
+
+                bool load = false;
+                for (int k = 0; k < _st.Body.Count; k++)
+                    if (_st.Body[k] + _L.W == cr.cell) { load = true; break; }
+
+                float t = cr.t;
+                if (t <= 0f)
+                {
+                    //  밟고 있으면 금이 굵고 진해진다
+                    float wgt = load ? 1.9f : 1f;
+                    cr.l1.transform.localScale = new Vector3(0.055f * wgt, 0.62f, 1f);
+                    cr.l2.transform.localScale = new Vector3(0.045f * wgt, 0.42f, 1f);
+                    var lc1 = CrackLine; lc1.a = load ? 1f : 0.75f;
+                    cr.l1.color = lc1; cr.l2.color = lc1;
+                    //  밟으면 살짝 내려앉는다 — 무게가 실린 것으로 읽힌다
+                    float sag = load ? -0.045f : 0f;
+                    cr.slab.transform.position = (Vector3)CellPos(cr.cell) + new Vector3(0, sag, -0.008f);
+                    cr.top.transform.position = (Vector3)CellPos(cr.cell) + new Vector3(0, 0.40f + sag, -0.009f);
+                    continue;
+                }
+                //  🔴 t*t — 처음엔 버티다 **한번에** 무너진다. 등속이면 스르르 사라져 안 읽힌다.
+                float e = t * t;
+                float dy = -e * 1.1f;
+                float al = 1f - t;
+                var sl = CrackCol; sl.a = al; cr.slab.color = sl;
+                var tp = CrackTop;  tp.a = al; cr.top.color  = tp;
+                var ln2 = CrackLine; ln2.a = al * 0.8f; cr.l1.color = ln2; cr.l2.color = ln2;
+                cr.slab.transform.position = (Vector3)CellPos(cr.cell) + new Vector3(0, dy, -0.008f);
+                cr.slab.transform.localScale = new Vector3(0.94f * (1f - 0.22f * t), 0.94f * (1f - 0.30f * t), 1f);
+                cr.slab.transform.localRotation = Quaternion.Euler(0, 0, -18f * e);
+                cr.top.transform.position = (Vector3)CellPos(cr.cell) + new Vector3(0, 0.40f + dy, -0.009f);
+                cr.l1.transform.position = (Vector3)CellPos(cr.cell) + new Vector3(-0.12f, 0.02f + dy, -0.010f);
+                cr.l2.transform.position = (Vector3)CellPos(cr.cell) + new Vector3(0.16f, -0.10f + dy, -0.010f);
+                if (t >= 1f)
+                {
+                    cr.slab.enabled = false; cr.top.enabled = false;
+                    cr.l1.enabled = false; cr.l2.enabled = false;
+                }
+            }
+
             //  🔴 무중력 점은 **제자리에서 떠 있다.** 위로 오르면 홈의 불빛과 헷갈린다.
             for (int i = 0; i < _zoneDots.Count; i++)
             {
@@ -2688,7 +2845,13 @@ namespace SlimeEscape
                 //     사장님이 "포털 들어가면 몸이 늘어난다" 고 하신 게 이것이다.
                 //     ⚠️ **걸음 구간만** 본다. 낙하는 여러 칸이 정상이라 여기서 잡으면 안 된다.
                 Vector2 stepTo = fallSpan <= 0f ? end : _mid[i];
-                bool warp = (stepTo - _from[i]).sqrMagnitude > 2.25f;
+                //  🔴 **얼음 미끄러짐은 건너뛴 게 아니다** (rev.12). 같은 줄을 쭉 밀려간 것이라
+                //     이어 그리는 게 맞다 — 여기서 안 갈라두면 여러 칸 미끄러질 때마다
+                //     몸이 뚝뚝 끊겨 순간이동처럼 보인다.
+                //     ⚠️ 포탈이 있는 판에서는 같은 줄로도 건너뛸 수 있으므로 옛 규칙을 그대로 쓴다.
+                bool slid = _L.Ice.Count > 0 && _L.Portal.Count == 0
+                            && Mathf.Abs(stepTo.y - _from[i].y) < 0.01f;
+                bool warp = !slid && (stepTo - _from[i]).sqrMagnitude > 2.25f;
 
                 if (fallSpan <= 0f)
                 {
@@ -2862,7 +3025,10 @@ namespace SlimeEscape
                 //     그때 이으면 막대가 한 번 번쩍인다.
                 //     ⚠️ 걸을 때도 마디 사이가 **두 칸**까지 벌어진다 (뒤 마디가 늦게 뜬다).
                 //        그래서 세 칸(9)을 넘을 때만 끊는다 — 걸음은 안 건드린다.
-                if (d2.sqrMagnitude > 9f) { _links[i].enabled = false; continue; }
+                //  🔴 얼음 위를 미끄러지는 동안엔 마디 사이가 여러 칸 벌어진다 (뒤 마디가 늦게 뜬다).
+                //     같은 줄이면 그건 늘어난 것이지 끊어진 게 아니다 — 넉넉히 봐준다.
+                float cut = (_L.Ice.Count > 0 && Mathf.Abs(d2.y) < 0.2f) ? 81f : 9f;
+                if (d2.sqrMagnitude > cut) { _links[i].enabled = false; continue; }
                 bool horiz = Mathf.Abs(d2.x) > Mathf.Abs(d2.y);
 
                 //  🔴 **얇은 쪽에 맞춘다.** 굵은 쪽에 맞추면 가는 마디 옆으로
@@ -3348,6 +3514,19 @@ namespace SlimeEscape
                     "...1..",
                     "S+=*..",
                     "######" },
+            //  🔴 얼음 (rev.12) — 한 번 누르면 **끝까지** 간다. 이게 이 기믹의 전부라
+            //     시범도 딱 그것만 보여준다: 오른쪽 한 번, 왼쪽 한 번.
+            new[] { "......",
+                    "......",
+                    "SIIII.",
+                    "######" },
+            //  🔴 금 간 바닥 (rev.12) — 지나가면 무너지고 **돌아올 수 없다.**
+            //     그래서 시범은 돌아오려다 떨어지는 데까지 보여준다. 그게 요점이다.
+            new[] { "......",
+                    "S.....",
+                    "#XXX##",
+                    "......",
+                    "######" },
         };
         //  마침표는 **한 박자 쉼** — 상태를 보여주려면 멈출 줄도 알아야 한다
         /// <summary>
@@ -3368,7 +3547,7 @@ namespace SlimeEscape
 
         static readonly string[] DemoKeys =
         { ">>>>", ">>>", "<<<", ">>>", ">>>", ">>^>", ">>>..>",
-          ">>>^^^", ">>>", ">>>" };
+          ">>>^^^", ">>>", ">>>", ">...<...", ">>>...<" };
 
         /// <summary>
         /// 시범을 세운다. 판은 글자 격자로, 누를 방향은 문자열로 준다.
@@ -3432,7 +3611,7 @@ namespace SlimeEscape
         const int DemoRepeat = 2;
         /// 시범이 어쩌다 안 끝나도 장은 넘어가야 한다 — 마지막 안전장치
         const float SlideMax = 30f;
-        const int Slides = 10;
+        const int Slides = 12;
         int _slide;               // 지금 보고 있는 장
         float _slideAt = -99f;    // 그 장이 뜬 시각
 
@@ -3526,6 +3705,8 @@ namespace SlimeEscape
                 "옅은 칸에서는 떨어지지 않습니다\n몸이 짧아도 오를 수 있습니다",
                 "상자는 옆으로 밀립니다\n밀어 놓고 딛고 설 수 있습니다",
                 "홈을 채우면 같은 번호의 벽이 사라집니다",
+                "얼음 위에서는 멈추지 못합니다\n막힐 때까지 미끄러집니다",
+                "금 간 바닥은 지나가면 무너집니다\n돌아올 수 없습니다",
             };
             var ls = new GUIStyle(_sSmall) { alignment = TextAnchor.UpperCenter, wordWrap = true,
                                              fontSize = Px(Mathf.Clamp(pw * 0.062f, 11f, 17f)) };

@@ -21,7 +21,7 @@
     const g = def.grid.map(r => r.split(''));
     const h = g.length, w = g[0].length;
     let start = null, core = -1;
-    const foods = [], zone = [];
+    const foods = [], zone = [], ice = [], crack = [];
     const gates = [[], [], []];        // 🔴 문벽: gates[i] = i번 문이 열리면 사라지는 칸들
     // 🔴 별 'o' — 먹어도 **몸이 안 자란다**. 문 계산을 건드리면 안 되기 때문이다.
     //    안 먹어도 판은 깨진다. 별 둘/셋을 받으려면 먹어야 한다.
@@ -64,6 +64,15 @@
       //  🔴 미는 상자 'B' — **가로로만** 민다. 떨어지고, 딛고 설 수 있다 (rev.10).
       //     자리가 상태에 들어가므로 솔버가 소코반이 된다 — 판을 작게 써야 한다.
       else if (c === 'B') { boxes.push(y * w + x); g[y][x] = '.'; }
+      //  🔴 얼음 'I' (rev.12) — **좌우로 들어가면 멈출 수 없다.** 막힐 때까지 같은 쪽으로 간다.
+      //     이게 어려운 까닭: 원하는 칸에 서려면 **먼저 뭔가를 갖다 놔야** 한다.
+      //     그 '뭔가'가 자기 몸이라서 "여기 서려고 저기에 몸을 깔아둔다"가 된다 —
+      //     한 수 앞이 아니라 세 수 앞을 보게 만드는 유일한 기믹이다.
+      else if (c === 'I') { ice.push(y * w + x); g[y][x] = '.'; }
+      //  🔴 금 간 바닥 'X' (rev.12) — **벽처럼 딛고 서지만 지나가면 부서진다.**
+      //     되돌아갈 수 없으니 **순서를 처음부터** 정해야 한다. 죽는 건 없다 — 계획 문제다.
+      //     ⚠️ 상태(부서진 마스크)가 늘어나므로 한 판에 열 칸을 넘기지 않는다.
+      else if (c === 'X') { crack.push(y * w + x); g[y][x] = '.'; }
       //  🔴 포탈 (rev.11) — 짝끼리 오간다. **그 짝의 홈을 채워야 켜진다.**
       //     P↔Q 는 홈 1 · p↔q 는 홈 2. 홈 셋짜리는 안 만든다 (채우면 판이 끝나서 쓸 데가 없다).
       else if (c === 'P') { port[0][0] = y * w + x; g[y][x] = '.'; }
@@ -102,6 +111,10 @@
       pads,
       signs,
       padIdx: new Map(pads.map((c, i) => [c, i])),
+      iceSet: new Set(ice),
+      crack,
+      crackIdx: new Map(crack.map((c, i) => [c, i])),
+      hasCrack: crack.length > 0,
       gateSet: gates.map(cs => new Set(cs)),
       hasGates: gates.some(cs => cs.length),
       allDoors: (1 << open.length) - 1,
@@ -116,14 +129,24 @@
 
   const isWall = (L, cell) => L.g[(cell / L.w) | 0][cell % L.w] === '#';
 
+  /// 🔴 지금 몸이 얹혀 있는 금 간 바닥들의 비트. (몸 칸의 **바로 아래**가 금 간 바닥이면 얹힌 것)
+  function loadMask(L, body) {
+    let m = 0;
+    for (const c of body) {
+      const i = L.crackIdx.get(c + L.w);
+      if (i !== undefined) m |= 1 << i;
+    }
+    return m;
+  }
+
   /// 🔴 상자는 **딛고 설 수 있다** — 그게 이 기믹의 전부다 (발판을 스스로 만든다).
   ///    상자를 받쳐주는 것: 판 밖 · 벽 · 닫힌 문벽 · 굳은 몸 · 다른 상자 · 슬라임 몸.
   ///    ⚠️ 슬라임은 자기 몸을 못 딛지만 **상자는 슬라임을 딛는다.**
   ///       안 그러면 몸 위로 상자가 통과해 내려가 그림이 무너진다.
-  function boxHeld(L, c, dm, bxs, bodySet) {
+  function boxHeld(L, c, dm, bxs, bodySet, cm) {
     const below = c + L.w;
     if (below >= L.w * L.h) return true;
-    if (isBlocked(L, below, dm)) return true;
+    if (isBlocked(L, below, dm, cm)) return true;
     if (spent(L, below, dm)) return true;
     if (bxs.has(below)) return true;
     if (bodySet.has(below)) return true;
@@ -138,8 +161,13 @@
     return false;
   }
 
-  function isBlocked(L, cell, dm) {
+  function isBlocked(L, cell, dm, cm) {
     if (isWall(L, cell)) return true;
+    //  🔴 금 간 바닥 — 아직 안 부서졌으면 **벽이다.** 부서지면 그냥 빈칸이 된다.
+    if (L.hasCrack) {
+      const ci = L.crackIdx.get(cell);
+      if (ci !== undefined && !((cm || 0) & (1 << ci))) return true;
+    }
     if (!L.hasGates) return false;
     for (let i = 0; i < L.gateSet.length; i++)
       if (L.gateSet[i].has(cell) && !(dm & (1 << i))) return true;
@@ -149,7 +177,7 @@
   /// 🔬 중력 실험 (L.gravity 가 켜져 있을 때만)
   /// 몸의 어느 칸이든 바로 아래가 벽이면 버틴다. 자기 몸은 지지대가 못 된다 —
   /// 뱀은 통째로 떨어진다(Snakebird와 같다).
-  function supported(L, body, dm) {
+  function supported(L, body, dm, cm) {
     // 🔴 **포탈에 걸쳐 있는 동안은 안 떨어진다** (rev.11, 09-05 사장님 신고).
     //    몸이 포탈을 지나는 동안 두 덩이로 갈리는데, 중력은 몸을 **한 덩어리로** 떨어뜨린다.
     //    그래서 이쪽이 발판을 잃으면 **저쪽 머리까지 포탈 밖으로 흘러내렸다.**
@@ -168,7 +196,7 @@
       //    '지지대'의 뜻을 넓힌 것이다. rev.10 에서 되살렸다 ('~' 는 홈 셋이 가져갔다).
       if (L.zoneSet.has(c)) return true;
       const below = c + L.w;
-      if (below >= L.w * L.h || isBlocked(L, below, dm)) return true;
+      if (below >= L.w * L.h || isBlocked(L, below, dm, cm)) return true;
       // 🔴 두고 온 몸은 **디딤돌**이다 (2026-08-30).
       //    이미 연 문의 칸에는 굳은 몸이 박혀 있다. 지나갈 수는 있지만 **딛고 설 수도 있다.**
       //    이게 없으면 문을 연 뒤 길이 1이 된 핵은 한 칸도 못 올라 갇힌다.
@@ -188,18 +216,23 @@
   ///    다만 낙하 중엔 꼬리가 물러날 자리가 없다 — 거기에 마디를 붙이면 몸이 겹친다.
   ///    그래서 **다음 걸음에 꼬리가 안 물러나는 것**으로 갚는다 (고전 스네이크와 같다).
   ///    { body, fm, pg } 를 돌려준다. pg = 아직 안 갚은 성장 횟수.
-  function settle(L, body, fm, pg, dm, sc, pm, bx) {
+  function settle(L, body, fm, pg, dm, sc, pm, bx, cm, lp) {
     bx = (bx || []).slice();
+    cm = cm || 0;
+    //  🔴 금 간 바닥: lp = **이 걸음 전에** 몸이 얹고 있던 칸들. 거기서 벗어나면 부서진다.
+    if (lp === undefined) lp = L.hasCrack ? loadMask(L, body) : 0;
     body.pm = pm || 0;                 // supported() 가 받침대를 보게 들려 보낸다
     body.bxs = new Set(bx);            // 상자도 같이 들려 보낸다
     sc = sc || 0;
     if (L.star >= 0 && body[0] === L.star) sc = 1;
-    const done = () => ({ body: body, fm: fm, pg: pg, sc: sc, bx: bx });
+    const done = () => ({ body: body, fm: fm, pg: pg, sc: sc, bx: bx, cm: cm });
     if (!L.gravity) return done();
     for (let guard = 0; guard < 128; guard++) {
+      //  🔴 벗어난 금 간 바닥을 여기서 부순다 — 떨어지는 도중에도 계속 무너진다.
+      if (L.hasCrack) { const now = loadMask(L, body); cm |= lp & ~now; lp = now; }
       body.pm = pm || 0;
       body.bxs = new Set(bx);
-      if (!supported(L, body, dm)) {
+      if (!supported(L, body, dm, cm)) {
         const next = body.map(c => c + L.w);
         for (const c of next) if (c >= L.w * L.h) return null;
         next.pm = pm || 0; next.bxs = body.bxs;
@@ -215,7 +248,7 @@
       let moved = false;
       const order = bx.slice().sort((a, b) => b - a);
       for (const c of order) {
-        if (boxHeld(L, c, dm, bxs, bodySet)) continue;
+        if (boxHeld(L, c, dm, bxs, bodySet, cm)) continue;
         const below = c + L.w;
         if (below >= L.w * L.h) return null;
         bx = bx.map(v => (v === c ? below : v));
@@ -229,9 +262,10 @@
 
   /// 상태: { body: [머리, ..., 꼬리], fm }
   const startState = L => {
-    const r = settle(L, [L.start], 0, 0, 0, 0, 0, L.boxes);
-    const st = r || { body: [L.start], fm: 0, pg: 0, sc: 0, bx: (L.boxes || []).slice() };
+    const r = settle(L, [L.start], 0, 0, 0, 0, 0, L.boxes, 0);
+    const st = r || { body: [L.start], fm: 0, pg: 0, sc: 0, bx: (L.boxes || []).slice(), cm: 0 };
     st.pm = 0;
+    st.cm = st.cm || 0;               // 🔴 부서진 바닥 비트마스크
     st.dm = 0;                       // 🔴 열린 문 비트마스크
     st.bx = st.bx || (L.boxes || []).slice();
     return st;
@@ -250,18 +284,19 @@
       mask |= 1 << i;
     }
     const pm = (st.pm || 0) | mask;
-    const r = settle(L, [st.body[0]], st.fm, 0, st.dm || 0, st.sc || 0, pm, st.bx);
+    const r = settle(L, [st.body[0]], st.fm, 0, st.dm || 0, st.sc || 0, pm, st.bx,
+                     st.cm || 0, L.hasCrack ? loadMask(L, st.body) : 0);
     if (!r) return null;
-    return { body: r.body, fm: r.fm, pg: r.pg, sc: r.sc, dm: st.dm || 0, pm, bx: r.bx };
+    return { body: r.body, fm: r.fm, pg: r.pg, sc: r.sc, dm: st.dm || 0, pm, bx: r.bx, cm: r.cm };
   }
 
-  function step(L, st, di) {
-    if (di === 4) return drop(L, st);
+  /// 한 칸 움직인다. 얼음 미끄러짐은 step() 이 이걸 여러 번 부른다.
+  function move1(L, st, di) {
     const [dx, dy] = DIRS[di];
     const hx = st.body[0] % L.w, hy = (st.body[0] / L.w) | 0;
     const nx = hx + dx, ny = hy + dy;
     if (nx < 0 || ny < 0 || nx >= L.w || ny >= L.h) return null;
-    if (isBlocked(L, ny * L.w + nx, st.dm || 0)) return null;
+    if (isBlocked(L, ny * L.w + nx, st.dm || 0, st.cm || 0)) return null;
 
     // 🔴 포탈 (rev.11) — **걸어 들어갈 때만** 통한다.
     //    ⚠️ 떨어져 들어가도 통하게 하면 *떨어짐 → 나감 → 또 떨어짐* 의 무한 고리가 된다.
@@ -275,12 +310,13 @@
       if (hit && ((st.dm || 0) & (1 << hit[1]))) {
         nh = hit[0];
         warped = true;
-        if (isBlocked(L, nh, st.dm || 0)) return null;
+        if (isBlocked(L, nh, st.dm || 0, st.cm || 0)) return null;
       }
     }
 
     // 🔴 상자를 민다 — **가로로만.** 위아래로 밀면 중력과 뜻이 겹쳐 읽히지 않는다.
     let bx = st.bx || [];
+    let pushed = false;
     if (bx.length) {
       const bxs0 = new Set(bx);
       if (bxs0.has(nh)) {
@@ -290,11 +326,12 @@
         const tx = nx + dx;
         if (tx < 0 || tx >= L.w) return null;
         const tc = ny * L.w + tx;
-        if (isBlocked(L, tc, st.dm || 0)) return null;
+        if (isBlocked(L, tc, st.dm || 0, st.cm || 0)) return null;
         if (spent(L, tc, st.dm || 0)) return null;      // 굳은 몸이 박힌 칸엔 못 넣는다
         if (bxs0.has(tc)) return null;                  // 상자 둘은 한 번에 못 민다
         for (const c of st.body) if (c === tc) return null;
         bx = bx.map(v => (v === nh ? tc : v));
+        pushed = true;
       }
     }
 
@@ -313,9 +350,12 @@
     let sc = st.sc || 0;
     if (L.star >= 0 && nh === L.star) sc = 1;
 
-    const r = settle(L, body, grows ? (st.fm | (1 << fi)) : st.fm, pg, st.dm || 0, sc, st.pm || 0, bx);
+    const r = settle(L, body, grows ? (st.fm | (1 << fi)) : st.fm, pg, st.dm || 0, sc, st.pm || 0, bx,
+                     st.cm || 0, L.hasCrack ? loadMask(L, st.body) : 0);
     if (!r) return null;
-    const ns = { body: r.body, fm: r.fm, pg: r.pg, sc: r.sc, dm: st.dm || 0, pm: st.pm || 0, bx: r.bx };
+    const ns = { body: r.body, fm: r.fm, pg: r.pg, sc: r.sc, dm: st.dm || 0, pm: st.pm || 0,
+                 bx: r.bx, cm: r.cm };
+    const fell = r.body[0] !== nh;
 
     // 🔴 **포탈로 나온 자리에서 도로 떨어져 오면 그 걸음은 막힌다** (rev.11, 09-05 사장님:
     //    "포탈을 밑에서 위로 가면 이상해"). 아래에서 위로 들어가면 나온 자리가 허공이라
@@ -345,15 +385,39 @@
     //    (몸이 문 칸을 정확히 덮고 있으므로, 남는 몸의 모양은 곧 그 문이다)
     const opened = matchDoor(L, ns);
     if (opened >= 0 && !(ns.dm & (1 << opened))) {
+      const before = ns.body;
       ns.dm |= (1 << opened);
       if (L.clear === 'all') {
         ns.body = [L.doors[opened].core >= 0 ? L.doors[opened].core : ns.body[0]];
         ns.pg = 0;                   // 두고 온 몸과 함께 미룬 성장도 사라진다
       }
       // 🔴 문벽이 사라지면 발밑이 없어질 수 있다 — 그러면 떨어진다
-      const after = settle(L, ns.body, ns.fm, ns.pg, ns.dm, ns.sc, ns.pm, ns.bx);
+      const after = settle(L, ns.body, ns.fm, ns.pg, ns.dm, ns.sc, ns.pm, ns.bx,
+                           ns.cm, L.hasCrack ? loadMask(L, before) : 0);
       if (!after) return null;
-      ns.body = after.body; ns.fm = after.fm; ns.pg = after.pg; ns.sc = after.sc; ns.bx = after.bx;
+      ns.body = after.body; ns.fm = after.fm; ns.pg = after.pg; ns.sc = after.sc;
+      ns.bx = after.bx; ns.cm = after.cm;
+    }
+    //  🔴 얼음을 계속 탈 수 있는 걸음인가. 여기서 걸리는 건 전부 "붙잡을 것이 생겼다" 는 뜻이다.
+    ns._sl = !(grows || pushed || warped || fell || opened >= 0);
+    return ns;
+  }
+
+  /// 🔴 얼음 (rev.12) — **좌우로 들어가면 멈출 수 없다.** 막힐 때까지 같은 쪽으로 간다.
+  ///    한 번 누른 것이므로 **걸음 수는 1**이다. (걸음 수는 난이도가 아니다 — 09-05 사장님)
+  ///    ⚠️ 위아래로는 안 미끄러진다. 상자를 가로로만 미는 것과 같은 까닭이다 —
+  ///       세로 움직임은 이미 중력이 뜻을 차지하고 있어서 겹쳐 읽힌다.
+  function step(L, st, di) {
+    if (di === 4) return drop(L, st);
+    let ns = move1(L, st, di);
+    if (!ns) return null;
+    if (L.iceSet.size && (di === 2 || di === 3)) {
+      for (let guard = 0; guard < 96; guard++) {
+        if (!ns._sl || !L.iceSet.has(ns.body[0])) break;
+        const nx = move1(L, ns, di);
+        if (!nx) break;
+        ns = nx;
+      }
     }
     return ns;
   }
@@ -392,7 +456,7 @@
 
   //  🔴 상자 자리도 상태다 — 이것 때문에 판이 커지면 솔버가 소코반처럼 터진다.
   const keyOf = st => st.body.join(',') + '|' + st.fm + '|' + (st.pg || 0) + '|' +
-                      (st.dm || 0) + '|' + (st.sc || 0) + '|' + (st.pm || 0) +
+                      (st.dm || 0) + '|' + (st.sc || 0) + '|' + (st.pm || 0) + '|' + (st.cm || 0) +
                       ((st.bx && st.bx.length) ? '|' + st.bx.join('.') : '');
 
   function solve(def, opts) {

@@ -205,25 +205,36 @@ function bodyHoles(body, W, H) {
 }
 
 /// 지금 격자로 판을 다시 읽고, "놓은 조각은 다 먹은 것"으로 상태를 맞춘다
-function relevel(rows, body, dm, exceptCell) {
+function relevel(rows, body, dm, exceptCell, broken) {
   const L = E.parse({ grid: rows, gravity: true, clear: 'all', id: 'g' });
   let fm = 0;
   for (let i = 0; i < L.foods.length; i++) if (L.foods[i] !== exceptCell) fm |= 1 << i;
+  //  🔴 이미 무너진 금 간 바닥을 되살린다 (rev.12).
+  //     판을 다시 읽으면 자리 번호가 밀리므로 **비트가 아니라 칸 번호**로 들고 다닌다.
+  let cm = 0;
+  if (broken && broken.size)
+    for (let i = 0; i < L.crack.length; i++) if (broken.has(L.crack[i])) cm |= 1 << i;
   //  🔴 상자는 지을 때 안 밀리므로 격자 자리가 곧 지금 자리다 (rev.10)
-  return { L, st: { body: body.slice(), fm, pg: 0, dm, sc: 0, pm: 0, bx: (L.boxes || []).slice() } };
+  return { L, st: { body: body.slice(), fm, pg: 0, dm, sc: 0, pm: 0,
+                    bx: (L.boxes || []).slice(), cm } };
 }
 
 /// 판 한 장을 **자라게** 만든다
 /// 🔴 무중력 구역(':')도 **지으면서** 넣는다 (rev.10, 2026-09-05).
 ///    다 만든 판에 나중에 얹으면 지름길만 생겨 판이 쉬워진다.
 ///    조각을 놓는 것과 같은 방식이다 — "지금 오르고 싶은데 못 오른다" 는 자리에 놓는다.
-function grow(r, W, H, doorLens, ratio, wanderMin, wanderMax, shape, zoneBudget, boxBudget, portalPairs, minTurns, needHole) {
+function grow(r, W, H, doorLens, ratio, wanderMin, wanderMax, shape, zoneBudget, boxBudget, portalPairs, minTurns, needHole, iceBudget, crackBudget) {
   //  🔴 첫 홈은 **구멍을 품은 모양**으로 굳힌다 (needHole 이 켜져 있으면)
   const wantHole = needHole || 0;
   //  🔴 홈을 굳히기 전에 **이만큼은 꺾여 있어야 한다** (0 이면 옛 방식대로 아무 때나 굳힌다)
   const needTurns = minTurns || 0;
   let zoneLeft = zoneBudget || 0;
   let boxLeft = boxBudget || 0;
+  //  🔴 얼음 (rev.12) — **지으면서** 넣는다. 다 만든 판에 얹으면 지름길만 생긴다.
+  let iceLeft = iceBudget || 0;
+  //  🔴 금 간 바닥 (rev.12) — 무너진 자리는 **칸 번호**로 들고 다닌다 (relevel 참고).
+  let crackLeft = crackBudget || 0;
+  const broken = new Set();
   //  🔴 포탈은 **홈을 채운 뒤**에야 켜진다. 그래서 둘째 홈부터의 걸음에서만 놓는다 —
   //     그때 이미 앞 홈이 채워져 있어 짝이 살아 있다 (rev.11).
   let portLeft = portalPairs || 0;
@@ -240,7 +251,7 @@ function grow(r, W, H, doorLens, ratio, wanderMin, wanderMax, shape, zoneBudget,
   const start = floors[Math.floor(r() * floors.length)];
   g[(start / W) | 0][start % W] = 'S';
 
-  let cur = relevel(rows(), [start], 0, -1);
+  let cur = relevel(rows(), [start], 0, -1, broken);
   let body = cur.st.body, dm = 0;
 
   for (let di = 0; di < doorLens.length; di++) {
@@ -250,6 +261,12 @@ function grow(r, W, H, doorLens, ratio, wanderMin, wanderMax, shape, zoneBudget,
 
     // 몸을 want 칸까지 키우면서 굴 속을 돌아다닌다
     while (guard++ < 900) {
+      //  🔴 이번 걸음까지 무너진 자리를 모아둔다. 판을 다시 읽어도 안 되살아나게.
+      if (crackBudget) {
+        const cmNow = cur.st.cm || 0;
+        for (let k = 0; k < cur.L.crack.length; k++)
+          if (cmNow & (1 << k)) broken.add(cur.L.crack[k]);
+      }
       const needGrow = body.length < want;
       const doneWander = steps >= wander;
       //  🔴 길이가 맞고 돌아다닐 만큼 돌아다녔어도, **충분히 접히기 전에는 안 굳힌다.**
@@ -288,7 +305,7 @@ function grow(r, W, H, doorLens, ratio, wanderMin, wanderMax, shape, zoneBudget,
             const b = far[Math.floor(r() * far.length)];
             const bx2 = b % W, by2 = (b / W) | 0;
             g[ay][ax] = ga; g[by2][bx2] = gb;
-            const trial = relevel(rows(), body, dm, -1);
+            const trial = relevel(rows(), body, dm, -1, broken);
             const ns = E.step(trial.L, trial.st, d);
             //  건너간 자리에 **머물러야** 뜻이 있다 (떨어져 딴 데로 가도 괜찮다)
             if (ns && ns.body[0] !== ay * W + ax) {
@@ -316,12 +333,71 @@ function grow(r, W, H, doorLens, ratio, wanderMin, wanderMax, shape, zoneBudget,
           const bcell = dest + W, by = (bcell / W) | 0, bxx = bcell % W;
           if (by >= H - 1 || g[by][bxx] !== '.') continue;
           g[by][bxx] = 'B';
-          const trial = relevel(rows(), body, dm, -1);
+          const trial = relevel(rows(), body, dm, -1, broken);
           const ns = E.step(trial.L, trial.st, d);
           if (ns && ns.body[0] === dest) {
             cur = trial; cur.st = ns; body = ns.body; steps++; boxLeft--; placed = true; break;
           }
           g[by][bxx] = '.';
+        }
+        if (placed) continue;
+      }
+
+      // 🔴 금 간 바닥 — **지금 딛고 있는 벽**을 삭게 만든다.
+      //    몸이 얹혀 있는 동안은 멀쩡하고, 벗어나는 순간 무너진다 —
+      //    그래서 이 판에서 **지나온 길은 두 번 못 쓴다.** 순서를 처음부터 정해야 한다.
+      //    ⚠️ 놓는 것은 걸음이 아니다 (steps 를 안 올린다). 지형을 바꿀 뿐이다.
+      if (crackLeft > 0 && r() < 0.3) {
+        const cands = [];
+        for (const c of body) {
+          const b = c + W, by = (b / W) | 0, bx2 = b % W;
+          if (by <= 0 || by >= H - 1 || bx2 <= 0 || bx2 >= W - 1) continue;
+          if (g[by][bx2] !== '#') continue;
+          //  🔴 가장자리 벽은 안 건드린다 — 뚫리면 판 밖으로 떨어지는 길이 생긴다
+          cands.push(b);
+        }
+        if (cands.length) {
+          const b = cands[Math.floor(r() * cands.length)];
+          const by = (b / W) | 0, bx2 = b % W;
+          g[by][bx2] = 'X';
+          const trial = relevel(rows(), body, dm, -1, broken);
+          //  놓고 나서도 갈 데가 있어야 한다 (막다른 곳이 되면 무른다)
+          let any = false;
+          for (let d = 0; d < 4 && !any; d++) if (E.step(trial.L, trial.st, d)) any = true;
+          if (any) { cur = trial; crackLeft--; }
+          else g[by][bx2] = '#';
+        }
+      }
+
+      // 🔴 얼음 — **한 번 누르면 여러 칸.** 앞으로 몇 칸을 얼려서 미끄러뜨린다.
+      //    ⚠️ 빨리 가는 길을 놓는 게 아니다. 뜻이 생기는 건 **멈추고 싶은 자리에 못 멈춘다**는 것 —
+      //       미끄러진 끝이 벽이나 제 몸에 부딪혀 정해진다. 그래서 두 칸 넘게 실제로
+      //       밀려간 걸음만 남긴다 (한 칸이면 그냥 걸은 것과 같다).
+      //  ⚠️ **앞부분에만** 놓는다. 굳힐 때 몸이 얼음 위에 있으면 홈을 못 만들어
+      //     (홈은 빈칸에만 굳는다) 판이 통째로 버려진다.
+      if (iceLeft > 0 && steps + 5 < wander && r() < 0.5) {
+        let placed = false;
+        for (const d of (r() < 0.5 ? [2, 3] : [3, 2])) {
+          const [dx] = E.DIRS[d];
+          const hy = (body[0] / W) | 0, hx0 = body[0] % W;
+          const run = 2 + Math.floor(r() * 3);              // 2~4칸
+          if (run > iceLeft) continue;
+          const xs = [];
+          let ok = true;
+          for (let k = 1; k <= run; k++) {
+            const x = hx0 + dx * k;
+            if (x <= 0 || x >= W - 1 || g[hy][x] !== '.') { ok = false; break; }
+            xs.push(x);
+          }
+          if (!ok) continue;
+          for (const x of xs) g[hy][x] = 'I';
+          const trial = relevel(rows(), body, dm, -1, broken);
+          const ns = E.step(trial.L, trial.st, d);
+          const moved = ns ? Math.abs((ns.body[0] % W) - hx0) : 0;
+          if (ns && moved >= 2) {
+            cur = trial; cur.st = ns; body = ns.body; steps++; iceLeft -= run; placed = true; break;
+          }
+          for (const x of xs) g[hy][x] = '.';
         }
         if (placed) continue;
       }
@@ -332,7 +408,7 @@ function grow(r, W, H, doorLens, ratio, wanderMin, wanderMax, shape, zoneBudget,
         const hx = body[0] % W, hy = ((body[0] / W) | 0) - 1;
         if (hy > 0 && g[hy][hx] === '.') {
           g[hy][hx] = ':';
-          const trial = relevel(rows(), body, dm, -1);
+          const trial = relevel(rows(), body, dm, -1, broken);
           const ns = E.step(trial.L, trial.st, 0);          // 0 = 위
           //  올라간 자리에 그대로 떠 있어야 뜻이 있다 — 도로 떨어지면 무른다
           if (ns && ns.body[0] === hy * W + hx) {
@@ -357,7 +433,7 @@ function grow(r, W, H, doorLens, ratio, wanderMin, wanderMax, shape, zoneBudget,
           if (g[hy][hx] !== '.') continue;
           g[hy][hx] = '+';
           const cell = hy * W + hx;
-          const trial = relevel(rows(), body, dm, cell);
+          const trial = relevel(rows(), body, dm, cell, broken);
           const ns = E.step(trial.L, trial.st, d);
           if (!ns) { g[hy][hx] = '.'; continue; }
           cur = trial; cur.st = ns; body = ns.body; steps++; grew = true; break;
@@ -385,9 +461,9 @@ function grow(r, W, H, doorLens, ratio, wanderMin, wanderMax, shape, zoneBudget,
 
     dm |= 1 << di;
     body = [body[0]];
-    cur = relevel(rows(), body, dm, -1);
+    cur = relevel(rows(), body, dm, -1, broken);
     // 홈이 열리면 발밑이 바뀔 수 있다 — 떨어뜨려 자리를 맞춘다
-    const settled = E.settle(cur.L, body.slice(), cur.st.fm, 0, dm, 0, 0);
+    const settled = E.settle(cur.L, body.slice(), cur.st.fm, 0, dm, 0, 0, [], cur.st.cm || 0);
     if (!settled) return null;
     body = settled.body;
     cur.st.body = body;

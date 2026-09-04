@@ -49,10 +49,17 @@ function doorTurns(L, d) {
 function trace(L, sol) {
   let st = E.startState(L);
   let re = 0, climb = 0, thru = 0;
+  //  🔴 얼음이 **정말 미끄러졌나** (rev.12) — 한 걸음에 두 칸 넘게 간 횟수.
+  //     한 칸이면 그냥 걸은 것이라 얼음이 있으나 마나다.
+  let slid = 0, slidMax = 0;
   const inside = new Array(L.doors.length).fill(false);
   for (const ch of sol) {
     const d = SYM[ch]; if (d === undefined) continue;
     const ns = E.step(L, st, d); if (!ns) break;
+    if (d === 2 || d === 3) {
+      const gap = Math.abs((ns.body[0] % L.w) - (st.body[0] % L.w));
+      if (gap >= 2) { slid++; if (gap > slidMax) slidMax = gap; }
+    }
     for (let i = 0; i < L.doors.length; i++) {
       if ((ns.dm || 0) & (1 << i)) { inside[i] = false; continue; }
       const on = L.doors[i].set.has(ns.body[0]);
@@ -74,12 +81,15 @@ function trace(L, sol) {
     }
     st = ns;
   }
-  return { re, climb, thru };
+  //  🔴 실제로 무너진 금 간 바닥 수
+  let broke = 0;
+  for (let k = 0; k < L.crack.length; k++) if ((st.cm || 0) & (1 << k)) broke++;
+  return { re, climb, thru, slid, slidMax, broke };
 }
 
 const pool = JSON.parse(fs.readFileSync(POOL, 'utf8'));
 console.log('못 ' + pool.length + '판');
-const rows = [];
+let rows = [];
 for (let i = 0; i < pool.length; i++) {
   const p = pool[i];
   const a = solve(p.grid);
@@ -93,17 +103,34 @@ for (let i = 0; i < pool.length; i++) {
     doors: L.doors.length, big: Math.max(...L.doors.map(d => d.cells.length)),
     turn: Math.max(...L.doors.map(d => doorTurns(L, d))),
     dens: a.moves / open, re: t.re, climb: t.climb, thru: t.thru,
+    slid: t.slid, slidMax: t.slidMax, broke: t.broke,
+    ice: (p.grid.join('').match(/I/g) || []).length,
+    crack: (p.grid.join('').match(/X/g) || []).length,
     //  🔴 줄 세우는 값 — 사장님이 짚어주신 것만 넣는다.
     //     되나옴(홈 통과) · 굳은 몸 딛고 오름 · 홈 꺾음 · 포탈. **걸음 수는 안 본다.**
-    score: t.re * 5 + t.climb * 4 + t.turn * 2 + (p.gim === 'portal' ? 6 : 0),
+    //  🔴 얼음·금 간 바닥은 **쓰인 만큼** 점수를 준다. 깔려만 있는 건 장식이다.
+    score: t.re * 5 + t.climb * 4 + t.turn * 2 + (p.gim === 'portal' ? 6 : 0)
+           + t.slid * 3 + t.broke * 3,
   });
 }
 console.log('풀리고 최단 유일: ' + rows.length + '판');
 console.log('  되나옴 1↑ ' + rows.filter(r => r.re > 0).length +
             ' · 굳은몸 딛고오름 1↑ ' + rows.filter(r => r.climb > 0).length +
             ' · 홈꺾음 4↑ ' + rows.filter(r => r.turn >= 4).length +
-            ' · 포탈 ' + rows.filter(r => r.gim === 'portal').length);
+            ' · 포탈 ' + rows.filter(r => r.gim.includes('portal')).length);
+console.log('  얼음이 실제로 미끄러진 판 ' + rows.filter(r => r.slid > 0).length +
+            ' · 금 간 바닥이 실제로 무너진 판 ' + rows.filter(r => r.broke > 0).length);
 
+//  🔴 **기믹이 정말 쓰인 판만** (GIM=1, rev.12).
+//     처음 재보니 얼음 판 28개 중 13개는 정답에서 **한 번도 안 미끄러졌다** —
+//     "얼음을 없애면 답이 달라진다"는 거름망이 약했다. 길을 막는 벽 노릇만 한 것이다.
+//     여기서는 **정답이 실제로 두 번 넘게 미끄러지거나 두 칸 넘게 무너져야** 받는다.
+let use = rows;
+if (process.env.GIM === '1') {
+  use = rows.filter(r => r.slid >= 2 || r.broke >= 2);
+  console.log('  기믹이 정말 쓰인 판: ' + use.length + '판 (' + rows.length + '판 중)');
+}
+rows = use;
 rows.sort((a, b) => b.score - a.score);
 //  🔴 **포탈을 따로 챙긴다.** 점수순으로만 뽑았더니 30판 전부 포탈이 없었다 —
 //     사장님이 재미의 원인으로 짚으신 게 포탈인데 하나도 안 보여드릴 뻔했다.
@@ -111,7 +138,10 @@ rows.sort((a, b) => b.score - a.score);
 const pick = [];
 const take = (list, n) => { for (const r of list) { if (pick.length >= N) break;
   if (n-- <= 0) break; if (!pick.includes(r)) pick.push(r); } };
-take(rows.filter(r => r.gim === 'portal'), Math.round(N * 0.35));   // 포탈 셋에 하나
+//  🔴 기믹이 **정말 쓰인 판**을 먼저 챙긴다 — 깔려만 있는 판이 앞에 오면 안 된다
+take(rows.filter(r => r.slid > 0), Math.round(N * 0.4));            // 미끄러지는 판
+take(rows.filter(r => r.broke > 0), Math.round(N * 0.4));           // 무너지는 판
+take(rows.filter(r => r.gim.includes('portal')), Math.round(N * 0.2));
 take(rows.filter(r => r.turn >= 4), Math.round(N * 0.3));           // 꺾음 4 짜리
 take(rows, N);                                                       // 나머지는 점수순
 //  섞어서 보여드린다 — 앞에만 포탈이 몰리면 뒤로 갈수록 지루하다
@@ -120,12 +150,13 @@ for (let i = pick.length - 1; i > 0; i--) {
   const tmp = pick[i]; pick[i] = pick[j]; pick[j] = tmp;
 }
 console.log('\n고른 ' + pick.length + '판');
-console.log('번호  크기     걸음  홈  제일큰홈 꺾음 되나옴 딛고오름 통과 기믹    빽빽함');
+console.log('번호  크기     걸음  홈 제일큰홈 꺾음 되나옴 딛고오름 통과 미끄럼 무너짐 기믹');
 pick.forEach((r, k) => console.log(String(k + 1).padStart(4) + '  ' +
   (r.grid[0].length + 'x' + r.grid.length).padEnd(8) + String(r.moves).padStart(4) +
   String(r.doors).padStart(4) + String(r.big).padStart(8) + String(r.turn).padStart(5) +
   String(r.re).padStart(6) + String(r.climb).padStart(8) + String(r.thru).padStart(5) +
-  '  ' + r.gim.padEnd(8) + r.dens.toFixed(2)));
+  String(r.slid).padStart(6) + String(r.broke).padStart(7) +
+  '  ' + r.gim));
 
 if (process.env.WRITE !== '1') { console.log('\n(보여주기만 했다. 쓰려면 WRITE=1)'); process.exit(0); }
 

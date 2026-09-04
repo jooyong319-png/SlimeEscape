@@ -1,4 +1,4 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 
 namespace SlimeEscape
 {
@@ -68,6 +68,32 @@ namespace SlimeEscape
             /// 🔴 tools/engine.js 의 boxes 와 **같아야 한다.**
             /// </summary>
             public List<int> Boxes = new List<int>();
+
+            /// <summary>
+            /// 🔴 얼음 'I' (rev.12) — **좌우로 들어가면 멈출 수 없다.** 막힐 때까지 같은 쪽으로 간다.
+            /// 원하는 칸에 서려면 **먼저 뭔가를 갖다 놔야** 한다 — 그 '뭔가'가 자기 몸이다.
+            /// 🔴 tools/engine.js 의 iceSet 과 **같아야 한다.**
+            /// </summary>
+            public HashSet<int> Ice = new HashSet<int>();
+
+            /// <summary>
+            /// 🔴 금 간 바닥 'X' (rev.12) — **벽처럼 딛고 서지만 몸이 지나가면 부서진다.**
+            /// 되돌아갈 수 없으니 순서를 처음부터 정해야 한다. 죽는 건 없다 — 계획 문제다.
+            /// ⚠️ 부서진 자리가 상태(<see cref="State.Cm"/>)에 들어간다. 한 판에 열 칸을 넘기지 않는다.
+            /// 🔴 tools/engine.js 의 crack 과 **같아야 한다.**
+            /// </summary>
+            public List<int> Crack = new List<int>();
+            public Dictionary<int, int> CrackIdx = new Dictionary<int, int>();
+            public bool HasCrack;
+
+            /// 🔴 지금 몸이 얹고 있는 금 간 바닥들의 비트. (몸 칸의 **바로 아래**가 금 간 바닥이면 얹힌 것)
+            public int LoadMask(List<int> body)
+            {
+                int m = 0;
+                foreach (int c in body)
+                    if (CrackIdx.TryGetValue(c + W, out int i)) m |= 1 << i;
+                return m;
+            }
 
             /// <summary>
             /// 🔴 포탈 (rev.11) — 칸 -> (나갈 칸, 몇 번 홈이 켜는가).
@@ -159,9 +185,12 @@ namespace SlimeEscape
             }
 
             /// 🔴 지금 이 칸이 막혀 있나 — 문벽은 짝이 되는 문을 열면 사라진다.
-            public bool IsBlocked(int cell, int dm)
+            public bool IsBlocked(int cell, int dm, int cm = 0)
             {
                 if (Wall[cell]) return true;
+                //  🔴 금 간 바닥 — 아직 안 부서졌으면 **벽이다.** 부서지면 그냥 빈칸이 된다.
+                if (HasCrack && CrackIdx.TryGetValue(cell, out int ci) && (cm & (1 << ci)) == 0)
+                    return true;
                 if (!HasGates) return false;
                 for (int i = 0; i < Gates.Length; i++)
                     if (Gates[i].Contains(cell) && (dm & (1 << i)) == 0) return true;
@@ -184,9 +213,13 @@ namespace SlimeEscape
             public int Pm;
             /// 🔴 지금 상자들이 있는 자리 (오름차순). 없으면 빈 목록.
             public List<int> Bx = new List<int>();
+            /// 🔴 이미 부서진 금 간 바닥 (비트마스크). 한 번 부서지면 되돌아오지 않는다.
+            public int Cm;
+            /// 🔴 얼음 위를 계속 미끄러질 수 있는 걸음이었나 (화면·미끄러짐 판정용, 상태 열쇠엔 안 들어간다)
+            public bool Sl;
             public State(List<int> body, int fm, int pg = 0, int dm = 0, int sc = 0, int pm = 0,
-                         List<int> bx = null)
-            { Body = body; Fm = fm; Pg = pg; Dm = dm; Sc = sc; Pm = pm;
+                         List<int> bx = null, int cm = 0)
+            { Body = body; Fm = fm; Pg = pg; Dm = dm; Sc = sc; Pm = pm; Cm = cm;
               Bx = bx != null ? new List<int>(bx) : new List<int>(); }
             public int Head => Body[0];
             public int Length => Body.Count;
@@ -226,6 +259,9 @@ namespace SlimeEscape
                             L.Gates[grid[y][x] - '1'].Add(c); L.HasGates = true; break;
                         case ':': L.Zone.Add(c); break;
                         case 'B': L.Boxes.Add(c); break;
+                        case 'I': L.Ice.Add(c); break;
+                        case 'X': L.CrackIdx[c] = L.Crack.Count; L.Crack.Add(c);
+                                  L.HasCrack = true; break;
                         case 'P': port[0, 0] = c; break;
                         case 'Q': port[0, 1] = c; break;
                         case 'p': port[1, 0] = c; break;
@@ -274,18 +310,18 @@ namespace SlimeEscape
         /// ⚠️ 슬라임은 자기 몸을 못 딛지만 **상자는 슬라임을 딛는다.**
         ///    안 그러면 몸 위로 상자가 통과해 내려가 그림이 무너진다.
         /// 🔴 tools/engine.js 의 boxHeld 와 **같아야 한다.**
-        static bool BoxHeld(Level L, int c, int dm, List<int> bx, List<int> body)
+        static bool BoxHeld(Level L, int c, int dm, List<int> bx, List<int> body, int cm)
         {
             int below = c + L.W;
             if (below >= L.W * L.H) return true;
-            if (L.IsBlocked(below, dm)) return true;
+            if (L.IsBlocked(below, dm, cm)) return true;
             if (L.IsSpent(below, dm)) return true;
             if (bx.Contains(below)) return true;
             if (body.Contains(below)) return true;
             return false;
         }
 
-        static bool Supported(Level L, List<int> body, int dm, int pm, List<int> bx)
+        static bool Supported(Level L, List<int> body, int dm, int pm, List<int> bx, int cm)
         {
             // 🔴 **포탈에 걸쳐 있는 동안은 안 떨어진다** (rev.11, 09-05 사장님 신고).
             //    몸이 포탈을 지나는 동안 두 덩이로 갈리는데, 중력은 몸을 **한 덩어리로** 떨어뜨린다.
@@ -309,7 +345,7 @@ namespace SlimeEscape
                 // 🔴 상자 위에는 설 수 있다 (rev.10)
                 if (bx != null && bx.Contains(c + L.W)) return true;
                 int below = c + L.W;
-                if (below >= L.W * L.H || L.IsBlocked(below, dm)) return true;
+                if (below >= L.W * L.H || L.IsBlocked(below, dm, cm)) return true;
                 if (L.IsSpent(below, dm)) return true;    // 🔴 두고 온 몸은 디딤돌이다
                 // 받침대에 놓고 온 몸도 디딤돌이다
                 if (L.PadIdx.TryGetValue(below, out int pi) && (pm & (1 << pi)) != 0) return true;
@@ -325,13 +361,17 @@ namespace SlimeEscape
         /// 그래서 **다음 걸음에 꼬리가 안 물러나는 것**으로 갚는다 (pg, 고전 스네이크와 같다).
         /// </summary>
         static bool Settle(Level L, List<int> body, ref int fm, ref int pg, int dm, ref int sc, int pm,
-                           List<int> bx = null)
+                           List<int> bx, ref int cm, int lp)
         {
+            //  🔴 금 간 바닥: lp = **이 걸음 전에** 몸이 얹고 있던 칸들. 거기서 벗어나면 부서진다.
+            if (lp < 0) lp = L.HasCrack ? L.LoadMask(body) : 0;
             if (L.Star >= 0 && body[0] == L.Star) sc = 1;
             if (!L.Gravity) return true;
             for (int guard = 0; guard < 128; guard++)
             {
-                if (!Supported(L, body, dm, pm, bx))
+                //  🔴 벗어난 금 간 바닥을 여기서 부순다 — 떨어지는 도중에도 계속 무너진다.
+                if (L.HasCrack) { int now = L.LoadMask(body); cm |= lp & ~now; lp = now; }
+                if (!Supported(L, body, dm, pm, bx, cm))
                 {
                     for (int i = 0; i < body.Count; i++)
                     {
@@ -348,7 +388,7 @@ namespace SlimeEscape
                 if (bx == null || bx.Count == 0) return true;
                 int pick = -1;
                 for (int i = 0; i < bx.Count; i++)
-                    if (!BoxHeld(L, bx[i], dm, bx, body) && (pick < 0 || bx[i] > bx[pick])) pick = i;
+                    if (!BoxHeld(L, bx[i], dm, bx, body, cm) && (pick < 0 || bx[i] > bx[pick])) pick = i;
                 if (pick < 0) return true;
                 int nb = bx[pick] + L.W;
                 if (nb >= L.W * L.H) return false;
@@ -362,8 +402,9 @@ namespace SlimeEscape
             var body = new List<int> { L.Start };
             int fm = 0, pg = 0, sc = 0;
             var bx = new List<int>(L.Boxes);
-            Settle(L, body, ref fm, ref pg, 0, ref sc, 0, bx);   // 시작하자마자 떨어지며 먹을 수도 있다
-            return new State(body, fm, pg, 0, sc, 0, bx);
+            int cm = 0;
+            Settle(L, body, ref fm, ref pg, 0, ref sc, 0, bx, ref cm, -1);   // 시작하자마자 떨어지며 먹을 수도 있다
+            return new State(body, fm, pg, 0, sc, 0, bx, cm);
         }
 
         public static bool IsEaten(State st, int foodIndex) => (st.Fm & (1 << foodIndex)) != 0;
@@ -429,20 +470,23 @@ namespace SlimeEscape
             var body = new List<int> { st.Head };
             int fm = st.Fm, pg = 0, sc = st.Sc;
             var bxd = new List<int>(st.Bx);
-            if (!Settle(L, body, ref fm, ref pg, st.Dm, ref sc, pm, bxd)) return false;
-            result = new State(body, fm, pg, st.Dm, sc, pm, bxd);
+            //  🔴 놓고 온 몸이 얹고 있던 금 간 바닥은 무너진다
+            int cmd = st.Cm;
+            if (!Settle(L, body, ref fm, ref pg, st.Dm, ref sc, pm, bxd, ref cmd,
+                        L.HasCrack ? L.LoadMask(st.Body) : 0)) return false;
+            result = new State(body, fm, pg, st.Dm, sc, pm, bxd, cmd);
             return true;
         }
 
-        public static bool Step(Level L, State st, Dir dir, out State result)
+        /// 한 칸 움직인다. 얼음 미끄러짐은 Step() 이 이걸 여러 번 부른다.
+        static bool Move1(Level L, State st, Dir dir, out State result)
         {
-            if (dir == Dir.Drop) return Drop(L, st, out result);
             result = null;
             var (dx, dy) = Delta[(int)dir];
             int hx = L.X(st.Head) + dx, hy = L.Y(st.Head) + dy;
             if (hx < 0 || hy < 0 || hx >= L.W || hy >= L.H) return false;
 
-            if (L.IsBlocked(hy * L.W + hx, st.Dm)) return false;
+            if (L.IsBlocked(hy * L.W + hx, st.Dm, st.Cm)) return false;
 
             // 🔴 포탈 (rev.11) — **걸어 들어갈 때만** 통한다.
             //    ⚠️ 떨어져 들어가도 통하게 하면 *떨어짐 → 나감 → 또 떨어짐* 의 무한 고리가 된다.
@@ -455,12 +499,13 @@ namespace SlimeEscape
             {
                 nh = hop.To;
                 warped = true;
-                if (L.IsBlocked(nh, st.Dm)) return false;
+                if (L.IsBlocked(nh, st.Dm, st.Cm)) return false;
             }
 
             // 🔴 상자를 민다 — **가로로만.** 위아래로 밀면 중력과 뜻이 겹쳐 읽히지 않는다.
             //    🔴 tools/engine.js 의 같은 자리와 규칙이 **한 글자도 달라선 안 된다.**
             var bx = new List<int>(st.Bx);
+            bool pushed = false;
             int bi = bx.IndexOf(nh);
             if (bi >= 0)
             {
@@ -470,11 +515,12 @@ namespace SlimeEscape
                 int tx = hx + dx;
                 if (tx < 0 || tx >= L.W) return false;
                 int tc = hy * L.W + tx;
-                if (L.IsBlocked(tc, st.Dm)) return false;
+                if (L.IsBlocked(tc, st.Dm, st.Cm)) return false;
                 if (L.IsSpent(tc, st.Dm)) return false;      // 굳은 몸이 박힌 칸엔 못 넣는다
                 if (bx.Contains(tc)) return false;           // 상자 둘은 한 번에 못 민다
                 if (st.Body.Contains(tc)) return false;
                 bx[bi] = tc;
+                pushed = true;
             }
 
             int fi = L.Foods.IndexOf(nh);
@@ -493,9 +539,12 @@ namespace SlimeEscape
             int fm = grows ? (st.Fm | (1 << fi)) : st.Fm;
             int sc = st.Sc;
             if (L.Star >= 0 && nh == L.Star) sc = 1;
-            if (!Settle(L, body, ref fm, ref pg, st.Dm, ref sc, st.Pm, bx)) return false;   // 🔬 중력 — 떨어질 데가 없으면 못 간다
+            int cm = st.Cm;
+            if (!Settle(L, body, ref fm, ref pg, st.Dm, ref sc, st.Pm, bx, ref cm,
+                        L.HasCrack ? L.LoadMask(st.Body) : 0)) return false;   // 🔬 중력 — 떨어질 데가 없으면 못 간다
 
-            var ns = new State(body, fm, pg, st.Dm, sc, st.Pm, bx);
+            var ns = new State(body, fm, pg, st.Dm, sc, st.Pm, bx, cm);
+            bool fell = body[0] != nh;
 
             // 🔴 **포탈로 나온 자리에서 도로 떨어져 오면 그 걸음은 막힌다** (09-05 사장님:
             //    "포탈을 밑에서 위로 가면 이상해"). 나온 자리가 허공이면 그대로 떨어져
@@ -526,6 +575,7 @@ namespace SlimeEscape
             int opened = MatchDoor(L, ns);
             if (opened >= 0 && (ns.Dm & (1 << opened)) == 0)
             {
+                var before = ns.Body;
                 ns.Dm |= (1 << opened);
                 if (L.Clear == "all")
                 {
@@ -534,12 +584,37 @@ namespace SlimeEscape
                     ns.Pg = 0;                       // 두고 온 몸과 함께 미룬 성장도 사라진다
                 }
                 // 🔴 문벽이 사라지면 발밑이 없어질 수 있다 — 그러면 떨어진다
-                int f2 = ns.Fm, p2 = ns.Pg, s2 = ns.Sc;
-                if (!Settle(L, ns.Body, ref f2, ref p2, ns.Dm, ref s2, ns.Pm, ns.Bx)) return false;
-                ns.Fm = f2; ns.Pg = p2; ns.Sc = s2;
+                int f2 = ns.Fm, p2 = ns.Pg, s2 = ns.Sc, c2 = ns.Cm;
+                if (!Settle(L, ns.Body, ref f2, ref p2, ns.Dm, ref s2, ns.Pm, ns.Bx, ref c2,
+                            L.HasCrack ? L.LoadMask(before) : 0)) return false;
+                ns.Fm = f2; ns.Pg = p2; ns.Sc = s2; ns.Cm = c2;
             }
 
+            //  🔴 얼음을 계속 탈 수 있는 걸음인가. 걸리는 건 전부 "붙잡을 것이 생겼다" 는 뜻이다.
+            ns.Sl = !(grows || pushed || warped || fell || opened >= 0);
             result = ns;
+            return true;
+        }
+
+        /// <summary>
+        /// 🔴 얼음 (rev.12) — **좌우로 들어가면 멈출 수 없다.** 막힐 때까지 같은 쪽으로 간다.
+        /// 한 번 누른 것이므로 **걸음 수는 1**이다.
+        /// ⚠️ 위아래로는 안 미끄러진다 — 세로는 이미 중력이 뜻을 차지하고 있다.
+        /// 🔴 tools/engine.js 의 step 과 **같아야 한다.**
+        /// </summary>
+        public static bool Step(Level L, State st, Dir dir, out State result)
+        {
+            if (dir == Dir.Drop) return Drop(L, st, out result);
+            if (!Move1(L, st, dir, out result)) return false;
+            if (L.Ice.Count > 0 && (dir == Dir.Left || dir == Dir.Right))
+            {
+                for (int guard = 0; guard < 96; guard++)
+                {
+                    if (!result.Sl || !L.Ice.Contains(result.Head)) break;
+                    if (!Move1(L, result, dir, out State nx)) break;
+                    result = nx;
+                }
+            }
             return true;
         }
     }
