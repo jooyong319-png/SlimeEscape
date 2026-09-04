@@ -12,7 +12,7 @@ const fs = require('fs');
 const E = require('./engine.js').SlimeEngine;
 const { grow, rng, SHAPES } = require('./grow.js');
 
-const OUT = 'tools/hard-pool.json';
+const OUT = process.env.OUT || (process.env.HARD === '1' ? 'tools/brutal-pool.json' : 'tools/hard-pool.json');
 
 // 🔴 **크기를 여러 가지로** (09-04 사장님: "맵 크기도 좀 랜덤으로 다양성 있게").
 //    같은 크기만 찍어내면 마흔 판이 다 비슷하게 생긴다.
@@ -45,6 +45,24 @@ const BANDS = [
   { d: 3, W: 19, H: 11, ratio: 0.28, wmin: 14, wmax: 32, lens: [6, 4, 3], turn: 4, port: 1 },
 ];
 
+// 🔴 **어려운 띠** (HARD=1) — 2026-09-05 밤.
+//    사장님: *"막 어렵다! 이런 판이 없어. 그냥 조금 고민하면 어지간해선 풀리는 정도."*
+//    30판 중 28판이 "괜찮다" 였지만 **아무것도 「막 어렵다」가 아니었다.**
+//
+//    안 쓴 지렛대가 하나 남아 있었다 — 옛 1-16 의 **구멍 뚫린 홈**이다.
+//    홈이 ㄷ자라 가운데가 뚫려 있고, **그 구멍으로 내려가야** 바닥 조각에 닿는다.
+//    자기가 채워야 할 홈을 통과해서 갔다 돌아오는 것 — 사람은 이걸 잘 상상 못 한다.
+//
+//    ⚠️ 수율이 낮다 (씨앗 700개에 쓸 만한 판 5개). 오래 걸린다.
+const HARD_BANDS = [
+  { d: 3, W: 15, H: 11, ratio: 0.30, wmin: 12, wmax: 28, lens: [6, 4, 3], turn: 3, hole: 1 },
+  { d: 3, W: 17, H: 11, ratio: 0.29, wmin: 14, wmax: 30, lens: [6, 5, 3], turn: 3, hole: 1 },
+  { d: 3, W: 17, H: 10, ratio: 0.30, wmin: 12, wmax: 28, lens: [7, 4, 3], turn: 3, hole: 1 },
+  { d: 2, W: 15, H: 11, ratio: 0.30, wmin: 12, wmax: 26, lens: [7, 4],    turn: 3, hole: 1 },
+  { d: 3, W: 17, H: 11, ratio: 0.29, wmin: 14, wmax: 30, lens: [6, 4, 3], turn: 3, hole: 1, port: 1 },
+  { d: 3, W: 19, H: 11, ratio: 0.29, wmin: 16, wmax: 32, lens: [6, 5, 4], turn: 3, hole: 1, port: 1 },
+];
+
 //  🔴 재는 게 너무 비싼 판은 안 받는다 — 어려운 것과 재기 비싼 것은 다르다
 const MAXST = +(process.env.MAXST || 800000);
 
@@ -59,14 +77,14 @@ const seen = new Set(pool.map(p => p.grid.join('')));
 console.log('있던 판', pool.length, '개에 이어서 만든다');
 
 const t0 = Date.now();
-for (const b of BANDS) {
+for (const b of (process.env.HARD === '1' ? HARD_BANDS : BANDS)) {
   let got = 0;
   for (let seed = SEED0; seed <= SEED0 + 900 && got < PER; seed++) {
     const r = rng(seed * 7919 + b.W * 131 + b.H * 17 + Math.round(b.ratio * 1000));
     for (let n = 0; n < 120 && got < PER; n++) {
       const shape = SHAPES[Math.floor(r() * SHAPES.length)];
       const grid = grow(r, b.W, b.H, b.lens, b.ratio, b.wmin, b.wmax, shape,
-                        0, 0, b.port || 0, b.turn || 0);
+                        0, 0, b.port || 0, b.turn || 0, b.hole || 0);
       if (!grid) continue;
       //  🔴 기믹을 시켰는데 안 들어간 판은 안 받는다 — 그 띠가 있는 뜻이 없어진다
       if (b.port && !grid.join('').includes('P')) continue;

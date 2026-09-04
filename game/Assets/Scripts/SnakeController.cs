@@ -2508,7 +2508,10 @@ namespace SlimeEscape
                 if (_L.Portal.Count > 0 && stepCell >= 0 && stepCell < _L.W * _L.H
                     && _L.Portal.TryGetValue(stepCell, out var hop2)
                     && (hadDm & (1 << hop2.Door)) != 0)
-                    _fall = 0;
+                    //  🔴 **나온 자리에서부터 센다** (09-05 사장님: "떨어지는 느낌 없이 바로 내려와짐").
+                    //     처음엔 0 으로 껐는데, 그러면 허공으로 나와 진짜 떨어질 때도
+                    //     연출이 없어서 **뚝 내려앉는다.** 나온 칸은 알고 있으니 거기서부터 세면 된다.
+                    _fall = Mathf.Max(0, _st.Head / _L.W - hop2.To / _L.W);
             }
             _landed = _fall == 0;
 

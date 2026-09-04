@@ -179,6 +179,31 @@ function bodyTurns(body, W) {
   return turns;
 }
 
+/// 🔴 **몸이 구멍을 품고 있나** (2026-09-05, 사장님이 짚어주신 옛 1-16 패턴).
+///
+///    옛 1-16 의 홈은 ㄷ자라 가운데가 뚫려 있었고, **그 구멍으로 내려가야**
+///    바닥 조각에 닿았다. 자기가 채워야 할 홈을 통과해서 갔다 돌아오는 것이다.
+///    사장님: *"홈은 나중에 몸으로 채울 곳이라 들어가면 안 되는 데로 읽힌다.
+///             그런데 여기선 거기가 유일한 길이다."*
+///
+///    몸이 ㄷ·ㅁ·S 로 접히면 가운데 빈 칸이 생긴다. 그 칸의 위아래(또는 좌우)가
+///    둘 다 몸이면 구멍으로 친다. 여섯 칸부터 나온다.
+function bodyHoles(body, W, H) {
+  const set = new Set(body);
+  let holes = 0;
+  const xs = body.map(c => c % W), ys = body.map(c => (c / W) | 0);
+  const x0 = Math.min(...xs), x1 = Math.max(...xs);
+  const y0 = Math.min(...ys), y1 = Math.max(...ys);
+  for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) {
+    const c = y * W + x;
+    if (set.has(c)) continue;
+    const up = set.has(c - W), dn = set.has(c + W);
+    const lf = set.has(c - 1), rt = set.has(c + 1);
+    if ((up && dn) || (lf && rt)) holes++;
+  }
+  return holes;
+}
+
 /// 지금 격자로 판을 다시 읽고, "놓은 조각은 다 먹은 것"으로 상태를 맞춘다
 function relevel(rows, body, dm, exceptCell) {
   const L = E.parse({ grid: rows, gravity: true, clear: 'all', id: 'g' });
@@ -192,7 +217,9 @@ function relevel(rows, body, dm, exceptCell) {
 /// 🔴 무중력 구역(':')도 **지으면서** 넣는다 (rev.10, 2026-09-05).
 ///    다 만든 판에 나중에 얹으면 지름길만 생겨 판이 쉬워진다.
 ///    조각을 놓는 것과 같은 방식이다 — "지금 오르고 싶은데 못 오른다" 는 자리에 놓는다.
-function grow(r, W, H, doorLens, ratio, wanderMin, wanderMax, shape, zoneBudget, boxBudget, portalPairs, minTurns) {
+function grow(r, W, H, doorLens, ratio, wanderMin, wanderMax, shape, zoneBudget, boxBudget, portalPairs, minTurns, needHole) {
+  //  🔴 첫 홈은 **구멍을 품은 모양**으로 굳힌다 (needHole 이 켜져 있으면)
+  const wantHole = needHole || 0;
   //  🔴 홈을 굳히기 전에 **이만큼은 꺾여 있어야 한다** (0 이면 옛 방식대로 아무 때나 굳힌다)
   const needTurns = minTurns || 0;
   let zoneLeft = zoneBudget || 0;
@@ -227,7 +254,8 @@ function grow(r, W, H, doorLens, ratio, wanderMin, wanderMax, shape, zoneBudget,
       const doneWander = steps >= wander;
       //  🔴 길이가 맞고 돌아다닐 만큼 돌아다녔어도, **충분히 접히기 전에는 안 굳힌다.**
       //     그래야 일자 홈 대신 ㄷ자·S자 홈이 나온다.
-      if (!needGrow && doneWander && bodyTurns(body, W) >= needTurns) break;
+      if (!needGrow && doneWander && bodyTurns(body, W) >= needTurns
+          && (di >= wantHole || bodyHoles(body, W, H) > 0)) break;
 
       // 갈 수 있는 방향을 모은다
       const opts = [];
