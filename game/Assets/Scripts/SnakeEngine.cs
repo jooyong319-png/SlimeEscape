@@ -287,6 +287,21 @@ namespace SlimeEscape
 
         static bool Supported(Level L, List<int> body, int dm, int pm, List<int> bx)
         {
+            // 🔴 **포탈에 걸쳐 있는 동안은 안 떨어진다** (rev.11, 09-05 사장님 신고).
+            //    몸이 포탈을 지나는 동안 두 덩이로 갈리는데, 중력은 몸을 **한 덩어리로** 떨어뜨린다.
+            //    그래서 이쪽이 발판을 잃으면 **저쪽 머리까지 포탈 밖으로 흘러내렸다.**
+            //    갈려 있는 동안은 포탈이 붙들고 있는 것으로 본다.
+            //    🔴 tools/engine.js 의 supported 와 **같아야 한다.**
+            if (L.Portal.Count > 0)
+            {
+                for (int i = 1; i < body.Count; i++)
+                {
+                    int a = body[i - 1], b = body[i];
+                    int dx = System.Math.Abs(L.X(a) - L.X(b));
+                    int dy = System.Math.Abs(L.Y(a) - L.Y(b));
+                    if (dx + dy != 1) return true;      // 사슬이 끊겨 있다 = 걸쳐 있다
+                }
+            }
             foreach (int c in body)
             {
                 //  🔴 무중력 구역에 한 칸이라도 걸쳐 있으면 안 떨어진다 (rev.10)
