@@ -162,6 +162,23 @@ function crop(rows) {
   return out;
 }
 
+/// 🔴 **몸이 몇 번 꺾였나** (2026-09-05, 사장님 지렛대: "만들기 어려운 홈 모양").
+///
+///    홈은 **몸을 굳힌 모양**이다. 굳히는 순간 몸이 곧게 뻗어 있으면 **일자 홈**이 되고,
+///    일자 홈은 길이만 맞춰 밀어 넣으면 끝이라 하나도 안 어렵다.
+///    접힌 홈은 **접는 순서를 머릿속에 그려야** 한다.
+///
+///    ⚠️ 옛 17판에는 **6칸 4꺾음** 홈이 있었는데, 지금 못은 **최대 5칸 3꺾음**이다.
+///       몸이 알맞은 길이가 되자마자 아무 때나 굳혀서 그렇다.
+function bodyTurns(body, W) {
+  let turns = 0;
+  for (let i = 1; i + 1 < body.length; i++) {
+    const a = body[i - 1] - body[i], b = body[i] - body[i + 1];
+    if (a !== b) turns++;
+  }
+  return turns;
+}
+
 /// 지금 격자로 판을 다시 읽고, "놓은 조각은 다 먹은 것"으로 상태를 맞춘다
 function relevel(rows, body, dm, exceptCell) {
   const L = E.parse({ grid: rows, gravity: true, clear: 'all', id: 'g' });
@@ -175,7 +192,9 @@ function relevel(rows, body, dm, exceptCell) {
 /// 🔴 무중력 구역(':')도 **지으면서** 넣는다 (rev.10, 2026-09-05).
 ///    다 만든 판에 나중에 얹으면 지름길만 생겨 판이 쉬워진다.
 ///    조각을 놓는 것과 같은 방식이다 — "지금 오르고 싶은데 못 오른다" 는 자리에 놓는다.
-function grow(r, W, H, doorLens, ratio, wanderMin, wanderMax, shape, zoneBudget, boxBudget, portalPairs) {
+function grow(r, W, H, doorLens, ratio, wanderMin, wanderMax, shape, zoneBudget, boxBudget, portalPairs, minTurns) {
+  //  🔴 홈을 굳히기 전에 **이만큼은 꺾여 있어야 한다** (0 이면 옛 방식대로 아무 때나 굳힌다)
+  const needTurns = minTurns || 0;
   let zoneLeft = zoneBudget || 0;
   let boxLeft = boxBudget || 0;
   //  🔴 포탈은 **홈을 채운 뒤**에야 켜진다. 그래서 둘째 홈부터의 걸음에서만 놓는다 —
@@ -206,7 +225,9 @@ function grow(r, W, H, doorLens, ratio, wanderMin, wanderMax, shape, zoneBudget,
     while (guard++ < 900) {
       const needGrow = body.length < want;
       const doneWander = steps >= wander;
-      if (!needGrow && doneWander) break;
+      //  🔴 길이가 맞고 돌아다닐 만큼 돌아다녔어도, **충분히 접히기 전에는 안 굳힌다.**
+      //     그래야 일자 홈 대신 ㄷ자·S자 홈이 나온다.
+      if (!needGrow && doneWander && bodyTurns(body, W) >= needTurns) break;
 
       // 갈 수 있는 방향을 모은다
       const opts = [];
