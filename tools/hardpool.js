@@ -23,38 +23,31 @@ const OUT = 'tools/hard-pool.json';
 //    그러니 기믹은 **다양성**으로 쓰고, 어려움은 덤 조각에 맡긴다.
 //    한 판에 기믹 하나씩만 — 셋을 겹치면 무슨 게임인지 안 읽힌다.
 const BANDS = [
-  // ── 앞 (짧고 조인다) ──────────────────────────
-  { d: 1, W: 11, H: 9,  ratio: 0.30, wmin: 3,  wmax: 8,  lens: [3] },
-  { d: 1, W: 13, H: 10, ratio: 0.28, wmin: 6,  wmax: 14, lens: [4] },
-  { d: 2, W: 13, H: 10, ratio: 0.29, wmin: 8,  wmax: 18, lens: [3, 3] },
-  // ── 가운데 ───────────────────────────────────
-  { d: 2, W: 15, H: 11, ratio: 0.31, wmin: 16, wmax: 28, lens: [4, 3] },
-  { d: 2, W: 17, H: 12, ratio: 0.33, wmin: 22, wmax: 36, lens: [4, 4] },
-  { d: 3, W: 15, H: 11, ratio: 0.31, wmin: 20, wmax: 34, lens: [3, 3, 3] },
-  // ── 🔴 뒤 (훨씬 길게) ─────────────────────────
-  //  09-05 밤 사장님: *"게임이 너무 쉽다. 전에 1~16까지만 있었을 땐 어렵다 생각했는데."*
-  //  재보니 그 판들은 **제일 짧은 게 20걸음, 중앙 34** 였다. 지금 것은 중앙 19 다.
-  //  판 하나에 쓰는 시간이 2.5분 → 1.0분으로 줄었다. **길이를 아예 안 보게 만든 게 나였다.**
-  //  🔴 길이는 난이도의 전부가 아니지만 **아무것도 아닌 것도 아니다** —
-  //     긴 판은 앞을 내다봐야 하고, 그게 사장님이 느끼신 어려움이다.
-  { d: 2, W: 19, H: 12, ratio: 0.38, wmin: 34, wmax: 52, lens: [5, 4] },
-  { d: 3, W: 19, H: 13, ratio: 0.40, wmin: 38, wmax: 58, lens: [4, 4, 3] },
-  { d: 3, W: 21, H: 12, ratio: 0.42, wmin: 44, wmax: 66, lens: [5, 4, 3] },
-  { d: 3, W: 22, H: 13, ratio: 0.42, wmin: 50, wmax: 75, lens: [5, 4, 4] },
-  { d: 2, W: 14, H: 15, ratio: 0.38, wmin: 36, wmax: 56, lens: [5, 4] },   // 세로로 긴 것
-  { d: 3, W: 22, H: 10, ratio: 0.40, wmin: 40, wmax: 60, lens: [4, 4, 3] }, // 가로로 긴 것
-  // ── 기믹 판 (한 판에 하나씩만) ────────────────
-  { d: 1, W: 13, H: 10, ratio: 0.30, wmin: 8,  wmax: 18, lens: [4],       zone: 2 },
-  { d: 2, W: 17, H: 12, ratio: 0.34, wmin: 22, wmax: 38, lens: [4, 3],    zone: 2 },
-  { d: 1, W: 11, H: 9,  ratio: 0.30, wmin: 4,  wmax: 12, lens: [3],       box: 1 },
-  { d: 2, W: 15, H: 11, ratio: 0.32, wmin: 16, wmax: 30, lens: [3, 3],    box: 1 },
-  { d: 2, W: 17, H: 12, ratio: 0.34, wmin: 20, wmax: 36, lens: [3, 3],    port: 1 },
-  { d: 3, W: 19, H: 13, ratio: 0.38, wmin: 34, wmax: 54, lens: [4, 3, 3], port: 1 },
+  // 🔴 09-05 밤 다시 짬 — 사장님이 짚어주신 것으로 다시 세웠다.
+  //
+  //   쓰는 것 : 홈 셋 · 포탈 · **홈 꺾음 4 이상** · 좁게(빽빽하게)
+  //   빼는 것 : 무중력("진짜 별로였음") · 상자(4판 중 1판만 괜찮았음) · **걸음 수 목표**
+  //
+  //   ⚠️ 판 크기는 **19x11 이하**. 카메라가 묶음에서 제일 큰 판에 맞춰지니,
+  //      큰 판을 하나 넣으면 옛 17판(최대 19x11)이 전부 작아 보인다.
+  //   ⚠️ `걸음 수는 난이도가 아니다` — wander 를 목표로 안 쓴다. 좁게 파는 것으로 밀도를 낸다.
+  { d: 3, W: 13, H: 10, ratio: 0.30, wmin: 8,  wmax: 20, lens: [4, 3, 3], turn: 3 },
+  { d: 3, W: 15, H: 10, ratio: 0.29, wmin: 10, wmax: 24, lens: [5, 4, 3], turn: 4 },
+  { d: 3, W: 15, H: 11, ratio: 0.29, wmin: 12, wmax: 26, lens: [5, 4, 4], turn: 4 },
+  { d: 3, W: 17, H: 10, ratio: 0.28, wmin: 12, wmax: 28, lens: [6, 4, 3], turn: 4 },
+  { d: 3, W: 17, H: 11, ratio: 0.28, wmin: 14, wmax: 30, lens: [6, 5, 3], turn: 4 },
+  { d: 3, W: 19, H: 11, ratio: 0.27, wmin: 16, wmax: 34, lens: [6, 5, 4], turn: 4 },
+  { d: 2, W: 13, H: 10, ratio: 0.31, wmin: 8,  wmax: 20, lens: [6, 4],    turn: 4 },
+  { d: 2, W: 15, H: 11, ratio: 0.29, wmin: 10, wmax: 24, lens: [6, 5],    turn: 4 },
+  // ── 포탈 (사장님: 재미의 원인) ────────────────
+  { d: 2, W: 15, H: 10, ratio: 0.30, wmin: 10, wmax: 24, lens: [5, 4],    turn: 3, port: 1 },
+  { d: 3, W: 17, H: 11, ratio: 0.28, wmin: 12, wmax: 28, lens: [5, 4, 3], turn: 4, port: 1 },
+  { d: 3, W: 19, H: 11, ratio: 0.28, wmin: 14, wmax: 32, lens: [6, 4, 3], turn: 4, port: 1 },
 ];
 
-//  🔴 상한을 크게 잡는다. 긴 판은 상태가 크다 — 09-05 낮에 30만으로 묶었더니
-//     **긴 판이 통째로 걸러졌다.** 재는 게 비싼 것과 **판이 안 좋은 것은 다르다.**
-const MAXST = +(process.env.MAXST || 1200000);
+//  🔴 재는 게 너무 비싼 판은 안 받는다 — 어려운 것과 재기 비싼 것은 다르다
+const MAXST = +(process.env.MAXST || 800000);
+
 
 
 
@@ -73,11 +66,9 @@ for (const b of BANDS) {
     for (let n = 0; n < 120 && got < PER; n++) {
       const shape = SHAPES[Math.floor(r() * SHAPES.length)];
       const grid = grow(r, b.W, b.H, b.lens, b.ratio, b.wmin, b.wmax, shape,
-                        b.zone || 0, b.box || 0, b.port || 0);
+                        0, 0, b.port || 0, b.turn || 0);
       if (!grid) continue;
       //  🔴 기믹을 시켰는데 안 들어간 판은 안 받는다 — 그 띠가 있는 뜻이 없어진다
-      if (b.zone && !grid.join('').includes(':')) continue;
-      if (b.box && !grid.join('').includes('B')) continue;
       if (b.port && !grid.join('').includes('P')) continue;
       const key = grid.join('');
       if (seen.has(key)) continue;
@@ -88,24 +79,23 @@ for (const b of BANDS) {
       if (a.states > MAXST) continue;
       //  🔴 **기믹이 진짜 쓰이는지** 본다. 없애도 똑같이 풀리면 그건 장식이다 —
       //     상자는 17판 중 4판, 포탈은 134판 중 19판이 그랬다 (09-05 측정).
-      if (b.zone || b.box || b.port) {
-        const strip = grid.map(x => x.replace(/[:BPQpq]/g, '.'));
+      //  🔴 **포탈은 없으면 못 푸는 것만** (09-05 사장님: "포털이 꼭 필요하게 써야한다").
+      if (b.port) {
+        const strip = grid.map(x => x.replace(/[PQpq]/g, '.'));
         const c = E.solve({ grid: strip, gravity: true, clear: 'all', id: 'x' });
-        //  🔴 **포탈은 없으면 못 푸는 것만** (09-05 사장님: "포털이 꼭 필요하게 써야한다").
-        //     걸어서도 갈 수 있으면 포탈이 거기 있을 이유가 없다.
-        if (b.port ? c.ok : (c.ok && c.moves === a.moves)) continue;
+        if (c.ok) continue;
       }
       seen.add(key);
       pool.push({
         doors: b.d, shape, grid, best: a.moves, sol: a.path,
         W: b.W, H: b.H, ratio: b.ratio,
-        zone: b.zone || 0, box: b.box || 0, port: b.port || 0,
-        gim: b.box ? 'box' : b.port ? 'portal' : b.zone ? 'zone' : 'none',
+        port: b.port || 0, turn: b.turn || 0,
+        gim: b.port ? 'portal' : 'none',
       });
       got++;
     }
   }
-  const tag = b.box ? ' 상자' : b.port ? ' 포탈' : b.zone ? ' 무중력' : '';
+  const tag = b.port ? ' 포탈' : '';
   console.log(`  ${b.d}홈 ${b.W}x${b.H} ratio ${b.ratio}${tag} → ${got}개`);
 }
 fs.writeFileSync(OUT, JSON.stringify(pool, null, 1) + '\n');
