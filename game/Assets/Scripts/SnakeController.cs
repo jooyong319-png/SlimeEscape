@@ -2435,6 +2435,12 @@ namespace SlimeEscape
             if (_dev && Input.GetKeyDown(KeyCode.P)) { Load(_index - 1); return; }
             if (Input.GetKeyDown(KeyCode.Z)) { Undo(); return; }
 
+            // 🔴 **떨어지는 동안에는 방향 입력을 안 받는다** (09-05 사장님).
+            //    받으면 낙하 연출이 끊기고 다음 걸음이 바로 시작돼 **"팍" 하고 떨어진다.**
+            //    떨어지는 건 내가 하는 게 아니라 **일어나는 일**이다 — 끝날 때까지 기다린다.
+            //    ⚠️ 되돌리기(Z)·다시하기(R)·메뉴는 위에서 이미 받았다. 그것까지 막으면 답답하다.
+            if (!_landed) { Animate(Time.deltaTime); return; }
+
             if (Swipe(out var sdir)) { Step(sdir); return; }
 
             // 🔴 받침대에 몸을 놓는다 — 스페이스. 받침대가 있는 판에서만 뜻이 있다.
