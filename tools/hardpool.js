@@ -160,8 +160,9 @@ for (const b of SET) {
       }
       //  🔴 얼음도 **없으면 못 풀거나, 있어서 더 걸려야** 뜻이 있다.
       //     얼음을 그냥 바닥으로 바꿔도 같은 걸음 수로 풀리면 그건 장식이다.
+      //  🔴 얼음을 **그냥 벽으로** 굳혀도 같은 걸음 수로 풀리면 미끄러진 뜻이 없다 (rev.12-a)
       if (b.ice) {
-        const flat = grid.map(x => x.replace(/I/g, '.'));
+        const flat = grid.map(x => x.replace(/I/g, '#'));
         const c = E.solve({ grid: flat, gravity: true, clear: 'all', id: 'x' });
         if (c.ok && c.moves >= a.moves) continue;
       }

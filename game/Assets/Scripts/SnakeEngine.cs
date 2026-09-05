@@ -70,8 +70,9 @@ namespace SlimeEscape
             public List<int> Boxes = new List<int>();
 
             /// <summary>
-            /// 🔴 얼음 'I' (rev.12) — **좌우로 들어가면 멈출 수 없다.** 막힐 때까지 같은 쪽으로 간다.
-            /// 원하는 칸에 서려면 **먼저 뭔가를 갖다 놔야** 한다 — 그 '뭔가'가 자기 몸이다.
+            /// 🔴 얼음 'I' (rev.12-a) — **밟는 바닥이다.** 벽처럼 막혀 있고 딛고 설 수 있다.
+            /// 그 위에 올라선 채로 좌우로 가면 **끝까지 쭉 미끄러진다.**
+            /// ⚠️ 처음엔 '지나가는 칸'이었다가 물렸다 (09-05 사장님: "그냥 2칸 이동 되는 느낌").
             /// 🔴 tools/engine.js 의 iceSet 과 **같아야 한다.**
             /// </summary>
             public HashSet<int> Ice = new HashSet<int>();
@@ -217,6 +218,8 @@ namespace SlimeEscape
             public int Cm;
             /// 🔴 얼음 위를 계속 미끄러질 수 있는 걸음이었나 (화면·미끄러짐 판정용, 상태 열쇠엔 안 들어간다)
             public bool Sl;
+            /// 🔴 이번 걸음에 **몇 칸을 갔나** (얼음이 없으면 늘 1). 화면이 이만큼 오래 미끄러뜨린다.
+            public int Slid = 1;
             public State(List<int> body, int fm, int pg = 0, int dm = 0, int sc = 0, int pm = 0,
                          List<int> bx = null, int cm = 0)
             { Body = body; Fm = fm; Pg = pg; Dm = dm; Sc = sc; Pm = pm; Cm = cm;
@@ -259,7 +262,7 @@ namespace SlimeEscape
                             L.Gates[grid[y][x] - '1'].Add(c); L.HasGates = true; break;
                         case ':': L.Zone.Add(c); break;
                         case 'B': L.Boxes.Add(c); break;
-                        case 'I': L.Ice.Add(c); break;
+                        case 'I': L.Ice.Add(c); L.Wall[c] = true; break;
                         case 'X': L.CrackIdx[c] = L.Crack.Count; L.Crack.Add(c);
                                   L.HasCrack = true; break;
                         case 'P': port[0, 0] = c; break;
@@ -597,24 +600,28 @@ namespace SlimeEscape
         }
 
         /// <summary>
-        /// 🔴 얼음 (rev.12) — **좌우로 들어가면 멈출 수 없다.** 막힐 때까지 같은 쪽으로 간다.
-        /// 한 번 누른 것이므로 **걸음 수는 1**이다.
+        /// 🔴 얼음 (rev.12-a) — **밟는 바닥이다.** 머리 **바로 아래**가 얼음이면 멈추지 못하고
+        /// 같은 쪽으로 계속 간다. 한 번 누른 것이므로 **걸음 수는 1**이다.
         /// ⚠️ 위아래로는 안 미끄러진다 — 세로는 이미 중력이 뜻을 차지하고 있다.
+        /// ⚠️ 몇 칸을 갔는지는 <see cref="State.Slid"/> 에 담는다 — 화면이 그만큼 오래
+        ///    미끄러뜨리고 그동안 조작을 막는다.
         /// 🔴 tools/engine.js 의 step 과 **같아야 한다.**
         /// </summary>
         public static bool Step(Level L, State st, Dir dir, out State result)
         {
             if (dir == Dir.Drop) return Drop(L, st, out result);
             if (!Move1(L, st, dir, out result)) return false;
+            int n = 1;
             if (L.Ice.Count > 0 && (dir == Dir.Left || dir == Dir.Right))
             {
                 for (int guard = 0; guard < 96; guard++)
                 {
-                    if (!result.Sl || !L.Ice.Contains(result.Head)) break;
+                    if (!result.Sl || !L.Ice.Contains(result.Head + L.W)) break;
                     if (!Move1(L, result, dir, out State nx)) break;
-                    result = nx;
+                    result = nx; n++;
                 }
             }
+            result.Slid = n;
             return true;
         }
     }

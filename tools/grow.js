@@ -369,35 +369,35 @@ function grow(r, W, H, doorLens, ratio, wanderMin, wanderMax, shape, zoneBudget,
         }
       }
 
-      // 🔴 얼음 — **한 번 누르면 여러 칸.** 앞으로 몇 칸을 얼려서 미끄러뜨린다.
-      //    ⚠️ 빨리 가는 길을 놓는 게 아니다. 뜻이 생기는 건 **멈추고 싶은 자리에 못 멈춘다**는 것 —
-      //       미끄러진 끝이 벽이나 제 몸에 부딪혀 정해진다. 그래서 두 칸 넘게 실제로
-      //       밀려간 걸음만 남긴다 (한 칸이면 그냥 걸은 것과 같다).
-      //  ⚠️ **앞부분에만** 놓는다. 굳힐 때 몸이 얼음 위에 있으면 홈을 못 만들어
-      //     (홈은 빈칸에만 굳는다) 판이 통째로 버려진다.
-      if (iceLeft > 0 && steps + 5 < wander && r() < 0.5) {
+      // 🔴 얼음 — **밟는 바닥이다** (rev.12-a). 앞으로 갈 칸들의 **발밑**을 얼린다.
+      //    ⚠️ 전에는 지나갈 칸 자체를 얼렸다가 물렸다 (09-05 사장님: "그냥 2칸 이동 되는 느낌").
+      //       발밑을 얼리면 ① 그림에서 어디가 미끄러운지 보이고
+      //                   ② 지나갈 칸을 안 먹어 **홈 굳히기와 안 부딪힌다** (수율이 오른다).
+      //    두 칸 넘게 실제로 밀려간 걸음만 남긴다 — 한 칸이면 그냥 걸은 것과 같다.
+      if (iceLeft > 0 && r() < 0.5) {
         let placed = false;
         for (const d of (r() < 0.5 ? [2, 3] : [3, 2])) {
           const [dx] = E.DIRS[d];
           const hy = (body[0] / W) | 0, hx0 = body[0] % W;
           const run = 2 + Math.floor(r() * 3);              // 2~4칸
           if (run > iceLeft) continue;
-          const xs = [];
+          const cells = [];
           let ok = true;
           for (let k = 1; k <= run; k++) {
-            const x = hx0 + dx * k;
+            const x = hx0 + dx * k, by = hy + 1;
             if (x <= 0 || x >= W - 1 || g[hy][x] !== '.') { ok = false; break; }
-            xs.push(x);
+            if (by >= H - 1 || g[by][x] !== '#') { ok = false; break; }   // 발밑이 벽이어야 얼린다
+            cells.push([by, x]);
           }
           if (!ok) continue;
-          for (const x of xs) g[hy][x] = 'I';
+          for (const [by, x] of cells) g[by][x] = 'I';
           const trial = relevel(rows(), body, dm, -1, broken);
           const ns = E.step(trial.L, trial.st, d);
           const moved = ns ? Math.abs((ns.body[0] % W) - hx0) : 0;
           if (ns && moved >= 2) {
             cur = trial; cur.st = ns; body = ns.body; steps++; iceLeft -= run; placed = true; break;
           }
-          for (const x of xs) g[hy][x] = '.';
+          for (const [by, x] of cells) g[by][x] = '#';
         }
         if (placed) continue;
       }

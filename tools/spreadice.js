@@ -56,13 +56,14 @@ function landings(grid) {
     const n = E.step(L, st, d);
     if (!n) return null;
     if (d === 2 || d === 3) {
-      const h = n.body[0];
-      //  이미 얼음이면 넓힐 게 없다. 홈·조각 칸도 못 바꾼다 (뜻이 달라진다)
-      if (!L.iceSet.has(h) && !L.foodIdx.has(h) && h !== L.start
-          && !L.doors.some(dd => dd.set.has(h))
-          && !L.portal.has(h) && !L.zoneSet.has(h) && !L.crackIdx.has(h)
-          && !(L.boxes || []).includes(h) && h !== L.star)
-        out.push(h);
+      //  🔴 얼음은 **발밑**이다 (rev.12-a). 내려앉은 칸이 아니라 **그 아래 벽**을 얼린다.
+      const below = n.body[0] + L.w;
+      if (below < L.w * L.h) {
+        const by = (below / L.w) | 0, bx = below % L.w;
+        if (by > 0 && by < L.h - 1 && bx > 0 && bx < L.w - 1
+            && L.g[by][bx] === '#' && !L.iceSet.has(below) && !L.crackIdx.has(below))
+          out.push(below);
+      }
     }
     st = n;
   }

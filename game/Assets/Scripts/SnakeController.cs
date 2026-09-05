@@ -104,7 +104,8 @@ namespace SlimeEscape
         //    차가움은 중성회색을 **푸른 쪽으로 아주 살짝** 기울여서 낸다.
         //    ⚠️ "여기서 미끄러진다"를 말하는 건 색이 아니라 **가로 결**이다 —
         //       결이 좌우로 누워 있으니 좌우로 미끄러진다는 게 그림만 봐도 읽힌다.
-        static readonly Color IceCol   = new Color32(0x22, 0x2a, 0x34, 0xff);  // 얼음판 (바닥보다 밝다)
+        static readonly Color IceCol   = new Color32(0x2c, 0x38, 0x46, 0xff);  // 언 바닥 (벽보다 푸르고 밝다)
+        static readonly Color IceTop   = new Color32(0x8f, 0xb8, 0xd4, 0xff);  // 🔴 **밟는 면.** 미끄럽다는 말은 여기서 한다
         static readonly Color IceLine  = new Color32(0x8f, 0xa6, 0xbe, 0xff);  // 결
         static readonly Color IceShine = new Color32(0xdf, 0xec, 0xf8, 0xff);  // 미끄러져 지나가는 빛
         // 🔴 금 간 바닥 (rev.12) — **딛고 설 수 있는 것**이라 벽(Rock)과 같은 계열이다.
@@ -558,6 +559,9 @@ namespace SlimeEscape
         // 🔴 걸음과 낙하는 다른 동작이다. Step()은 둘을 한 번에 끝내 버리므로,
         //    화면에서는 걸음 -> 낙하 두 구간으로 나눠 그린다.
         int _fall;                                              // 이번 걸음에 떨어진 칸 수
+        //  🔴 이번 걸음에 **미끄러진 칸 수** (얼음이 없으면 1).
+        //     한 칸이면 그냥 걸은 것이고, 두 칸 이상이면 그만큼 오래 흘러야 한다.
+        int _slid = 1;
         readonly List<Vector2> _mid = new List<Vector2>();      // 떨어지기 직전 자리
         float _land;                                            // 착지 눌림 (1 -> 0)
         bool _landed = true;                                    // 이번 낙하의 착지를 이미 쳤나
@@ -677,6 +681,11 @@ namespace SlimeEscape
         /// 낙하에 쓸 시간 — 걸음 시간을 1로 본 값. 🔴 √칸수라 높을수록 길어지되 무한정은 아니다.
         float FallSpan => _fall <= 0 ? 0f
             : Mathf.Sqrt(_fall) * Mathf.Max(0f, K.fallTime) / Mathf.Max(0.02f, K.stepTime);
+        //  🔴 미끄러진 칸마다 걸음 구간을 이만큼 늘린다.
+        //     ⚠️ 낙하(√n)와 달리 **칸에 그대로 비례**한다 — 미끄러짐은 등속이라
+        //        열 칸을 세 칸보다 확실히 오래 가야 "쭉 밀렸다"로 읽힌다.
+        const float SlideCell = 0.55f;
+        float SlideSpan => _slid <= 1 ? 0f : (_slid - 1) * SlideCell;
 
         void Awake()
         {
@@ -1373,44 +1382,13 @@ namespace SlimeEscape
                     //     바깥선만 둥글고 속은 한 덩어리가 되게 한다.
                     if (wall) sr.sprite = PixelSprites.Round();
                     //  빈 칸은 높이에 따라 밝기가 다르다 — 위가 밝고 아래가 가라앉는다
-                    sr.color = wall ? Rock
+                    //  🔴 **얼음은 벽과 같은 덩어리지만 색이 다르다** (rev.12-a).
+                    //     밟는 바닥이라 벽 자리에 있다. 벽(차가운 회청)보다 밝고 푸르게 —
+                    //     "여기는 단단하지만 미끄럽다".
+                    bool isIce = wall && _L.Ice.Contains(c);
+                    sr.color = isIce ? IceCol
+                             : wall ? Rock
                              : Color.Lerp(FloorLit, FloorDim, _L.H < 2 ? 0f : (float)y / (_L.H - 1));
-
-                    //  🔴 얼음 — 바닥보다 밝은 판에 **가로 결** 둘. 결이 누운 쪽이 곧 미끄러지는 쪽이다.
-                    if (!wall && _L.Ice.Contains(c))
-                    {
-                        //  🔴 **얼음은 물건이 아니라 바닥이다** (09-05 화면).
-                        //     둥근 네모로 그렸더니 낱개 블록으로 보여 **상자와 헷갈렸다.**
-                        //     칸 끝까지 네모로 채워 옆 칸과 이어 붙인다 — 여러 칸이 한 장의
-                        //     언 바닥으로 읽혀야 "여기 들어가면 쭉 미끄러진다"가 보인다.
-                        var ice = NewSprite("Ice", -3);
-                        ice.sprite = PixelSprites.Solid();
-                        ice.transform.position = (Vector3)CellPos(c) + new Vector3(0, 0, -0.008f);
-                        ice.transform.localScale = new Vector3(1f, 1f, 1f);
-                        ice.color = IceCol;
-                        //  결 — 가늘고 길게. 누운 쪽이 곧 미끄러지는 쪽이다.
-                        for (int k = 0; k < 3; k++)
-                        {
-                            var ln = NewSprite("IceLine", -2);
-                            ln.sprite = PixelSprites.Solid();
-                            float oy = k == 0 ? 0.24f : k == 1 ? 0.02f : -0.22f;
-                            float ox = k == 0 ? -0.10f : k == 1 ? 0.12f : -0.04f;
-                            ln.transform.position = (Vector3)CellPos(c) + new Vector3(ox, oy, -0.009f);
-                            ln.transform.localScale = new Vector3(k == 1 ? 0.62f : 0.40f, 0.030f, 1f);
-                            var lc = IceLine; lc.a = k == 1 ? 0.34f : 0.24f;
-                            ln.color = lc;
-                        }
-                        //  지나가는 빛 한 줄기 — Animate 에서 좌우로 흐른다
-                        var sh = NewSprite("IceShine", -2);
-                        //  🔴 **가장자리가 있으면 기둥으로 읽힌다** (09-05 확대 화면).
-                        //     각진 네모를 세워 놨더니 가로 결과 싸워 얼음 위에 막대가 섰다.
-                        //     부드러운 것으로 바꾸고 아주 흐리게 — 무늬가 아니라 **윤기**다.
-                        sh.sprite = PixelSprites.Soft();
-                        sh.transform.localScale = new Vector3(0.34f, 0.86f, 1f);
-                        var sc2 = IceShine; sc2.a = 0f;
-                        sh.color = sc2;
-                        _iceShines.Add((c, sh));
-                    }
 
                     //  🔴 금 간 바닥 — 벽처럼 딛고 서지만 지나가면 무너진다.
                     //     벽 덩어리에 안 붙이고 **낱장**으로 그린다. "이건 따로 떨어진 판이다".
@@ -1515,7 +1493,32 @@ namespace SlimeEscape
                             var e = NewSprite("WallTop", -2);
                             e.transform.position = CellPos(c) + new Vector2(0f, 0.42f);
                             e.transform.localScale = new Vector3(1f, 0.16f, 1);
-                            e.color = RockTop;
+                            //  🔴 얼음은 **윗면이 다르다.** 슬라임이 걷는 건 이 면이라,
+                            //     미끄럽다는 말은 여기서 해야 한다 — 밝게 얼려 놓는다.
+                            e.color = isIce ? IceTop : RockTop;
+                        }
+                        //  🔴 얼음 윗면의 **결** — 누운 쪽이 곧 미끄러지는 쪽이다.
+                        //     ⚠️ 칸 속이 아니라 **윗면 바로 아래**에 깐다. 속에 그리면
+                        //        "안을 지나간다"로 읽혀 처음에 물린 그 그림이 된다.
+                        if (isIce && up)
+                        {
+                            for (int k = 0; k < 2; k++)
+                            {
+                                var ln = NewSprite("IceLine", -2);
+                                ln.sprite = PixelSprites.Solid();
+                                ln.transform.position = CellPos(c)
+                                    + new Vector2(k == 0 ? -0.14f : 0.16f, k == 0 ? 0.24f : 0.10f);
+                                ln.transform.localScale = new Vector3(k == 0 ? 0.44f : 0.30f, 0.035f, 1f);
+                                var lc = IceLine; lc.a = k == 0 ? 0.40f : 0.26f;
+                                ln.color = lc;
+                            }
+                            //  윗면을 훑고 지나가는 윤기 — Animate 가 좌우로 흘린다
+                            var sh = NewSprite("IceShine", -2);
+                            sh.sprite = PixelSprites.Soft();
+                            sh.transform.localScale = new Vector3(0.30f, 0.16f, 1f);
+                            var sc2 = IceShine; sc2.a = 0f;
+                            sh.color = sc2;
+                            _iceShines.Add((c, sh));
                         }
                         // 🔴 옆·아랫면 테는 **뺐다.** 돌마다 테가 둘리니 다시 타일로 보였고,
                         //    밝은 면이 너무 많아 빈 곳보다 돌이 밝아졌다 (08-31 화면).
@@ -2033,7 +2036,7 @@ namespace SlimeEscape
             _undo.Clear();
             _won = false;
             _pop = 0; _stepT = 999f; _jigT = 99f; _jigX = _jigY = 0f;
-            _fall = 0; _land = 0f; _landed = true;
+            _fall = 0; _slid = 1; _land = 0f; _landed = true;
             _segPos.Clear(); _from.Clear(); _mid.Clear();
             _boxDrawn.Clear(); _boxFrom.Clear(); _boxSq.Clear();
             _warpIn = _warpOut = -1; _warpT = 9f;   //  건너뛰기 표시도 지운다
@@ -2211,8 +2214,9 @@ namespace SlimeEscape
                 var (ic, isr) = _iceShines[i];
                 if (isr == null) continue;
                 float u = Mathf.Repeat(Time.time * 0.26f + (ic * 0.37f), 1f);
+                //  🔴 윗면(+0.42) 바로 아래를 훑는다. 칸 가운데를 지나면 "속"으로 읽힌다.
                 isr.transform.position = (Vector3)CellPos(ic)
-                    + new Vector3(Mathf.Lerp(-0.62f, 0.62f, u), 0f, -0.0095f);
+                    + new Vector3(Mathf.Lerp(-0.62f, 0.62f, u), 0.34f, -0.0095f);
                 var sc3 = IceShine;
                 //  가장자리에선 안 보이고 가운데를 지날 때만 — 스치는 빛으로 읽힌다.
                 //  🔴 0.22 는 너무 진했다 (막대로 보였다). 있는 듯 없는 듯이 남긴다.
@@ -2250,6 +2254,14 @@ namespace SlimeEscape
                 float t = cr.t;
                 if (t <= 0f)
                 {
+                    //  🔴 **색·기울기·크기를 늘 제자리로 놓는다** (09-05 사장님: "R/Z 로 리셋하면
+                    //     외형만 사라진 걸로 됨"). 되살릴 때 enabled 만 켜고 알파를 안 되돌려서
+                    //     켜져 있는데 투명한 채로 남았다. 여기서 매 판 다시 칠하면
+                    //     어떤 길로 되돌아오든 복구된다.
+                    cr.slab.color = CrackCol;
+                    cr.top.color  = CrackTop;
+                    cr.slab.transform.localRotation = Quaternion.identity;
+                    cr.slab.transform.localScale = new Vector3(0.94f, 0.94f, 1f);
                     //  밟고 있으면 금이 굵고 진해진다
                     float wgt = load ? 1.9f : 1f;
                     cr.l1.transform.localScale = new Vector3(0.050f * wgt, 0.56f, 1f);
@@ -2260,6 +2272,11 @@ namespace SlimeEscape
                     float sag = load ? -0.045f : 0f;
                     cr.slab.transform.position = (Vector3)CellPos(cr.cell) + new Vector3(0, sag, -0.008f);
                     cr.top.transform.position = (Vector3)CellPos(cr.cell) + new Vector3(0, 0.40f + sag, -0.009f);
+                    //  🔴 **금의 자리도 되돌린다.** 안 하면 부서지며 내려간 자리에 금 두 줄만
+                    //     바닥 밖에 남는다 (09-05 화면에서 실제로 그랬다) —
+                    //     슬래브만 제자리로 보내고 금은 놔뒀기 때문이다.
+                    cr.l1.transform.position = (Vector3)CellPos(cr.cell) + new Vector3(-0.14f, 0.08f + sag, -0.010f);
+                    cr.l2.transform.position = (Vector3)CellPos(cr.cell) + new Vector3(0.13f, -0.16f + sag, -0.010f);
                     continue;
                 }
                 //  🔴 t*t — 처음엔 버티다 **한번에** 무너진다. 등속이면 스르르 사라져 안 읽힌다.
@@ -2691,7 +2708,10 @@ namespace SlimeEscape
                     //     연출이 없어서 **뚝 내려앉는다.** 나온 칸은 알고 있으니 거기서부터 세면 된다.
                     _fall = Mathf.Max(0, _st.Head / _L.W - hop2.To / _L.W);
             }
-            _landed = _fall == 0;
+            //  🔴 미끄러지는 동안에도 **조작을 막는다** (09-05 사장님: "아무 조작이 안 되는 느낌").
+            //     낙하와 같은 장치를 쓴다 — 끝나기 전에는 _landed 가 false 다.
+            _slid = Mathf.Max(1, _st.Slid);
+            _landed = _fall == 0 && _slid <= 1;
 
             // 떨어지기 직전 자리 = 최종 자리에서 낙하한 만큼 도로 올린 것
             _mid.Clear();
@@ -2735,7 +2755,7 @@ namespace SlimeEscape
             _mid.Clear(); _mid.AddRange(_segPos);
             _stepT = 999f;
             _pop = 0f;
-            _fall = 0; _land = 0f; _landed = true;
+            _fall = 0; _slid = 1; _land = 0f; _landed = true;
             SyncViews();
         }
 
@@ -2822,7 +2842,10 @@ namespace SlimeEscape
             }
 
             float fallSpan = FallSpan;
-            float done = 1f + fallSpan + Lag * Mathf.Max(0, _st.Length - 1);
+            //  🔴 미끄러진 만큼 걸음 구간이 길어진다. 이 값이 0 이면 옛날과 똑같다.
+            float slideSpan = SlideSpan;
+            float stepEnd = 1f + slideSpan;             // 걸음 구간의 끝
+            float done = stepEnd + fallSpan + Lag * Mathf.Max(0, _st.Length - 1);
             if (_stepT < done + 1f) _stepT += dt / Mathf.Max(0.02f, K.stepTime);
             AnimateBoxes();
             _pop = Mathf.Max(0f, _pop - dt / 0.18f);
@@ -2830,7 +2853,7 @@ namespace SlimeEscape
             if (_jigT < 9f) _jigT += dt;
 
             // 머리가 땅에 닿는 순간 한 번만 친다 (마디마다 치면 계속 떨린다)
-            if (!_landed && _stepT >= 1f + fallSpan)
+            if (!_landed && _stepT >= stepEnd + fallSpan)
             {
                 _landed = true;
                 _land = Mathf.Clamp01(K.landSquash) * Mathf.Clamp01(_fall / 4f);
@@ -2859,30 +2882,35 @@ namespace SlimeEscape
                 //     **건너뛴 것**이다. 이어 그리면 마디가 판을 가로질러 날아간다 —
                 //     사장님이 "포털 들어가면 몸이 늘어난다" 고 하신 게 이것이다.
                 //     ⚠️ **걸음 구간만** 본다. 낙하는 여러 칸이 정상이라 여기서 잡으면 안 된다.
+                //  🔴 미끄러짐은 **등속**이다. Ease(감속)를 쓰면 두 칸을 슬쩍 옮긴 것처럼 보인다 —
+                //     사장님이 물리신 그 느낌이다. 쭉 흐르다 부딪혀 선다.
+                bool sliding = slideSpan > 0f;
                 Vector2 stepTo = fallSpan <= 0f ? end : _mid[i];
-                //  🔴 **얼음 미끄러짐은 건너뛴 게 아니다** (rev.12). 같은 줄을 쭉 밀려간 것이라
-                //     이어 그리는 게 맞다 — 여기서 안 갈라두면 여러 칸 미끄러질 때마다
-                //     몸이 뚝뚝 끊겨 순간이동처럼 보인다.
-                //     ⚠️ 포탈이 있는 판에서는 같은 줄로도 건너뛸 수 있으므로 옛 규칙을 그대로 쓴다.
-                bool slid = _L.Ice.Count > 0 && _L.Portal.Count == 0
-                            && Mathf.Abs(stepTo.y - _from[i].y) < 0.01f;
-                bool warp = !slid && (stepTo - _from[i]).sqrMagnitude > 2.25f;
+                //  🔴 **얼음 미끄러짐은 건너뛴 게 아니다.** 같은 줄을 쭉 밀려간 것이라 이어 그린다.
+                //     ⚠️ 전에는 "포탈이 있으면 포기"였다 (같은 줄로도 건너뛸 수 있어서).
+                //        이제 **몇 칸 미끄러졌는지(_slid)를 알고 있다** — 포탈을 타면 미끄러짐이
+                //        거기서 끊기므로(_sl=false) _slid 가 1 을 넘는 걸음은 **반드시 미끄러진 것**이다.
+                //        그래서 포탈이 있는 판에서도 제대로 흐른다.
+                bool slid2 = _slid > 1 && Mathf.Abs(stepTo.y - _from[i].y) < 0.01f;
+                bool warp = !slid2 && (stepTo - _from[i]).sqrMagnitude > 2.25f;
 
+                float su = Mathf.Clamp01(t / stepEnd);       // 걸음 구간 안에서의 진행
+                float sc = sliding ? su : Ease(su);          // 미끄러지면 등속, 아니면 감속
                 if (fallSpan <= 0f)
                 {
-                    _segPos[i] = warp ? (t < 0.5f ? _from[i] : end)
-                                      : Vector2.Lerp(_from[i], end, Ease(Mathf.Clamp01(t)));
+                    _segPos[i] = warp ? (su < 0.5f ? _from[i] : end)
+                                      : Vector2.Lerp(_from[i], end, sc);
                 }
-                else if (t <= 1f)
+                else if (t <= stepEnd)
                 {
-                    // 1구간: 걸음. 끝을 부드럽게 놓는다
-                    _segPos[i] = warp ? (t < 0.5f ? _from[i] : _mid[i])
-                                      : Vector2.Lerp(_from[i], _mid[i], Ease(Mathf.Clamp01(t)));
+                    // 1구간: 걸음(미끄러짐 포함). 끝을 부드럽게 놓는다
+                    _segPos[i] = warp ? (su < 0.5f ? _from[i] : _mid[i])
+                                      : Vector2.Lerp(_from[i], _mid[i], sc);
                 }
                 else
                 {
                     // 2구간: 낙하. 🔴 점점 빨라져야 한다 — 걸음의 곡선(감속)을 그대로 쓰면 안 된다
-                    float u = Mathf.Clamp01((t - 1f) / fallSpan);
+                    float u = Mathf.Clamp01((t - stepEnd) / fallSpan);
                     _segPos[i] = Vector2.Lerp(_mid[i], end, u * u);
                 }
             }
@@ -3040,9 +3068,10 @@ namespace SlimeEscape
                 //     그때 이으면 막대가 한 번 번쩍인다.
                 //     ⚠️ 걸을 때도 마디 사이가 **두 칸**까지 벌어진다 (뒤 마디가 늦게 뜬다).
                 //        그래서 세 칸(9)을 넘을 때만 끊는다 — 걸음은 안 건드린다.
-                //  🔴 얼음 위를 미끄러지는 동안엔 마디 사이가 여러 칸 벌어진다 (뒤 마디가 늦게 뜬다).
-                //     같은 줄이면 그건 늘어난 것이지 끊어진 게 아니다 — 넉넉히 봐준다.
-                float cut = (_L.Ice.Count > 0 && Mathf.Abs(d2.y) < 0.2f) ? 81f : 9f;
+                //  🔴 미끄러지는 동안엔 마디 사이가 여러 칸 벌어진다 (뒤 마디가 늦게 뜬다).
+                //     같은 줄이면 늘어난 것이지 끊어진 게 아니다 — **미끄러진 칸 수만큼** 봐준다.
+                float span = _slid + 1.5f;
+                float cut = (_slid > 1 && Mathf.Abs(d2.y) < 0.2f) ? span * span : 9f;
                 if (d2.sqrMagnitude > cut) { _links[i].enabled = false; continue; }
                 bool horiz = Mathf.Abs(d2.x) > Mathf.Abs(d2.y);
 
@@ -3529,11 +3558,12 @@ namespace SlimeEscape
                     "...1..",
                     "S+=*..",
                     "######" },
-            //  🔴 얼음 (rev.12) — 한 번 누르면 **끝까지** 간다. 이게 이 기믹의 전부라
+            //  🔴 얼음 (rev.12-a) — **밟으면** 끝까지 간다. 이게 이 기믹의 전부라
             //     시범도 딱 그것만 보여준다: 오른쪽 한 번, 왼쪽 한 번.
+            //     ⚠️ 얼음은 **발밑**이다. 지나가는 칸이 아니다.
             new[] { "......",
-                    "......",
-                    "SIIII.",
+                    "S.....",
+                    "#IIII#",
                     "######" },
             //  🔴 금 간 바닥 (rev.12) — 지나가면 무너지고 **돌아올 수 없다.**
             //     그래서 시범은 돌아오려다 떨어지는 데까지 보여준다. 그게 요점이다.
