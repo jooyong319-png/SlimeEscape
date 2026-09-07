@@ -27,7 +27,7 @@ const solve = (g, o) => E.solve({ grid: g, gravity: true, clear: 'all', id: 'c' 
 
 //  못은 여기서 다 긁는다 (같은 판이 여러 못에 들어 있다)
 const POOLS = ['brutal-pool', 'hard-pool', 'make40-pool', 'measured-pool', 'pool',
-               'trap-pool', 'ice-pool', 'crack-pool', 'final-pool'];
+               'trap-pool', 'ice-pool', 'crack-pool', 'final-pool', 'box-pool'];
 
 /// 자리마다의 조건. `want` 는 판 하나를 받아 참/거짓.
 const PLAN = {
@@ -45,13 +45,16 @@ const PLAN = {
   //     ⚠️ 지금 못에 있는 상자 판은 전부 '발판' 식이다. 사장님이 물리셨던 그 쓰임이라
   //        (「4판 중 1판만 괜찮았어」) **먼저 판단을 받아본다** — 지루하다 하시면
   //        생성기에 「떨어뜨리기」를 넣어 다시 찍는다.
+  //  🔴 새 BOX 띠로 다시 찍은 뒤 (120판 · 13x10~17x11 · 걸음 중앙값 29).
+  //     옛 못은 9x6 에 13~17걸음뿐이라, 그걸로 판단받으면 "상자가 지루하다"가 아니라
+  //     "판이 작다"를 판단받게 된다.
   2: [
-    { name: '상자 · 짧게',        want: v => v.gim === 'box' && v.doors <= 2 && v.best <= 20 },
-    { name: '상자 · 홈 둘',       want: v => v.gim === 'box' && v.doors === 2 },
-    { name: '상자 · 홈 둘',       want: v => v.gim === 'box' && v.doors === 2 },
-    { name: '상자 · 덤 조각',     want: v => v.gim === 'box' && v.spare >= 1 },
+    { name: '상자 · 배우는 판',   want: v => v.gim === 'box' && v.doors === 2 && v.best <= 24 },
+    { name: '상자 · 홈 둘',       want: v => v.gim === 'box' && v.doors === 2 && v.best >= 25 },
+    { name: '상자 · 홈 둘 · 덤',  want: v => v.gim === 'box' && v.doors === 2 && v.spare >= 1 },
     { name: '상자 · 홈 셋',       want: v => v.gim === 'box' && v.doors === 3 },
-    { name: '상자 · 홈 셋',       want: v => v.gim === 'box' && v.doors === 3 },
+    { name: '상자 · 홈 셋 · 길게', want: v => v.gim === 'box' && v.doors === 3 && v.best >= 30 },
+    { name: '상자 · 홈 셋 · 덤',  want: v => v.gim === 'box' && v.doors === 3 && v.spare >= 1 },
   ],
   //  🔴 굴 5 — 포탈. 홈을 채워야 켜지므로 홈이 둘 이상이어야 한다.
   //     사장님이 **재미의 원인**으로 짚으신 기믹이다 (09-05).
