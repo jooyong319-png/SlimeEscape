@@ -12,7 +12,9 @@ const fs = require('fs');
 const E = require('./engine.js').SlimeEngine;
 const { grow, rng, SHAPES } = require('./grow.js');
 
-const OUT = process.env.OUT || (process.env.CRACK === '1' ? 'tools/crack-pool.json'
+const OUT = process.env.OUT || (process.env.BOX === '1' ? 'tools/box-pool.json'
+                              : process.env.FINAL === '1' ? 'tools/final-pool.json'
+                              : process.env.CRACK === '1' ? 'tools/crack-pool.json'
                               : process.env.ICE === '1' ? 'tools/ice-pool.json'
                               : process.env.HARD === '1' ? 'tools/brutal-pool.json'
                               : 'tools/hard-pool.json');
@@ -104,6 +106,40 @@ const CRACK_BANDS = [
   { d: 3, W: 19, H: 11, ratio: 0.33, wmin: 14, wmax: 30, lens: [6, 4, 3], turn: 3, crack: 4, ice: 8 },
 ];
 
+// 🔴 **피날레 띠** (FINAL=1) — 2026-09-05.
+//    사장님: *"마지막 5판은 최대한 많이 섞이고 큰 맵이면 좋겠어. 정말 어렵게."*
+//
+//    ⚠️ 넷을 한 판에 다 넣는 건 **아주 드물다.** 재보니:
+//        3홈 19x11 ratio 0.32 → 씨앗 1500개에 넷 다 든 판 **1개**
+//        2홈 19x11 ratio 0.42 → 씨앗 1500개에 넷 다 든 판 **14개**
+//    홈을 둘로 줄이고 **넓게 파는 것**이 결정적이다 — 좁으면 상자를 놓을 자리도,
+//    얼음을 깔 가로줄도, 포탈 나갈 먼 칸도 안 나온다.
+//
+//    ⚠️ 그리고 상태가 곱으로 커진다 (몸 자리 × 조각 × 홈 × **상자 자리** × **부서진 바닥**).
+//       그래서 금 간 바닥은 셋, 상자는 하나~둘로 묶어둔다. 안 그러면 솔버가 못 끝낸다.
+const FINAL_BANDS = [
+  { d: 2, W: 19, H: 11, ratio: 0.42, wmin: 20, wmax: 40, lens: [6, 5], turn: 2,
+    box: 2, port: 1, ice: 10, crack: 3 },
+  { d: 2, W: 19, H: 11, ratio: 0.40, wmin: 20, wmax: 40, lens: [7, 5], turn: 2,
+    box: 2, port: 1, ice: 10, crack: 3 },
+  { d: 2, W: 17, H: 11, ratio: 0.38, wmin: 16, wmax: 34, lens: [6, 5], turn: 2,
+    box: 2, port: 1, ice: 9, crack: 3 },
+  { d: 2, W: 19, H: 11, ratio: 0.44, wmin: 22, wmax: 42, lens: [7, 6], turn: 2,
+    box: 1, port: 1, ice: 11, crack: 3 },
+];
+
+// 🔴 **상자 띠** (BOX=1) — 2026-09-05.
+//    못에 있던 상자 판 40개는 전부 작고 짧았다 (9x6~10x9 · 13~17걸음). 홈 셋짜리는 하나도 없었다.
+//    사장님이 상자를 물리셨던 게(「4판 중 1판만 괜찮았어」) 판이 작아서였을 수도 있다.
+//    ⚠️ 상자 자리가 상태에 들어가 솔버가 소코반이 된다 — 판을 너무 키우면 못 끝낸다.
+const BOX_BANDS = [
+  { d: 2, W: 13, H: 10, ratio: 0.34, wmin: 10, wmax: 24, lens: [5, 4],    turn: 2, box: 2 },
+  { d: 2, W: 15, H: 10, ratio: 0.33, wmin: 12, wmax: 26, lens: [6, 4],    turn: 3, box: 2 },
+  { d: 2, W: 15, H: 11, ratio: 0.33, wmin: 12, wmax: 26, lens: [6, 5],    turn: 3, box: 2 },
+  { d: 3, W: 15, H: 11, ratio: 0.33, wmin: 12, wmax: 28, lens: [5, 4, 3], turn: 3, box: 2 },
+  { d: 3, W: 17, H: 11, ratio: 0.32, wmin: 14, wmax: 30, lens: [6, 4, 3], turn: 3, box: 3 },
+];
+
 //  🔴 재는 게 너무 비싼 판은 안 받는다 — 어려운 것과 재기 비싼 것은 다르다
 const MAXST = +(process.env.MAXST || 800000);
 
@@ -127,7 +163,9 @@ const seen = new Set(pool.map(p => p.grid.join('')));
 console.log('있던 판', pool.length, '개에 이어서 만든다');
 
 const t0 = Date.now();
-const SET = process.env.CRACK === '1' ? CRACK_BANDS
+const SET = process.env.BOX === '1' ? BOX_BANDS
+          : process.env.FINAL === '1' ? FINAL_BANDS
+          : process.env.CRACK === '1' ? CRACK_BANDS
           : process.env.ICE === '1' ? ICE_BANDS
           : process.env.HARD === '1' ? HARD_BANDS : BANDS;
 for (const b of SET) {
@@ -137,12 +175,15 @@ for (const b of SET) {
     for (let n = 0; n < 120 && got < PER; n++) {
       const shape = SHAPES[Math.floor(r() * SHAPES.length)];
       const grid = grow(r, b.W, b.H, b.lens, b.ratio, b.wmin, b.wmax, shape,
-                        0, 0, b.port || 0, b.turn || 0, b.hole || 0, b.ice || 0, b.crack || 0);
+                        0, b.box || 0, b.port || 0, b.turn || 0, b.hole || 0,
+                        b.ice || 0, b.crack || 0);
       if (!grid) continue;
       //  🔴 기믹을 시켰는데 안 들어간 판은 안 받는다 — 그 띠가 있는 뜻이 없어진다
       if (b.port && !grid.join('').includes('P')) continue;
       if (b.ice && !grid.join('').includes('I')) continue;
       if (b.crack && !grid.join('').includes('X')) continue;
+      //  🔴 피날레는 **넷이 다 들어간 판만** 받는다. 하나라도 빠지면 피날레가 아니다.
+      if (b.box && !grid.join('').includes('B')) continue;
       const key = grid.join('');
       if (seen.has(key)) continue;
       const a = E.solve({ grid, gravity: true, clear: 'all', id: 'g' });
@@ -179,7 +220,9 @@ for (const b of SET) {
         doors: b.d, shape, grid, best: a.moves, sol: a.path,
         W: b.W, H: b.H, ratio: b.ratio,
         port: b.port || 0, turn: b.turn || 0, ice: b.ice || 0, crack: b.crack || 0,
-        gim: [b.ice ? 'ice' : '', b.crack ? 'crack' : '', b.port ? 'portal' : '']
+        box: b.box || 0,
+        gim: [b.ice ? 'ice' : '', b.crack ? 'crack' : '',
+              b.box ? 'box' : '', b.port ? 'portal' : '']
                .filter(Boolean).join('+') || 'none',
       });
       got++;
@@ -188,7 +231,8 @@ for (const b of SET) {
   //  🔴 **띄마다 저장한다.** 맨 끕에서 한 번만 쓰면 도중에 끊겼을 때
   //     몇백 분치가 통째로 날아간다 (09-05 에 그럴 뻔했다).
   fs.writeFileSync(OUT, JSON.stringify(pool, null, 1) + '\n');
-  const tag = (b.ice ? ' 얼음' : '') + (b.crack ? ' 금간바닥' : '') + (b.port ? ' 포탈' : '');
+  const tag = (b.ice ? ' 얼음' : '') + (b.crack ? ' 금간바닥' : '') +
+              (b.box ? ' 상자' : '') + (b.port ? ' 포탈' : '');
   console.log(`  ${b.d}홈 ${b.W}x${b.H} ratio ${b.ratio}${tag} → ${got}개`);
 }
 fs.writeFileSync(OUT, JSON.stringify(pool, null, 1) + '\n');
