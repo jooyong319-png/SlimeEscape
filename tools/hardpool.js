@@ -119,13 +119,13 @@ const CRACK_BANDS = [
 //       그래서 금 간 바닥은 셋, 상자는 하나~둘로 묶어둔다. 안 그러면 솔버가 못 끝낸다.
 const FINAL_BANDS = [
   { d: 2, W: 19, H: 11, ratio: 0.42, wmin: 20, wmax: 40, lens: [6, 5], turn: 2,
-    box: 2, port: 1, ice: 10, crack: 3 },
+    box: 2, port: 1, ice: 10, crack: 3, light: 1 },
   { d: 2, W: 19, H: 11, ratio: 0.40, wmin: 20, wmax: 40, lens: [7, 5], turn: 2,
-    box: 2, port: 1, ice: 10, crack: 3 },
+    box: 2, port: 1, ice: 10, crack: 3, light: 1 },
   { d: 2, W: 17, H: 11, ratio: 0.38, wmin: 16, wmax: 34, lens: [6, 5], turn: 2,
-    box: 2, port: 1, ice: 9, crack: 3 },
+    box: 2, port: 1, ice: 9, crack: 3, light: 1 },
   { d: 2, W: 19, H: 11, ratio: 0.44, wmin: 22, wmax: 42, lens: [7, 6], turn: 2,
-    box: 1, port: 1, ice: 11, crack: 3 },
+    box: 1, port: 1, ice: 11, crack: 3, light: 1 },
 ];
 
 // 🔴 **상자 띠** (BOX=1) — 2026-09-05.
@@ -193,8 +193,40 @@ for (const b of SET) {
       if (a.states > MAXST) continue;
       //  🔴 **기믹이 진짜 쓰이는지** 본다. 없애도 똑같이 풀리면 그건 장식이다 —
       //     상자는 17판 중 4판, 포탈은 134판 중 19판이 그랬다 (09-05 측정).
-      //  🔴 **포탈은 없으면 못 푸는 것만** (09-05 사장님: "포털이 꼭 필요하게 써야한다").
-      if (b.port) {
+      //  🔴 피날레는 **없으면 못 푸나**를 안 본다 (rev.12-b).
+      //     넷이 다 든 판은 씨앗 백 개에 하나꼴로 나오는데, 그 하나마다 비싼 풀이를
+      //     네 번씩(포탈 뺀 판·얼음 뺀 판·금간 굳힌 판) 더 돌리면 **한 판도 못 건진다.**
+      //     대신 정답을 **되짚어** 넷이 실제로 발동했는지만 본다 — 값싸고 뜻은 같다.
+      if (b.light) {
+        const L2 = E.parse({ grid, gravity: true, clear: 'all', id: 'l' });
+        let st2 = E.startState(L2), slid = 0, warp = 0, push = 0, stand = 0;
+        const D2 = { '↑': 0, '↓': 1, '←': 2, '→': 3, '↧': 4 };
+        let dead = false;
+        for (const chx of a.path) {
+          const n2 = E.step(L2, st2, D2[chx]);
+          if (!n2) { dead = true; break; }
+          if ((n2._n || 1) >= 2) slid++;
+          //  머리가 이웃이 아닌 데로 갔으면 포탈을 탄 것이다
+          const hx = st2.body[0] % L2.w, hy = (st2.body[0] / L2.w) | 0;
+          const nx2 = n2.body[0] % L2.w, ny2 = (n2.body[0] / L2.w) | 0;
+          if (Math.abs(hx - nx2) + Math.abs(hy - ny2) > (n2._n || 1) + 1) warp++;
+          //  상자가 움직였나
+          const b0 = (st2.bx || []).join(','), b1 = (n2.bx || []).join(',');
+          if (b0 !== b1) push++;
+          //  🔴 상자를 **딛고 섰나.** 처음엔 '밀었나'만 봤는데 그러면 12판 중 3판만 통과했다 —
+          //     이 판들에서 상자의 진짜 쓰임은 미는 게 아니라 **발판**이다. 둘 다 쓰임으로 친다.
+          for (const c of n2.body) if ((n2.bx || []).includes(c + L2.w)) { stand++; break; }
+          st2 = n2;
+        }
+        if (dead) continue;
+        let brk = 0;
+        for (let k = 0; k < L2.crack.length; k++) if ((st2.cm || 0) & (1 << k)) brk++;
+        //  🔴 넷이 **다 발동해야** 피날레다. 하나라도 장식이면 안 받는다.
+        //     ⚠️ 문턱을 잘못 잡으면 다 걸러진다 — 얼음 2번·상자 밀기로 뒀더니 **0판**이었다.
+        //        재보니 얼음은 1번, 상자는 밀거나 딛거나로 하면 12판 중 9판이 통과한다.
+        if (slid < 1 || brk < 1 || warp < 1 || (push < 1 && stand < 1)) continue;
+      }
+      else if (b.port) {
         const strip = grid.map(x => x.replace(/[PQpq]/g, '.'));
         const c = E.solve({ grid: strip, gravity: true, clear: 'all', id: 'x' });
         if (c.ok) continue;

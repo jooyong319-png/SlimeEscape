@@ -56,6 +56,17 @@ const PLAN = {
     { name: '상자 · 홈 셋 · 길게', want: v => v.gim === 'box' && v.doors === 3 && v.best >= 30 },
     { name: '상자 · 홈 셋 · 덤',  want: v => v.gim === 'box' && v.doors === 3 && v.spare >= 1 },
   ],
+  //  🔴 굴 6 — 피날레. 기믹 넷이 한 판에 (사장님: *"최대한 많이 섞이고 큰 맵. 정말 어렵게."*)
+  //     ⚠️ 이 판들은 tools/finale.js 로만 나온다. 씨앗 714개에 12판이었다.
+  6: [
+    //  🔴 **빡빡한 자리를 먼저** 놓는다. 널널한 자리가 먼저 오면 그 자리가
+    //     제일 긴 판을 집어가서, 정작 뒤의 빡빡한 자리에 쓸 게 없어진다.
+    { name: '피날레 · 제일 길게',   want: v => v.gim === 'ice+crack+box+portal' && v.best >= 38 },
+    { name: '피날레 · 길게',       want: v => v.gim === 'ice+crack+box+portal' && v.best >= 32 },
+    { name: '피날레 · 넷 다',      want: v => v.gim === 'ice+crack+box+portal' && v.best >= 30 },
+    { name: '피날레 · 넷 다',      want: v => v.gim === 'ice+crack+box+portal' && v.best >= 27 },
+    { name: '피날레 · 넷 다',      want: v => v.gim === 'ice+crack+box+portal' && v.best >= 24 },
+  ],
   //  🔴 굴 5 — 포탈. 홈을 채워야 켜지므로 홈이 둘 이상이어야 한다.
   //     사장님이 **재미의 원인**으로 짚으신 기믹이다 (09-05).
   5: [
@@ -90,7 +101,10 @@ function look(p) {
   const t = p.grid.join('');
   const ice = t.includes('I'), cr = t.includes('X'), po = /[PQpq]/.test(t), bx = t.includes('B');
   if (t.includes(':')) return null;                       // 무중력은 안 쓴다
-  if (ice && slid < 2) return null;                       // 깔려만 있는 얼음
+  //  🔴 문턱은 **1**이다. 2로 뒀더니 피날레 판이 통째로 걸렸다 —
+  //     큰 판에서는 미끄러짐이 한두 번뿐이다. "장식인가 아닌가"만 여기서 보고,
+  //     더 필요한 자리는 아래 자리 조건(want)에서 따로 요구한다.
+  if (ice && slid < 1) return null;                       // 깔려만 있는 얼음
   if (cr && broke < 2) return null;                       // 안 무너지는 금 간 바닥
   const need = L.doors.reduce((s, d) => s + d.cells.length - 1, 0);
   const g = [];
@@ -164,10 +178,13 @@ for (let k = 0; k < picks.length; k++) {
   const v = picks[k]; if (!v) continue;
   const st = putStar(v.p.grid, v.p.best, rng(k * 7919 + ch * 131), 24, 10,
                      Math.min(CAP, (v.p.states || 200000) * 3 + 60000));
-  const grid = st ? st.grid : v.p.grid;
-  const a = solve(grid);
+  let grid = st ? st.grid : v.p.grid;
+  let a = solve(grid);
+  //  🔴 **별 때문에 멀쩡한 판을 버리지 않는다.** 별을 박으면 길이 막히는 판이 있는데,
+  //     그때는 별 없이 쓴다 — 별은 덤이고 판이 본체다 (별이 없어도 깰 수 있다).
+  if (!a.ok && st) { grid = v.p.grid; a = solve(grid); }
   const s = solve(grid, { needStar: true });
-  if (!a.ok) { console.log('⚠️ ' + (k + 1) + '번 — 별 박고 나니 안 풀린다. 건너뛴다'); continue; }
+  if (!a.ok) { console.log('⚠️ ' + (k + 1) + '번 — 별 없이도 안 풀린다. 건너뛴다'); continue; }
   made.push({
     id: 'tmp' + k, chapter: ch, grid, clear: 'all',
     best: a.moves, sol: a.path,
