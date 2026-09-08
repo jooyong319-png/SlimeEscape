@@ -112,6 +112,10 @@ git clone https://github.com/jooyong319-png/SlimeEscape.git
 | [[design-lineage]] | 🔴 **왜 이 모양이 됐는지.** rev.1~12-a · 버린 것과 이유 |
 | [[todo]] | 🔴 **남은 일 + 이미 밟은 덫 45개** |
 | [[playtests]] | 사람이 해보고 한 말. 맨 아래가 최신 |
+| [[unified-wiki-inbox]] | 🔴 **통합 위키(`d:/Gcalen/wiki/`)로 올릴 것 대기함.** 이름을 빼도 성립하는 지식은 여기로 |
+
+⚠️ **통합 위키는 이 저장소 밖에 있다** (`d:/Gcalen/wiki/`) — git 이 안 옮겨 준다.
+기계를 옮길 때는 `Gcalen/wiki/machine-setup.md` 를 먼저 읽는다.
 
 ## 코드 지도
 
