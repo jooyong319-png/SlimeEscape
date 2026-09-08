@@ -708,15 +708,10 @@ namespace SlimeEscape
             if (_cam.GetComponent<AudioListener>() == null) _cam.gameObject.AddComponent<AudioListener>();
 
             _set = SnakeLevels.Load();
-            //  🔴 묶음에서 제일 큰 판을 한 번 잰다 — 카메라 배율의 기준이 된다.
-            //     구경용 판도 센다. 그것만 크면 다른 판이 다 작아지니 그때는 빼야 한다.
+            //  🔴 카메라 기준은 이제 **굴마다** 잰다 — MeasureChapter() 가 Load() 안에서 한다.
+            //     전에는 여기서 파일 전체를 훑었다. 그래서 19x11 피날레 하나 때문에
+            //     굴 1의 10x8 판이 쪼그라들었다 (09-08 사장님이 짚으신 것).
             _setW = _setH = 0;
-            foreach (var lv in _set.levels)
-            {
-                if (lv?.grid == null || lv.grid.Length == 0) continue;
-                if (lv.grid[0].Length > _setW) _setW = lv.grid[0].Length;
-                if (lv.grid.Length > _setH) _setH = lv.grid.Length;
-            }
             _gravity = _set.gravity;
             LoadProgress();
             //  🔴 켜면 **타이틀부터**. 설명은 "새로시작" 을 고른 사람에게만 보여준다 —
@@ -778,10 +773,35 @@ namespace SlimeEscape
             return -1;
         }
 
+        /// 🔴 그 판이 몇 번째 굴인가. 자료에 없으면(튜토리얼 1-0) 1로 본다.
+        static int ChapterOf(SnakeLevelJson j) => Mathf.Max(1, j == null ? 0 : j.chapter);
+
+        /// <summary>
+        /// 🔴 **카메라 배율의 기준을 그 굴 안에서 잰다.**
+        /// 파일 전체에서 제일 큰 판에 맞추면 19x11 피날레 하나가
+        /// 굴 1의 10x8 판을 쪼그라뜨린다. 굴마다 판 크기가 다르니 기준도 굴마다 달라야 한다.
+        /// 구경용 판도 센다 — 그것만 크면 같은 굴의 다른 판이 다 작아진다.
+        /// </summary>
+        void MeasureChapter(int ch)
+        {
+            _setW = _setH = 0;
+            if (_set == null || _set.levels == null) return;
+            foreach (var lv in _set.levels)
+            {
+                if (lv == null || lv.grid == null || lv.grid.Length == 0) continue;
+                if (ChapterOf(lv) != ch) continue;
+                if (lv.grid[0].Length > _setW) _setW = lv.grid[0].Length;
+                if (lv.grid.Length > _setH) _setH = lv.grid.Length;
+            }
+        }
+
         void Load(int i)
         {
             _volPanel = false;
             _index = Mathf.Clamp(i, 0, _set.levels.Length - 1);
+            //  🔴 이 판이 속한 굴로 카메라 기준을 다시 잡는다. 판마다 굴이 다르므로
+            //     Awake 에서 한 번 재고 마는 것으로는 안 된다.
+            MeasureChapter(ChapterOf(_set.levels[_index]));
             //  🔴 밖에서 상태를 알 수 있게 한 줄 남긴다. 화면을 눈으로 확인하지 않고도
             //     "지금 어느 판이 열렸는가"를 로그로 알 수 있어야 자동 확인이 된다 (09-02).
             //  🔴 표는 **아스키**로 둔다. 밖에서 로그를 찾을 때 한글 패턴은
@@ -3409,7 +3429,7 @@ namespace SlimeEscape
             //  🔴 여기도 나가는 길이 Esc 뿐이었다. 띠를 얹어 타이틀로 돌아간다.
             int got = 0;
             foreach (var l in _set.levels) got += Stars(l);
-            float barH = TopBar(w, h, "제 " + Mathf.Max(1, _set.chapter) + " 굴" +
+            float barH = TopBar(w, h, "제 " + ChapterOf(Def) + " 굴" +
                                       "    ★ " + got + " / " + (n * 3),
                                 () => { _menu = false; _title = true; }, false, false);
             _ = barH;
