@@ -68,3 +68,27 @@ itch.io 새 게임 목록은 하루에 수십 개가 올라와서 **금방 묻�
 
 대신 되는 것: **GIF 한 장이 커뮤니티에서 돌면 그게 전부다.**
 그래서 경로 3~4에 쓸 GIF를 **출시 전에 미리** 만들어 둔다.
+
+## itch.io 에 올리는 법 (2026-09-08 에 뚫었다)
+
+```
+1. Unity.exe -batchmode -quit -nographics -projectPath game ^
+     -executeMethod SlimeEscape.EditorTools.BuildWeb.Run -logFile build.log
+2. python tools/zipweb.py            ← 🔴 이걸로만 묶는다
+3. itch.io 새 프로젝트 → Kind of project: **HTML**
+   → zip 업로드 → "This file will be played in the browser" 체크
+```
+
+🔴 **2번을 PowerShell 의 `Compress-Archive` 로 하면 안 된다.**
+윈도우 PowerShell 5.1 은 zip 안 경로를 역슬래시(`Build\web.data`)로 적는데,
+ZIP 규격은 `/` 라서 itch 는 그걸 **파일 이름 한 덩어리**로 읽는다.
+결과: `index.html` 만 열리고 `Build/`·`TemplateData/` 가 전부 404 →
+**회색 바탕에 글씨 하나**만 뜬다. [[todo]] 덫 43.
+
+⚠️ **로컬 폴더를 서버로 띄우면 멀쩡히 돌아간다** — 거긴 zip 이 아니기 때문이다.
+그래서 "빌드는 멀쩡한데 올리면 안 된다" 는 상황이 만들어진다.
+그때는 **받는 쪽에 직접 요청을 던져 200/404 를 본다** (짐작보다 열 배 빠르다):
+```
+https://html-classic.itch.zone/html/<번호>/Build/web.wasm
+```
+`<번호>` 는 게임 페이지 HTML 안 `data-iframe` 에 있다.
