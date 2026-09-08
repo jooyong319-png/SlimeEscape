@@ -5,7 +5,7 @@
 
 **SlimeEscape** = **몸이 사슬처럼 길어지는 격자 퍼즐** (rev.12-a, 2026-09-08)
 
-- `d:/Make_game/SlimeEscape` · Unity 6000.3.22f1 · itch.io 웹 · 시작 2026-08-27
+- `C:/Make_Game/SlimeEscape` · Unity 6000.3.22f1 · itch.io 웹 · 시작 2026-08-27
 - 저장소 `github.com/jooyong319-png/SlimeEscape`
 
 ## 🔴 다른 컴퓨터에서 시작하기
@@ -112,10 +112,12 @@ git clone https://github.com/jooyong319-png/SlimeEscape.git
 | [[design-lineage]] | 🔴 **왜 이 모양이 됐는지.** rev.1~12-a · 버린 것과 이유 |
 | [[todo]] | 🔴 **남은 일 + 이미 밟은 덫 45개** |
 | [[playtests]] | 사람이 해보고 한 말. 맨 아래가 최신 |
-| [[unified-wiki-inbox]] | 🔴 **통합 위키(`d:/Gcalen/wiki/`)로 올릴 것 대기함.** 이름을 빼도 성립하는 지식은 여기로 |
+| [[unified-wiki-inbox]] | 🔴 **통합 위키로 올릴 것 대기함.** 이름을 빼도 성립하는 지식은 여기로 |
 
-⚠️ **통합 위키는 이 저장소 밖에 있다** (`d:/Gcalen/wiki/`) — git 이 안 옮겨 준다.
-기계를 옮길 때는 `Gcalen/wiki/machine-setup.md` 를 먼저 읽는다.
+⚠️ **통합 위키는 이 저장소 밖에 있다** — git 이 안 옮겨 준다. 둘로 갈려 있다:
+**게임용 `C:/Make_Game/Wiki_gm/`** (2026-09-08 세움 · 여덟 장) · 웹용 `C:/Make_Web/wiki/`.
+기계를 옮길 때는 `C:/Make_Web/wiki/machine-setup.md` 를 먼저 읽는다.
+🔴 `Wiki_gm` 은 아직 저장소가 아니다 — **이번 이사 때 한 장 빼고 다 잃었다.**
 
 ## 코드 지도
 

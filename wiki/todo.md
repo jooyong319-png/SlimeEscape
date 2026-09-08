@@ -57,7 +57,7 @@
 안 그러면 새 글자가 빈칸으로 나오고, **에디터에서는 안 드러나고 빌드에서만 터진다.**
 
 ```
-python tools/subset-font.py "d:/Make_game/SalvageRun/game/Assets/_Project/Resources/Galmuri11.ttf"
+python tools/subset-font.py "C:/Make_Game/SpaceGame/game/Assets/_Project/Resources/Galmuri11.ttf"
 ```
 
 ---
@@ -120,7 +120,11 @@ python tools/subset-font.py "d:/Make_game/SalvageRun/game/Assets/_Project/Resour
 - 효과음 — 지금은 별 딸 때 하나뿐(절차 생성). 걸음 · 먹기 · 빨려들어감
 - 첫 화면 · 제목
 - itch.io 올리기 (`docs/distribution.md`)
-- 통합 위키(`d:/Gcalen/wiki/`)에 이번 Unity 함정 옮기기 — 아직 게임 페이지가 없다
+- [x] 통합 위키에 Unity 함정 옮기기 — 🟢 **2026-09-08 게임 통합 위키
+      `C:/Make_Game/Wiki_gm/` 를 여덟 장으로 세웠다.** 아래 덫 목록에서 이름을 빼도
+      성립하는 것들이 거기 다시 적혀 있다 ([[unified-wiki-inbox]])
+- [ ] 🔴 **`Wiki_gm` 을 git 저장소로 만든다** — 지금은 기계를 옮기면 또 사라진다.
+      저장소가 되면 원격/클라우드 세션이 통합 위키를 직접 읽는다
 
 ---
 
@@ -137,7 +141,7 @@ python tools/subset-font.py "d:/Make_game/SalvageRun/game/Assets/_Project/Resour
    정합성 검사도 못 잡았다. **둘 다 `Awake`를 안 돌리기 때문이다.** 사장님이
    콘솔 사진을 보내주셔야 알았다. 스모크에 **찍힌 숫자**를 볼 것
 5. **몸집이 바뀌면 같은 숫자가 다른 뜻이 된다** (불값 −3 사건)
-6. **Unity 프로젝트 폴더를 옮기면 가짜 컴파일 오류가 난다** → `d:/Gcalen/wiki/unity.md`
+6. **Unity 프로젝트 폴더를 옮기면 가짜 컴파일 오류가 난다** → `C:/Make_Game/Wiki_gm/unity.md`
 7. 🔴 **하루에 핵심 규칙이 네 번 바뀌었다.** 매번 나아졌지만 이전 프로젝트가 죽은 패턴이다.
    §7 절차(버릴 것 적기 → 이유 → 백업 커밋 → 고치기)를 지킬 것
 8. 🔴 **판 자료를 일괄로 고치기 전에 사본을 뜬다** — 판 일곱 개를 날렸다.

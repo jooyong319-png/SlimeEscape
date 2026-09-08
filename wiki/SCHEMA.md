@@ -1,7 +1,7 @@
 # SCHEMA — 이 위키 사용법 (가장 먼저 읽기)
 
 > 새 세션을 시작하면 이 파일 → [[index]] → `docs/project-brief.md` → [[todo]] 순으로 읽는다.
-> 구조는 `d:/Gcalen/wiki/SCHEMA.md`(통합 위키)의 규칙을 그대로 따랐다.
+> 구조는 통합 위키 `C:/Make_Web/wiki/SCHEMA.md` 의 규칙을 그대로 따랐다.
 
 ## 이게 뭔가
 
@@ -9,7 +9,7 @@
 이기는 **격자 퍼즐**의
 LLM 유지 위키. **이 게임 전용 맥락**만 담는다: 왜 이 모양이 됐는지, 버린 방향과 이유, 플레이 실측.
 
-- 경로 `d:/Make_game/SlimeEscape` · Unity 6000.3.22f1 · itch.io 웹
+- 경로 `C:/Make_Game/SlimeEscape` · Unity 6000.3.22f1 · itch.io 웹
 - 시작 **2026-08-27** · 저장소 `github.com/jooyong319-png/SlimeEscape`
 - 🔴 저장소가 있는지는 **물어보지 말고 `git status`로 확인한다.**
   환경 표시만 믿고 *"git이 아니다"*라고 말했다가 판 자료를 날렸다 ([[design-lineage]] rev.6-f)
@@ -69,7 +69,8 @@ LLM 유지 위키. **이 게임 전용 맥락**만 담는다: 왜 이 모양이 
 1. **왜 그렇게 했는지가 코드만 봐선 안 보이는 결정** → [[design-lineage]]
 2. **규칙이 바뀜** (숫자 하나라도) → [[design-lineage]] + 양쪽 엔진 + 검사
 3. **사람이 플레이함** → [[playtests]]
-4. **재사용 가능한 기술 함정을 배움** → 통합 위키(`d:/Gcalen/wiki/`)
+4. **재사용 가능한 기술 함정을 배움** → 게임 통합 위키(`C:/Make_Game/Wiki_gm/`) ·
+   원격 세션이면 [[unified-wiki-inbox]]
 5. 다 안 걸리면 → 위키를 안 건드린다
 
 ### Query — 조회
@@ -92,9 +93,14 @@ LLM 유지 위키. **이 게임 전용 맥락**만 담는다: 왜 이 모양이 
 
 ## 상위: 통합 위키
 
-Unity·게임개발·itch 같은 **어느 프로젝트든 재사용되는 기술 지식**은 `d:/Gcalen/wiki/`에 둔다.
+Unity·게임개발·itch 같은 **어느 프로젝트든 재사용되는 기술 지식**은
+**게임 통합 위키 `C:/Make_Game/Wiki_gm/`** 에 둔다 (웹 지식은 `C:/Make_Web/wiki/`).
 경계 규칙: *"프로젝트 이름을 빼도 문장이 성립하면 → 통합 위키."*
 
-⚠️ 통합 위키에 **Unity·게임 페이지가 아직 없다.** 처음 만드는 게 이 프로젝트다 — [[todo]].
+🟢 **2026-09-08 에 세웠다** — `SCHEMA` `index` `unity` `verification`
+`game-design` `level-generation` `game-feel` `playtesting` 여덟 장.
+이 위키의 덫 목록·설계 계보에서 **이름을 빼도 성립하는 것들이 거기 다시 적혀 있다.**
+
+⚠️ 저장소 밖이라 `git clone` 만 하는 원격 세션은 못 읽는다 → [[unified-wiki-inbox]] 를 경유한다.
 
 #slime #puzzle #unity #flat #wiki
