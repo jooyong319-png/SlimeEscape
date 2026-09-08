@@ -1,12 +1,29 @@
 # SlimeEscape
 
-**몸이 사슬처럼 길어지는 격자 퍼즐.** 유적을 내려가며 문에 파인 홈을 제 몸으로 정확히 채워 연다.
-Unity 6000.3.22f1 · itch.io 웹 · 시작 2026-08-27 · **rev.4 (2026-08-28)**
+**몸이 사슬처럼 길어지는 격자 퍼즐.** 유적을 내려가며 파인 홈을 제 몸으로 정확히 채워 연다.
+Unity 6000.3.22f1 · itch.io 웹 · 시작 2026-08-27 · **rev.12-a (2026-09-08)**
+
+## 새 컴퓨터에서 시작하기
+
+```bash
+git clone https://github.com/jooyong319-png/SlimeEscape.git
+```
+
+필요한 것: **Unity 6000.3.22f1** (Hub에서 같은 판) · **Node 18↑** · **Python 3**
+
+🔴 **씬은 자산으로 안 들고 다닌다.** 유니티로 `game/` 을 처음 열면
+메뉴 **`SlimeEscape › 씬 다시 만들기`** 를 한 번 누른다 (`ProjectBootstrap.cs` 가 코드로 만든다).
+
+```bash
+node tools/verify.js       # 판 40개가 성한지 (유니티 없이 도는 검사)
+python tools/braces.py     # C# 괄호·끊긴 문자열 검사
+```
 
 ## 🔴 판단이 갈리면
 
-**`docs/project-brief.md`로 결정한다.** 설계 근거는 `docs/design-study.html`(더블클릭하면 열림).
-맥락은 `wiki/` — 처음이면 `wiki/SCHEMA.md` → `wiki/index.md` 순으로.
+**`docs/project-brief.md` 로 결정한다.** 맥락은 `wiki/` —
+처음이면 `wiki/index.md` (지금 상태 한눈에) → `wiki/SCHEMA.md` → `wiki/todo.md` 순.
+`wiki/todo.md` 맨 아래에 **이미 밟은 덫 45개**가 있다. 손대기 전에 훑어볼 것.
 
 ## 규칙 (전부)
 
@@ -14,77 +31,78 @@ Unity 6000.3.22f1 · itch.io 웹 · 시작 2026-08-27 · **rev.4 (2026-08-28)**
 2. 🔴 **중력 있음.** 몸이 통째로 떨어진다 — **위로 k칸 오르려면 길이가 k+1 이상**
 3. 조각을 먹으면 **길이 +1**. 줄어드는 건 없다
 4. 벽·자기 몸에 부딪히는 걸음은 **막힌다**. 죽지 않는다 — 못 갈 뿐
-5. 🔴 **표시된 칸을 몸으로 정확히 채우면** 문이 열린다. 남아도 모자라도 안 된다
-6. **심(心)** — 머리가 마지막에 있어야 할 칸
-7. 되돌리기 무제한 (`Z`) · 재시작 (`R`)
-
-→ 길이 = 목표 칸 수. 그래서 **조각은 목표 칸 수 − 1개**다.
+5. 🔴 **표시된 홈을 몸으로 정확히 채우면** 열린다. 남아도 모자라도 안 된다
+6. **심(心)** `*` `%` `@` — 머리가 마지막에 있어야 할 칸
+7. 되돌리기 무제한 (`Z`) · 처음부터 (`R`)
+8. 🔴 **홈을 다 채우면 그 자리에서 판이 끝난다** — 별은 **그 전에** 주워야 한다
 
 ## 판 기호
 
-`#` 벽 · `.` 빈칸 · `S` 시작 · `+` 조각 · `=` 채워야 할 칸 · `*` 심
+```
+#  벽              .  빈칸            S  시작
++  조각            o  별 (몸 안 늘어남)
+=  홈1  *  홈1의 심        -  홈2  %  홈2의 심        ~  홈3  @  홈3의 심
+1 2 3  문벽 (같은 번호 홈을 채우면 사라진다)
+B  미는 상자       P Q / p q  포탈 짝
+I  얼음 (밟는 바닥 — 좌우로 미끄러진다)
+X  금 간 바닥 (딛고 서지만 지나가면 무너진다)
+:  무중력 구역 — ⛔ 지금 안 쓴다
+```
 
 ## 설계 원칙 ↔ 코드 위치
 
 | 원칙 | 어디에 강제돼 있나 |
 |---|---|
-| 규칙 정본은 하나 | `game/Assets/Scripts/SnakeEngine.cs` |
-| 길이가 안 맞는 판은 못 만든다 | `SnakeEngine.Parse`가 예외를 던진다 |
-| 씬에 손으로 배치한 것 없음 | `Assets/Editor/ProjectBootstrap.cs`가 코드로 만든다 |
+| 🔴 규칙은 **두 벌**이고 늘 같아야 한다 | `Scripts/SnakeEngine.cs` ↔ `tools/engine.js` |
+| 길이가 안 맞는 판은 못 만든다 | `SnakeEngine.Parse` 가 예외를 던진다 |
+| 씬에 손으로 배치한 것 없음 | `Editor/ProjectBootstrap.cs` 가 코드로 만든다 |
 | 🔴 연출이 칸을 안 속인다 | `SnakeController.Animate` — 끌림은 **시간차**로만 |
 
-## 도구
+## 자주 쓰는 명령
 
 ```bash
-node tools/sizes.js            # 판마다 몸이 몇까지 커지는지 (화면을 꽉 채우면 답답하다)
-node tools/stamp.js            # 판 검증 (풀림·최단해 유일·"이미 진 상태" 비율)
-node tools/stamp.js --write    # 검증 + best/sol/back 갱신
-node tools/play.js <판목록.json> <id> <시작크기>   # 수순을 판으로 재생해서 눈으로 확인
-node tools/search.js <뼈대.json>                   # '?' 칸의 먹이 배치를 기계가 찾는다
+# 판 만들기
+ICE=1   node tools/hardpool.js      # 얼음 못 (CRACK=1 · BOX=1 · HARD=1 도 있다)
+        node tools/finale.js        # 기믹 넷이 한 판에 (한 판 나올 때마다 저장)
+AT=end WRITE=1 node tools/chapter.js 2    # 굴 2(상자)를 짓는다
+WRITE=1 node tools/swap.js 1-5 1-11       # 지목한 판만 갈아끼운다
+
+# 검사
+node tools/verify.js                # 수순·최단·3별 가능
+node tools/restar.js                # 별 걸음·커트를 다시 잰다 (못 받는 별을 찾는다)
+python tools/braces.py
 ```
 
-`tools/proto-rev2.html` — 브라우저에서 바로 도는 시안. 규칙을 빨리 시험할 때 여기가 제일 싸다.
-
-## Unity 검사 (빌드 아님)
+## Unity 배치 (컴파일 · 검사 · 빌드)
 
 ```bash
 U="C:/Program Files/Unity/Hub/Editor/6000.3.22f1/Editor/Unity.exe"
-"$U" -batchmode -quit -nographics -projectPath game -executeMethod SlimeEscape.EditorTools.ConformanceCheck.Run
-"$U" -batchmode -quit -nographics -projectPath game -executeMethod SlimeEscape.EditorTools.AssetCheck.Run
-"$U" -batchmode -quit -nographics -projectPath game -executeMethod SlimeEscape.EditorTools.ProjectBootstrap.BuildFromCli
+"$U" -batchmode -quit -nographics -projectPath game -logFile compile.log          # 컴파일만
+"$U" -batchmode -quit -nographics -projectPath game -logFile conform.log \
+     -executeMethod SlimeEscape.EditorTools.ConformanceCheck.Run                  # 규칙 두 벌 대조
+"$U" -batchmode -quit -nographics -projectPath game -logFile build.log \
+     -executeMethod SlimeEscape.EditorTools.BuildWeb.Run                          # 웹 빌드
+python tools/zipweb.py                                                            # 🔴 itch.io 용 zip
 ```
 
-셋 다 실패하면 종료코드가 0이 아니다. 로그는 `tools/unity-*.log`.
+⚠️ **유니티 에디터가 떠 있으면 배치모드가 못 들어간다.** `tools/check.ps1` 이 이걸 먼저 본다.
+
+## 웹 빌드 확인
+
+```bash
+cd build/web && python -m http.server 8777       # http://127.0.0.1:8777
+```
+
+📛 **`index.html` 을 파일로 바로 열면 안 뜬다** — 브라우저가 `.wasm` 읽기를 막는다.
+📛 **zip 을 PowerShell `Compress-Archive` 로 묶으면 안 된다** — 경로에 역슬래시가 들어가
+itch.io 에서 하위 폴더가 통째로 404 난다. 반드시 `python tools/zipweb.py`.
+(`wiki/todo.md` 덫 43 · `docs/distribution.md`)
 
 ## ⚠️ 손대기 전에 알아야 할 것
 
-- **규칙은 두 벌 있다** (`tools/engine.js`, `Assets/Scripts/SlimeEngine.cs`).
-  한쪽만 고치면 적합성 검사가 깨진다. **양쪽을 같이 고칠 것**
-- **판당 먹이·불은 30개까지** — 비트마스크 한계. 양쪽 엔진 공통
-- `art/`의 도트는 **GIF에서 되살린 원본**이다. 색은 `art/PALETTE.md`에 있다.
-  새로 그릴 땐 그 색을 그대로 쓸 것
-- **원본 GIF는 `d:/Make_game/*.gif`에 있다.** 작업 파일이 유실돼 그게 마지막 원본이다 — **지우지 말 것**
-- HUD가 `OnGUI`다. **임시다** — 4단계에서 교체. 이전 프로젝트가 이걸 끝까지 끌고 갔다
-
-## 알려진 함정 (실제로 겪은 것, 날짜와 함께)
-
-- **2026-08-27** 검사가 엉뚱한 걸 재고 있어도 초록불은 켜진다.
-  *"최단해가 유일한 판만 골랐다"*가 통과했는데 **고를 게 없어서** 유일한 거였다 → `back` 지표를 추가
-- **2026-08-27** 몸집을 세로→정사각으로 바꾸니 **불값 −3이 감당 불가**가 됐다.
-  덩어리가 크면 멀리서도 닿는다. **몸집이 바뀌면 같은 숫자가 다른 뜻이 된다**
-- **2026-08-28** **몸 크기를 안 재고 있었다.** 판이 다 통과했는데 슬라임이 화면을 꽉 채웠다 —
-  불 판은 열린 줄이 5인데 몸이 5까지 컸다. `tools/sizes.js`를 만들어 재고, **최대 3**으로 판을 다시 짰다.
-  *재지 않는 것은 안 보인다* — 초록불이 켜져 있어도
-- **2026-08-28** 프로젝트 폴더 이름을 바꾸니 배치모드가 *"Scripts have compiler errors"*로 죽었다.
-  **로그에 `error CS`는 한 줄도 없었다** — `Library/Bee`의 절대경로 캐시였다.
-  `Library`·`Temp`·`obj`·`UserSettings`를 지우면 된다. Unity Hub이 떠 있으면 rename 자체가 막히니 `robocopy /MOVE`.
-  → 재사용 지식이라 통합 위키 `d:/Gcalen/wiki/unity.md`에도 적었다
-- **2026-08-27** 움직임을 예측하기 쉽게 만들려고 "앞으로 한 칸씩만"으로 묶었더니
-  **예산이 안 맞아 아무 판도 안 풀렸다.** 불편해 보이는 동작이 그 게임의 추진력일 수 있다
-
-## 상태 (2026-08-28)
-
-**1단계 킬 테스트 통과 → 2단계 수직 슬라이스 진행 중. 제목 SlimeEscape 확정.**
-
-움직임은 한 걸음을 마디(옆으로 → 떨어짐 → 몸 변화)로 쪼개 굴린다. 수치는 게임 중 **K**로 돌려보고 저장한다.
-🔴 판 6개 중 5개가 *오른쪽만 누르면* 풀린다 — 이게 지금 가장 위험한 가정이다. `wiki/todo.md` 참고.
+- 🔴 **규칙은 두 벌이다.** 한쪽만 고치면 적합성 검사가 깨진다. **양쪽을 같이 고칠 것**
+- **판당 조각은 26개까지** — 비트마스크 한계. 양쪽 엔진 공통
+- 🔴 **판 자료를 일괄로 고치기 전에 사본을 뜬다.** 전에 판 일곱 개를 날렸다
+- 🔴 **어렵다/쉽다는 도구가 못 잰다.** 여덟 번 틀렸다 — 사장님이 해보고 판단하신다.
+  도구는 객관적인 것만 거른다 (풀린다 · 최단해 하나 · 기믹이 실제로 발동 · 안 겹침)
+- HUD 가 `OnGUI` 다. **임시다** — 이전 프로젝트가 이걸 끝까지 끌고 갔다
