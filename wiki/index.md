@@ -117,7 +117,8 @@ git clone https://github.com/jooyong319-png/SlimeEscape.git
 ⚠️ **통합 위키는 이 저장소 밖에 있다** — git 이 안 옮겨 준다. 둘로 갈려 있다:
 **게임용 `C:/Make_Game/Wiki_gm/`** (2026-09-08 세움 · 여덟 장) · 웹용 `C:/Make_Web/wiki/`.
 기계를 옮길 때는 `C:/Make_Web/wiki/machine-setup.md` 를 먼저 읽는다.
-🔴 `Wiki_gm` 은 아직 저장소가 아니다 — **이번 이사 때 한 장 빼고 다 잃었다.**
+🔴 `Wiki_gm` 은 저장소가 아니고 **앞으로도 안 만든다** (2026-09-08 사장님).
+그래서 **손으로 챙겨야 한다** — 이번 이사 때 한 장 빼고 다 잃었다.
 
 ## 코드 지도
 

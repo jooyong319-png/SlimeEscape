@@ -123,8 +123,8 @@ python tools/subset-font.py "C:/Make_Game/SpaceGame/game/Assets/_Project/Resourc
 - [x] 통합 위키에 Unity 함정 옮기기 — 🟢 **2026-09-08 게임 통합 위키
       `C:/Make_Game/Wiki_gm/` 를 여덟 장으로 세웠다.** 아래 덫 목록에서 이름을 빼도
       성립하는 것들이 거기 다시 적혀 있다 ([[unified-wiki-inbox]])
-- [ ] 🔴 **`Wiki_gm` 을 git 저장소로 만든다** — 지금은 기계를 옮기면 또 사라진다.
-      저장소가 되면 원격/클라우드 세션이 통합 위키를 직접 읽는다
+- ⛔ ~~`Wiki_gm` 을 git 저장소로 만들기~~ — **안 한다** (2026-09-08 사장님).
+      🔴 대신 **기계를 옮길 때 `Wiki_gm` 폴더를 손으로 챙긴다.** clone 만 하면 안 따라온다
 
 ---
 
