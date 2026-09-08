@@ -505,10 +505,18 @@
       for (let di = 0; di < acts; di++) {
         const ns = step(L, st, di);
         if (!ns) continue;
-        const nk = keyOf(ns), win = isWin(L, ns, needStar);
+        const nk = keyOf(ns);
+        //  🔴 **홈을 다 채우면 거기서 게임이 끝난다** — 별을 먹었든 안 먹었든.
+        //     (09-08 사장님: "야 판이 끝나는데 어떻게 별을 먹어?")
+        //     전에는 needStar 일 때 이 상태를 그냥 지나쳐 계속 탐색했다. 그래서
+        //     "26수에 끝나는 판"에 "별 포함 33수" 라는 **있을 수 없는 값**을 적어뒀다.
+        //     끝나는 자리는 **더 못 간다.** 별을 못 먹었으면 그 길은 거기서 죽는 것이다.
+        const over = isWin(L, ns, false);
+        const win = over && (!needStar || isWin(L, ns, true));
         if (dist.has(nk)) { if (win && dist.get(nk) === d + 1) wins.push(nk); continue; }
         dist.set(nk, d + 1); prev.set(nk, [sk, DIRS[di][2]]);
         if (win) { if (d + 1 < gd) { gd = d + 1; goal = nk; } wins.push(nk); continue; }
+        if (over) continue;                  // 끝난 자리 — 못 이겼어도 더는 못 간다
         q.push(ns);
       }
     }

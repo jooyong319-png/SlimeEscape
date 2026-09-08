@@ -131,7 +131,12 @@ const plan = ONLY ? (PLAN[ch] || []).slice(0, ONLY) : PLAN[ch];
 if (!plan) { console.log('굴 ' + ch + ' 의 자리 조건이 아직 없다'); process.exit(1); }
 
 const d = JSON.parse(fs.readFileSync(LP, 'utf8'));
-const used = new Set(d.levels.map(l => l.grid.join('')));
+//  🔴 **별을 떼고 견준다** (09-08 사장님: "1-7 1-9 1-11 중복").
+//     판 자료의 격자에는 별('o')이 박혀 있고 못의 격자에는 없다. 그대로 견주면
+//     글자가 달라 **늘 "안 쓴 판"** 이 되어, 중복 방지가 통째로 안 먹었다.
+//     같은 판이 세 번까지 들어갔다.
+const bare = g => g.join('').replace(/o/g, '.');
+const used = new Set(d.levels.map(l => bare(l.grid)));
 
 const all = [], seen = new Set();
 for (const f of POOLS) {
@@ -140,7 +145,7 @@ for (const f of POOLS) {
   if (!Array.isArray(pool)) continue;
   for (const p of pool) {
     if (!p || !p.grid || !p.sol) continue;
-    const key = p.grid.join('');
+    const key = bare(p.grid);
     if (seen.has(key) || used.has(key)) continue;
     seen.add(key);
     const v = look(p);

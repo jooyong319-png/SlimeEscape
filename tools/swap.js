@@ -58,12 +58,15 @@ function weigh(grid, sol, best) {
 const d = JSON.parse(fs.readFileSync(LP, 'utf8'));
 const pool = JSON.parse(fs.readFileSync(POOL, 'utf8'));
 //  🔴 **이미 쓰고 있는 판은 절대 다시 안 고른다** (09-05 에 1-48 이 1-47 과 같았다)
-const used = new Set(d.levels.map(l => l.grid.join('')));
+//     ⚠️ **별을 떼고 견뎌야 한다** (09-08). 판 자료엔 별이 박혀 있고 못엔 없어서,
+//        그대로 견주면 늘 "안 쓴 판"이 되어 막는 게 아무 일도 안 한다.
+const bare = g => g.join('').replace(/o/g, '.');
+const used = new Set(d.levels.map(l => bare(l.grid)));
 
 const cand = [];
 for (let i = 0; i < pool.length; i++) {
   const p = pool[i];
-  if (used.has(p.grid.join(''))) continue;
+  if (used.has(bare(p.grid))) continue;
   const w = weigh(p.grid, p.sol, p.best);
   if (!w) continue;
   if (!(w.dens >= 0.5 || w.re >= 1)) continue;          // 어려움 조건
