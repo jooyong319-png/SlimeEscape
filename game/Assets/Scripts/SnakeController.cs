@@ -3805,8 +3805,12 @@ namespace SlimeEscape
 
             var ks = new GUIStyle(_sSmall) { alignment = TextAnchor.LowerCenter, wordWrap = true };
             ks.normal.textColor = new Color(1, 1, 1, 0.40f);
+            //  🔴 **되돌리기와 다시하기를 여기서도 말해준다** (09-08 사장님: "튜토쪽에
+            //     되돌리기 버튼이 없어. 새로하기랑"). 가르치는 판은 바닥 띠 앞에서
+            //     빠져나가므로, 안내판이 유일하게 말할 수 있는 자리다.
             GUI.Label(new Rect(box.x + pad, h * 0.90f, pw - pad * 2, h * 0.08f),
-                      Touchy ? "화면을 밀어서 움직입니다" : "← ↑ ↓ →     Z 되돌리기", ks);
+                      Touchy ? "화면을 밀어서 움직입니다"
+                             : "← ↑ ↓ →     Z 되돌리기     R 처음부터", ks);
         }
 
         /// 판 번호로 늘 같은 흔들림을 만든다 — 손으로 놓은 듯하되 켤 때마다 안 바뀌게
@@ -4632,6 +4636,10 @@ namespace SlimeEscape
                 int tg = Stars(def);
                 for (int k = 0; k < 3; k++) ts0 += k < tg ? "★" : "☆";
                 TopBar(w, h, def.id + "   " + ts0, () => { _menu = true; _volPanel = false; }, true, true);
+                //  🔴 손가락 패드도 그린다 (09-08 사장님). 여기서 빠져나가느라 안 그려져
+                //     **처음 만지는 사람에게 되돌리기가 아예 없었다.**
+                //     ⚠️ 폭을 게임이 차지한 만큼만 준다 — 안 그러면 오른쪽 안내판을 덮는다.
+                if (Touchy && !_replay) Pad(w * (1f - GuideW), h);
                 if (_volPanel) VolumeModal(w, h);
                 return;
             }
@@ -4653,6 +4661,24 @@ namespace SlimeEscape
             }
             GUI.Label(new Rect(0, 42, w, 22), dots, _sMid);
 
+            //  🔴 **몸이 몇 칸인지 늘 보여준다** (09-08 친구분: "몸을 딱 맞춰야 하는 줄 몰랐다").
+            //     점은 홈 쪽 이야기뿐이라, 새로 하는 사람은 그걸 자기 몸과 연결하지 못한다.
+            //     길이가 맞으면 **홈 테두리와 같은 색**으로 바뀐다 — "이제 됐다" 를 색으로 말한다.
+            {
+                int cur = 0;                       // 지금 채워야 할 홈
+                for (int i = 0; i < _L.Doors.Count; i++)
+                    if ((_st.Dm & (1 << i)) == 0) { cur = i; break; }
+                int want = _L.Doors.Count > 0 ? _L.Doors[cur].Cells.Count : need;
+                bool fit = _st.Length == want;
+                var bs = new GUIStyle(_sMid);
+                bs.normal.textColor = fit ? RailOf(cur) : new Color(1, 1, 1, 0.75f);
+                string msg = "몸 " + _st.Length + "칸  ·  홈 " + want + "칸";
+                if (fit) msg += "   ← 길이가 맞습니다";
+                else if (_st.Length < want) msg += "   (" + (want - _st.Length) + "칸 더 먹어야 합니다)";
+                else msg += "   (" + (_st.Length - want) + "칸 깁니다)";
+                GUI.Label(new Rect(0, 88, w, 22), msg, bs);
+            }
+
             // 🔴 걸음 수와 커트라인은 늘 보여야 한다. 다 끝나고 알려주면 늦다.
             if (_L.Star >= 0 || def.cut > 0)
             {
@@ -4662,8 +4688,9 @@ namespace SlimeEscape
             }
 
             // 🔴 지도 대신 **지나온 길**을 보여준다. 어디서 갈렸는지가 남는다.
+            //  🔴 몸 길이 줄(88)과 겹치지 않게 내렸다
             if (_dev && _trail.Count > 1)
-                GUI.Label(new Rect(0, 88, w, 20),
+                GUI.Label(new Rect(0, 110, w, 20),
                     string.Join(" › ", _trail.GetRange(Mathf.Max(0, _trail.Count - 6), Mathf.Min(6, _trail.Count))),
                     _sSmall);
 
