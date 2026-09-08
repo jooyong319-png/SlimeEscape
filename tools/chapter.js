@@ -67,6 +67,14 @@ const PLAN = {
     { name: '피날레 · 넷 다',      want: v => v.gim === 'ice+crack+box+portal' && v.best >= 27 },
     { name: '피날레 · 넷 다',      want: v => v.gim === 'ice+crack+box+portal' && v.best >= 24 },
   ],
+  //  🔴 굴 3 — 금 간 바닥. 지나온 길을 두 번 못 쓴다.
+  3: [
+    { name: '금간 · 배우는 판',   want: v => v.gim === 'crack' && v.doors === 2 && v.best <= 24 },
+    { name: '금간 · 많이 무너짐', want: v => v.gim === 'crack' && v.broke >= 3 },
+    { name: '금간 · 홈 셋',       want: v => v.gim === 'crack' && v.doors === 3 },
+    { name: '금간 · 덤 조각',     want: v => v.gim === 'crack' && v.spare >= 1 },
+    { name: '금간 · 길게',        want: v => v.gim === 'crack' && v.best >= 30 },
+  ],
   //  🔴 굴 5 — 포탈. 홈을 채워야 켜지므로 홈이 둘 이상이어야 한다.
   //     사장님이 **재미의 원인**으로 짚으신 기믹이다 (09-05).
   5: [
@@ -117,7 +125,9 @@ function look(p) {
 }
 
 const ch = +(process.argv[2] || 1);
-const plan = PLAN[ch];
+//  🔴 ONLY=n — 앞에서 n 자리만 쓴다. 굴을 **모자란 만큼만 채울** 때 쓴다.
+const ONLY = +(process.env.ONLY || 0);
+const plan = ONLY ? (PLAN[ch] || []).slice(0, ONLY) : PLAN[ch];
 if (!plan) { console.log('굴 ' + ch + ' 의 자리 조건이 아직 없다'); process.exit(1); }
 
 const d = JSON.parse(fs.readFileSync(LP, 'utf8'));
