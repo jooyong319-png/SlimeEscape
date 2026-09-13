@@ -57,6 +57,11 @@ namespace SlimeEscape
                 bool mouse = Input.GetMouseButtonDown(0) || Input.GetMouseButtonDown(1)
                           || Input.GetMouseButtonDown(2) || Input.touchCount > 0;
                 if (Input.anyKeyDown && !mouse) CloseIntro();
+                //  🔴 판은 **계속 숨쉰다** — 타이틀·설정처럼. 입력만 막는다 (09-13).
+                //     여기서 그냥 return 했더니, 처음 켤 때(_intro 가 true 로 시작) 판을 연 직후 한 번도
+                //     Animate 가 안 돌아 몸 이음매 같은 스프라이트가 **원점(판 왼쪽 위 칸)** 에 남았다 —
+                //     안내 화면 덮개 너머로 옅은 밝은 네모가 비친 게 그것이다.
+                Animate(Time.deltaTime);
                 return;
             }
 
