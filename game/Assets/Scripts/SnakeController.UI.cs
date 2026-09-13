@@ -952,7 +952,9 @@ namespace SlimeEscape
                 _title = false; _settingsFrom = 0; _settings = true; return;
             }
 
-            if (BtnText(new Rect(rx, ry + gap * 3f, colW, rowH), "나가기"))
+            //  🔴 웹에서는 **숨긴다** — 브라우저 탭은 게임이 못 닫아서 눌러도 아무 일도 안 일어났다 (09-13)
+            if (Application.platform != RuntimePlatform.WebGLPlayer
+                && BtnText(new Rect(rx, ry + gap * 3f, colW, rowH), "나가기"))
             {
                 //  🔴 웹에서는 아무 일도 안 일어난다 — 브라우저 탭은 게임이 못 닫는다.
                 //     윈도우·안드로이드·iOS 에서만 실제로 꺼진다.
