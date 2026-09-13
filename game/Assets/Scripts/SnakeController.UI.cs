@@ -274,6 +274,12 @@ namespace SlimeEscape
                 bool open = Unlocked(li);
                 int s = Stars(d);
                 var r = new Rect(pos[i].x - node * 0.5f, pos[i].y - node * 0.5f, node, node);
+                //  잠긴 판을 눌렀으면 도리질 — 빨리 흔들리다 잦아든다 (0.35초)
+                if (li == _lockShake)
+                {
+                    float u = Time.time - _lockShakeAt;
+                    if (u < 0.35f) r.x += Mathf.Sin(u * 55f) * node * 0.08f * (1f - u / 0.35f);
+                }
 
                 // 굴 입구처럼 — 어두운 돌에 위쪽만 밝다
                 //  ⚠️ 잠긴 마디를 반투명(0.55)으로 칠해서 **뒤의 점선 길이 마디를 뚫고** 보였다 (09-13 화면).
@@ -302,8 +308,11 @@ namespace SlimeEscape
                 }
 
                 if (r.Contains(Event.current.mousePosition)) hover = li;
-                if (GUI.Button(r, GUIContent.none, GUIStyle.none) && open)
-                { _menu = false; _allDone = false; Load(li); return; }
+                if (GUI.Button(r, GUIContent.none, GUIStyle.none))
+                {
+                    if (open) { _menu = false; _allDone = false; Load(li); return; }
+                    _lockShake = li; _lockShakeAt = Time.time;
+                }
             }
 
             // ---- 지금 서 있는 자리 — 다음에 할 판 위에 슬라임 ----
