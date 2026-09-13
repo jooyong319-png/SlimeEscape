@@ -4,12 +4,12 @@ using UnityEngine;
 namespace SlimeEscape.EditorTools
 {
     /// <summary>
-    /// 🔴 도트 글꼴은 **뭉개면 안 된다.**
+    /// 🔴 글꼴 들여오기 설정을 못박는다.
     ///
-    /// 유니티는 글꼴을 들여올 때 기본으로 `Smooth`(안티에일리어싱)로 굽는다.
-    /// 보통 글꼴엔 맞지만 도트 글꼴에는 최악이다 — 획 하나가 두 픽셀에 걸쳐
-    /// 흐릿하게 번져서, 애써 도트로 맞춘 화면에서 **글자만 딴 세상**이 된다.
-    /// `HintedRaster` 로 두면 픽셀 경계에 딱 떨어진다.
+    /// 2026-09-12 에 도트 글꼴(갈무리11)을 **Pretendard** 로 바꿨다 — 도트를 전부 뺐다.
+    /// 도트 글꼴일 때는 `HintedRaster`(픽셀 경계에 딱)로 뒀는데, 보통 글꼴은 그러면
+    /// 곡선이 계단져 **삐뚤빼뚤**해진다. 이제는 `Smooth`(안티에일리어싱)가 맞다.
+    /// 옛 설정이 meta 에 남아 있으니 여기서 한 번 되돌려 둔다.
     ///
     /// 🔴 들여오기 콜백(`OnPreprocessFont`) 대신 여기서 고친다.
     ///    텍스처에서 같은 걸 콜백으로 했다가 다른 후처리기와 부딪혀 하루를 먹었다 (09-02).
@@ -33,15 +33,15 @@ namespace SlimeEscape.EditorTools
                 return;
             }
 
-            if (fi.fontRenderingMode != FontRenderingMode.HintedRaster)
+            if (fi.fontRenderingMode != FontRenderingMode.Smooth)
             {
-                fi.fontRenderingMode = FontRenderingMode.HintedRaster;
+                fi.fontRenderingMode = FontRenderingMode.Smooth;
                 fi.SaveAndReimport();
-                Debug.Log("[글꼴] 도트가 뭉개지지 않게 HintedRaster 로 고침");
+                Debug.Log("[글꼴] 도트 설정(HintedRaster)이 남아 있어 Smooth 로 고침");
             }
             else if (loud)
             {
-                Debug.Log("[글꼴] HintedRaster — 도트가 또렷하게 나온다");
+                Debug.Log("[글꼴] Smooth — 곡선이 부드럽게 나온다");
             }
         }
     }

@@ -44,7 +44,8 @@ $bmp = New-Object System.Drawing.Bitmap $w, $ht
 $g = [System.Drawing.Graphics]::FromImage($bmp)
 $g.CopyFromScreen($r.L, $r.T, 0, 0, (New-Object System.Drawing.Size $w, $ht))
 $g.Dispose()
-$out = "D:\Make_game\SlimeEscape\tools\webshot.png"
+#  🔴 경로를 박지 않는다 — 기계를 옮기며 D:\ 가 C:\ 가 됐다 (09-12, check.ps1 과 같은 병)
+$out = Join-Path $PSScriptRoot "webshot.png"
 $bmp.Save($out)
 $bmp.Dispose()
 Write-Output "찍었다: $out"

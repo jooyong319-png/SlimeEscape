@@ -13,8 +13,10 @@
 
 $ErrorActionPreference = 'Stop'
 $unity = "C:\Program Files\Unity\Hub\Editor\6000.3.22f1\Editor\Unity.exe"
-$proj  = "d:\Make_game\SlimeEscape\game"
-$log   = "d:\Make_game\SlimeEscape\compile.log"
+# 🔴 경로를 박아두지 않는다 — 기계를 옮기며 d:\ 가 C:\ 가 되자 "로그가 안 생겼다" 로만 죽었다 (09-12)
+$root  = Split-Path -Parent $PSScriptRoot
+$proj  = Join-Path $root "game"
+$log   = Join-Path $root "compile.log"
 
 # ── 남은 유니티가 있으면 배치모드가 못 들어간다 ────────────────
 $live = Get-Process -Name 'Unity' -ErrorAction SilentlyContinue
@@ -26,8 +28,12 @@ if ($live) {
 
 Remove-Item $log -ErrorAction SilentlyContinue
 $t0 = Get-Date
-$p = Start-Process -FilePath $unity -Wait -PassThru -ArgumentList @(
+#  🔴 `-Wait` 을 쓰지 않는다 (09-12). -Wait 은 유니티가 띄운 자식 프로세스까지 기다려서,
+#     유니티 로그는 15:48:45 에 "Exiting batchmode successfully" 로 끝났는데 이 스크립트는 615 초를 붙잡혀 있었다.
+#     유니티 **그 프로세스 하나**만 기다린다.
+$p = Start-Process -FilePath $unity -PassThru -ArgumentList @(
   '-batchmode','-quit','-nographics','-projectPath',$proj,'-logFile',$log)
+$p.WaitForExit()
 $sec = [int]((Get-Date) - $t0).TotalSeconds
 
 if (-not (Test-Path $log)) { Write-Output "FAIL  로그가 안 생겼다"; exit 1 }

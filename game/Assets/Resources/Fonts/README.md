@@ -1,28 +1,59 @@
 # 글꼴
 
-`kr.ttf` = **갈무리11**(Galmuri11)에서 이 게임이 쓰는 글자만 잘라낸 것.
+`kr.ttf` = **Pretendard Regular** 에서 이 게임이 쓰는 글자만 잘라내고
+이름을 **`SlimeEscape Sans`** 로 바꾼 것 (2026-09-12).
 
 ```
-원본     Galmuri11 Regular  ·  Copyright (c) 2019-2025 Lee Minseo (quiple@quiple.dev)
+원본     Pretendard Regular v1.3.9 (alternative/Pretendard-Regular.ttf)
+         Copyright (c) 2021, Kil Hyung-jin — github.com/orioncactus/pretendard
 라이선스  SIL Open Font License 1.1   → OFL.txt
-크기     5.1 MB → 102 KB (쓰는 글자 814자만)
+크기     2.6 MB → 180 KB (쓰는 글자 930자)
+이름     SlimeEscape Sans (SlimeEscapeSans-Regular)
 ```
 
-🟢 **재배포 가능하다.** itch.io에 올려도 되고 저장소에도 올라간다.
+🟢 **재배포 가능하다.** itch.io 에 올려도 되고 저장소에도 올라간다.
 
-## 🔴 2026-09-02 이전에는 아니었다
+## 🔴 이름을 바꾼 까닭 — 예약 이름
 
-전에는 윈도우 기본 글꼴(`malgun.ttf`)을 자른 것이었다. **재배포 불가**라
-gitignore로 빼놓고 있었고, **이것 하나가 출시를 막는 유일한 항목**이었다.
+Pretendard 의 OFL 머리말에 **`with Reserved Font Name Pretendard`** 가 있다.
+글자를 잘라낸 것은 OFL 이 말하는 *Modified Version* 이고, 3항이
+*"Modified Version 은 예약 이름을 쓸 수 없다"* 고 한다.
+그래서 글꼴 안의 이름(name 표 1·3·4·6·16…)을 `SlimeEscape Sans` 로 바꿨다.
 
-옆 프로젝트(SalvageRun)가 이미 갈무리를 쓰고 있어서 그걸 가져왔다.
-받으러 갈 필요도 없었다 — 물어보기 전엔 몰랐다.
+**그대로 둔 것** — 지워야 하는 것이 아니라 지켜야 하는 것이다:
+
+| name ID | 무엇 |
+|---|---|
+| 0 | 저작권 줄 |
+| 7 | 상표 표시 ("Pretendard is a trademark of Kil Hyung-jin") |
+| 9 · 10 | 디자이너 · 설명 (Inter · Noto Sans CJK 를 바탕으로 만들었다는 출처) |
+| 13 · 14 | 라이선스 |
+
+`tools/subset-font.py` 가 이름을 바꾸고, **예약 이름이 이름 칸에 남아 있으면 저장하지 않고 멈춘다.**
+
+> ⚠️ 예전 갈무리11 은 예약 이름이 **없어서** 이름을 그대로 뒀었다.
+> 글꼴을 바꿀 때마다 `OFL.txt` 머리말에 `Reserved Font Name` 이 있는지 **먼저** 본다.
+
+## 🔴 2026-09-12 이전 — 도트 글꼴이었다
+
+갈무리11(도트 글꼴)을 쓰고 있었다. rev.8 에 그림에서 도트를 버렸는데
+글꼴만 남아 **글씨만 도트로 튀었다** (사장님: *"도트 디자인 다 빼야하는데"*).
+그때 딸려 있던 두 가지도 같이 걷었다:
+
+- `FontCheck.cs` 가 `HintedRaster`(픽셀 경계에 딱)로 못박던 것 → **`Smooth`**
+  (보통 글꼴을 HintedRaster 로 두면 곡선이 계단진다)
+- `Px()` 가 글자 크기를 **11의 배수**로 떨어뜨리던 것 → 그냥 정수 픽셀 (10 아래로는 안 내림)
+
+그 전(09-02 이전)에는 윈도우 `malgun.ttf` 를 자른 것이라 **재배포 불가**였다.
 
 ## 다시 만들려면
 
 ```
-python tools/subset-font.py <원본.ttf>
+pip install fonttools
+python tools/subset-font.py <Pretendard-Regular.ttf 경로>
 ```
+
+원본은 저장소에 안 넣는다 (2.6 MB). 공식 릴리스 zip 의 `public/static/alternative/Pretendard-Regular.ttf`.
 
 글자 목록은 손으로 관리하지 않는다. **소스와 판 데이터에서 긁어온다** —
 손으로 적으면 문구를 바꿨을 때 그 글자만 조용히 사라진다.
@@ -31,39 +62,7 @@ python tools/subset-font.py <원본.ttf>
 새로 쓴 글자가 빈칸으로 나온다. 에디터(윈도우)에서는 시스템 글꼴로
 대체돼서 **안 드러나고, WebGL 빌드에서만 터진다.**
 
-## 🔴 도트 글꼴이라 지켜야 하는 것 둘
-
-**1. 뭉개면 안 된다.** 유니티는 기본이 `Smooth`(안티에일리어싱)라 획이
-두 픽셀에 번진다. `HintedRaster`로 둬야 픽셀 경계에 딱 떨어진다.
-→ `Assets/Editor/FontCheck.cs` 가 자동으로 맞춘다. 손대지 않아도 된다.
-
-**2. 크기는 11의 배수.** 갈무리11은 11픽셀에 맞춰 그려졌다. 13px·20px 같은
-어중간한 크기로 쓰면 획이 1.2픽셀이 되어 글자만 흐려진다 — 화면을 전부
-도트로 맞춰놨는데 글자에서 티가 나면 다 무너진다.
-→ 코드에서 `Px()` 를 통과시킨다. `fontSize = Px(...)` 로 쓸 것.
-
 ## OFL 지킬 것
 
 배포할 때 **저작권 표시와 라이선스 전문을 같이** 넣어야 한다 (OFL 2항).
-→ `OFL.txt` 가 그 파일이다. 빌드에 같이 들어가야 한다.
-
-⚠️ 자른 것은 OFL에서 말하는 *Modified Version* 이다. 3항이 *"Modified Version은
-예약 이름(Reserved Font Name)을 쓸 수 없다"*고 한다. **갈무리는 예약 이름이 없다** —
-그래서 `Galmuri11` 이라는 이름을 그대로 둬도 된다.
-
-두 군데서 확인했다 (2026-09-02):
-
-```
-글꼴 파일의 name 표      Copyright (c) 2019-2025 Lee Minseo (quiple@quiple.dev)
-저장소 ofl.md 머리말     Copyright © 2019–2025 Lee Minseo (quiple@quiple.dev)
-```
-
-둘 다 `with Reserved Font Name` 절이 **없다.**
-
-> ⚠️ openfontlicense.org 에서 받는 건 **빈 서식**이다 — 머리말이
-> `Copyright (c) <dates>, <Copyright Holder> ... with Reserved Font Name <...>` 처럼
-> 꺾쇠로 되어 있다. 그 줄이 있다고 예약 이름이 있는 게 아니다. 모든 글꼴에
-> 똑같이 배포되는 본보기다. 여기 `OFL.txt` 는 실제 저작권 줄로 채워둔 것이다.
->
-> 원본은 저장소의 `ofl.md` (한국어판은 `ofl-ko.md`). 파일 이름이 `OFL.txt` 가
-> 아니라서 처음에 못 찾았다.
+→ `OFL.txt` 가 그 파일이다 (Pretendard 저장소의 `LICENSE.txt` 그대로). 빌드에 같이 들어가야 한다.

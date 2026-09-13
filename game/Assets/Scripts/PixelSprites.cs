@@ -234,6 +234,61 @@ namespace SlimeEscape
             return _speaker;
         }
 
+        static Sprite _star, _starRing;
+
+        /// <summary>
+        /// 🔴 **별** (09-12 사장님: "클리어 하면 나오는 별도 도트임").
+        /// 전에는 글꼴의 "★" 를 크게 키워 그렸다 — 도트 글꼴이라 계단이 그대로 커졌다.
+        /// 글꼴이 바뀌어도 기호는 글꼴마다 생김새·유무가 다르다 (없으면 **빌드에서만** 빈칸).
+        /// 그래서 모양을 직접 굽는다. 3×3 으로 재서 가장자리를 부드럽게.
+        /// </summary>
+        public static Sprite Star(int size = 128) => _star != null ? _star : (_star = BakeStar(size, false));
+
+        /// 속이 빈 별 — 못 받은 별. 채운 별과 **같은 외곽**이라 나란히 두면 자리가 딱 맞는다.
+        public static Sprite StarRing(int size = 128) => _starRing != null ? _starRing : (_starRing = BakeStar(size, true));
+
+        static Sprite BakeStar(int size, bool ring)
+        {
+            var t = new Texture2D(size, size, TextureFormat.RGBA32, false)
+                    { filterMode = FilterMode.Bilinear, wrapMode = TextureWrapMode.Clamp, hideFlags = HideFlags.HideAndDontSave };
+            for (int y = 0; y < size; y++)
+                for (int x = 0; x < size; x++)
+                {
+                    float a = 0f;
+                    for (int sy = 0; sy < 3; sy++)
+                        for (int sx = 0; sx < 3; sx++)
+                        {
+                            float u = (x + (sx + 0.5f) / 3f) / size, v = (y + (sy + 0.5f) / 3f) / size;
+                            bool on = InStar(u, v, 1f) && !(ring && InStar(u, v, 0.66f));
+                            if (on) a += 1f;
+                        }
+                    t.SetPixel(x, y, new Color(1, 1, 1, a / 9f));
+                }
+            t.Apply();
+            var s = Sprite.Create(t, new Rect(0, 0, size, size), new Vector2(0.5f, 0.5f), size, 0, SpriteMeshType.FullRect);
+            s.hideFlags = HideFlags.HideAndDontSave;
+            return s;
+        }
+
+        /// 다섯 뿔 별 안쪽인가. k 로 가운데를 향해 줄인다 (속 빈 별의 안쪽 선).
+        /// u·v 는 0~1, v 는 아래가 0 — 뿔 하나가 **위**를 향한다.
+        static bool InStar(float u, float v, float k)
+        {
+            const float cx = 0.5f, cy = 0.47f, R = 0.49f, r = 0.20f;
+            float px = u - cx, py = v - cy;
+            //  열 꼭짓점을 돌며 한 번 교차 셈 (짝홀)
+            bool inside = false;
+            for (int i = 0, j = 9; i < 10; j = i++)
+            {
+                float ai = Mathf.PI * 0.5f + i * Mathf.PI / 5f, aj = Mathf.PI * 0.5f + j * Mathf.PI / 5f;
+                float ri = (i % 2 == 0 ? R : r) * k, rj = (j % 2 == 0 ? R : r) * k;
+                float xi = Mathf.Cos(ai) * ri, yi = Mathf.Sin(ai) * ri;
+                float xj = Mathf.Cos(aj) * rj, yj = Mathf.Sin(aj) * rj;
+                if ((yi > py) != (yj > py) && px < (xj - xi) * (py - yi) / (yj - yi) + xi) inside = !inside;
+            }
+            return inside;
+        }
+
         /// 확성기 안쪽인가. u·v 는 0~1 (v 는 아래가 0)
         static bool Inside(float u, float v)
         {
@@ -262,6 +317,105 @@ namespace SlimeEscape
                 }
             }
             return false;
+        }
+
+        // ================================================================ 말랑한 덩어리
+        static readonly System.Collections.Generic.Dictionary<long, Texture2D> _goo
+            = new System.Collections.Generic.Dictionary<long, Texture2D>();
+        const int GooH = 64;
+
+        /// <summary>
+        /// 🔴 **말랑한 덩어리** (09-13 사장님: "슬라임이라는 이름과 어울리면 좋겠는데").
+        /// 단추·이름표·판 고르기 마디가 네모난 판이 아니라 **젤리**로 보이게 한다.
+        /// 색은 안 바꾼다 — 무채색 그대로, **모양만** 슬라임 쪽으로 (색 규칙 ③).
+        ///
+        /// 몸통은 둥근 네모(round = 짧은 변 기준 모서리 비율, 1 이면 캡슐)이고 **위로 갈수록 살짝 좁다** —
+        /// 슬라임 몸(<see cref="Drop"/>)과 같은 쪽으로 무게가 아래에 앉는다.
+        /// 아래로 방울(drips)이 맺힌다. 방울은 몸통과 **부드럽게 합친다**(smooth-min) —
+        /// 목이 이어져 있어야 "매달린 것"으로 읽힌다. 따로 붙이면 떠 있는 점이 된다.
+        ///
+        /// 텍스처 비율은 몸통 가로세로비(aspect)에 맞춰 굽는다 — 늘여 쓰면 모서리가 찌그러진다.
+        /// 몸통 아래 room(몸통 높이의 배수)만큼이 방울 자리다. 그릴 때 그만큼 아래로 늘려 그린다.
+        /// 한 번 구운 건 계속 쓴다. 비율은 1/8 단위로 묶어서 가짓수를 줄인다.
+        /// </summary>
+        /// fat = 방울 반지름 ÷ 몸통 높이. 판 고르기 마디처럼 큰 몸통은 작게(0.17),
+        /// 로고 글자 밑처럼 **몸통이 획 하나만 한** 곳은 크게(0.4) 줘야 방울이 보인다 (09-13: 0.13 고정일 때 로고 방울이 점이 됐다).
+        public static Texture2D Goo(float aspect, int drips = 0, int seed = 0, float round = 1f, float room = 0.5f,
+                                    float fat = 0.13f)
+        {
+            int aq = Mathf.Clamp(Mathf.RoundToInt(aspect * 8f), 2, 96);
+            int rq = Mathf.Clamp(Mathf.RoundToInt(round * 20f), 0, 20);
+            drips = Mathf.Clamp(drips, 0, 3);
+            int mq = drips > 0 ? Mathf.Clamp(Mathf.RoundToInt(room * 10f), 1, 40) : 0;
+            int fq = Mathf.Clamp(Mathf.RoundToInt(fat * 40f), 1, 40);
+            seed &= 15;
+            long key = aq | (long)rq << 8 | (long)mq << 16 | (long)seed << 24 | (long)drips << 28 | (long)fq << 32;
+            if (_goo.TryGetValue(key, out var hit) && hit != null) return hit;
+
+            int bw = Mathf.Max(8, Mathf.RoundToInt(GooH * aq / 8f)), bh = GooH;
+            int rh = Mathf.RoundToInt(bh * mq / 10f);
+            int W = bw, H = bh + rh;
+            var t = new Texture2D(W, H, TextureFormat.RGBA32, false)
+                    { filterMode = FilterMode.Bilinear, wrapMode = TextureWrapMode.Clamp, hideFlags = HideFlags.HideAndDontSave };
+
+            //  y = 0 이 아래다. 몸통은 rh ~ H, 방울은 0 ~ rh.
+            float hx = bw * 0.5f - 1f, hy = bh * 0.5f - 1f;
+            float rad = Mathf.Min(hx, hy) * rq / 20f;
+            float cx = W * 0.5f, cy = rh + bh * 0.5f;
+
+            var dx = new float[drips]; var dy = new float[drips]; var dr = new float[drips];
+            //  방울은 몸통의 **평평한 밑**에만 — 둥근 모서리 밑에 달면 허공에 매달린다
+            float lo = Mathf.Min(rad + 3f, bw * 0.5f), hi = Mathf.Max(bw - rad - 3f, bw * 0.5f);
+            for (int i = 0; i < drips; i++)
+            {
+                float ha = H01(seed * 7 + i * 13 + 1), hb = H01(seed * 11 + i * 5 + 3);
+                float slot = (i + 0.5f) / drips + (ha - 0.5f) * 0.5f / drips;
+                dx[i] = Mathf.Clamp(bw * slot, lo, hi);
+                dr[i] = Mathf.Min(bh * fq / 40f, bw * 0.30f) * Mathf.Lerp(0.8f, 1.15f, hb);
+                float len = Mathf.Lerp(0.45f, 1f, hb) * Mathf.Max(0f, rh - dr[i] - 1f);
+                dy[i] = Mathf.Max(dr[i] + 1f, rh - len);
+            }
+
+            float k = bh * 0.12f;                            // 몸통과 방울이 녹아 붙는 폭
+            for (int y = 0; y < H; y++)
+                for (int x = 0; x < W; x++)
+                {
+                    float px = x + 0.5f, py = y + 0.5f;
+                    float up = Mathf.Clamp01((py - rh) / bh);
+                    float qx = Mathf.Abs(px - cx) - (hx - bh * 0.05f * up - rad);
+                    float qy = Mathf.Abs(py - cy) - (hy - rad);
+                    float ox = Mathf.Max(qx, 0f), oy = Mathf.Max(qy, 0f);
+                    float d = Mathf.Sqrt(ox * ox + oy * oy) + Mathf.Min(Mathf.Max(qx, qy), 0f) - rad;
+                    for (int i = 0; i < drips; i++)
+                    {
+                        //  목 — 방울에서 몸통 안까지 이어지는 가는 줄기
+                        float sy = Mathf.Clamp(py, dy[i], rh + bh * 0.2f);
+                        float ex = px - dx[i];
+                        float dn = Mathf.Sqrt(ex * ex + (py - sy) * (py - sy)) - dr[i] * 0.42f;
+                        float dc = Mathf.Sqrt(ex * ex + (py - dy[i]) * (py - dy[i])) - dr[i];
+                        d = SMin(d, SMin(dn, dc, dr[i] * 0.8f), k);
+                    }
+                    t.SetPixel(x, y, new Color(1, 1, 1, Mathf.Clamp01(0.5f - d)));
+                }
+            t.Apply();
+            _goo[key] = t;
+            return t;
+        }
+
+        /// 몸통 높이에 대해 방울 자리가 얼마나 붙는가 — Goo() 가 구운 것과 **같은 반올림**으로 준다
+        public static float GooRoom(int drips, float room)
+            => drips > 0 ? Mathf.Clamp(Mathf.RoundToInt(room * 10f), 1, 40) / 10f : 0f;
+
+        static float SMin(float a, float b, float k)
+        {
+            float h = Mathf.Clamp01(0.5f + 0.5f * (b - a) / k);
+            return Mathf.Lerp(b, a, h) - k * h * (1f - h);
+        }
+
+        static float H01(int n)
+        {
+            n = (n << 13) ^ n;
+            return ((n * (n * n * 15731 + 789221) + 1376312589) & 0x7fffffff) / 2147483647f;
         }
 
         public static Sprite Round(int size = 48, float radius = 0.30f)

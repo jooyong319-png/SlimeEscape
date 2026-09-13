@@ -81,10 +81,10 @@ git clone https://github.com/jooyong319-png/SlimeEscape.git
 | 진행 기록 열쇠 | `snakeRecords_rev8` — 판이 바뀌면 올린다 |
 | 웹 빌드 | `build/web` · `build/SlimeEscape-web.zip` (6.0MB) |
 
-**🔴 아직 안 한 것 둘** (사장님과 정했는데 미착수):
-- **굴 나누기** — 판 자료가 **한 파일 = 한 굴**이라 지금은 전부 "제 1 굴"이다.
-  판마다 굴 번호를 갖게 고쳐야 한다. 🔴 그냥 표시 문제가 아니다 —
-  **카메라가 파일 안 제일 큰 판에 맞춰져서**, 19×11 피날레 때문에 굴 1의 10×8 판이 쪼그라든다
+🟢 **굴 나누기는 끝났다** (09-09 · 09-12) — 판마다 굴 번호, 카메라는 굴 안에서 재고,
+판 고르기는 굴 하나씩 (`←` `→`). 진행 안내(몸 N칸 · 홈 M칸)는 **튜토리얼에서만** 나온다 (09-12).
+
+**🔴 아직 안 한 것** (사장님과 정했는데 미착수):
 - **굴별 겉모습** — 얼음 굴은 푸르게, 포탈 굴은 신비롭게.
   ⚠️ **지형(벽·바닥·배경)만** 바꾼다. 슬라임 초록·조각 주황·홈 흰빛·포탈 보라는 **뜻**이라 안 건드린다
 
@@ -125,7 +125,12 @@ git clone https://github.com/jooyong319-png/SlimeEscape.git
 | 무엇 | 어디 |
 |---|---|
 | 🔴 **규칙** | `Scripts/SnakeEngine.cs` ↔ `tools/engine.js` **두 벌 — 늘 같아야 한다** |
-| 🔴 화면 · 입력 · 연출 · 힌트 | `Scripts/SnakeController.cs` (제일 큰 파일) |
+| 🔴 필드 · Awake · 판 진행 · 힌트 · 기록 | `Scripts/SnakeController.cs` — 🔴 **partial 로 여섯 조각** (09-12 에 나눴다. 내용은 그대로) |
+| 판 짓기 · 그리기 · 빨려듦 · `SyncViews` | `Scripts/SnakeController.Board.cs` |
+| `Update` · 걸음 · 되돌리기 · 손가락 | `Scripts/SnakeController.Input.cs` |
+| 🔴 `Animate` — 연출은 칸을 안 건드린다 | `Scripts/SnakeController.Motion.cs` |
+| 튜토리얼 안내판 · 시범 게임 · `Coach` | `Scripts/SnakeController.Guide.cs` |
+| `OnGUI` · 판 고르기(굴별) · 결과 · 타이틀 · 설정 · 얼굴 | `Scripts/SnakeController.UI.cs` |
 | 🔴 그리는 도형 전부 | `Scripts/PixelSprites.cs` |
 | 기록 · 진 상태 · 힌트 밑돌 | `Scripts/SnakeLog.cs` (`LostSet`) |
 | 씬 생성 · 정합성 · 빌드 | `Editor/ProjectBootstrap.cs` · `ConformanceCheck.cs` · `BuildWeb.cs` |

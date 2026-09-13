@@ -54,6 +54,29 @@ font = subset.load_font(SRC, opt)
 subsetter = subset.Subsetter(options=opt)
 subsetter.populate(text=''.join(sorted(chars)))
 subsetter.subset(font)
+
+# 🔴 **예약 이름(Reserved Font Name)이 있는 글꼴은 이름을 바꿔야 한다** (2026-09-12).
+#    Pretendard 의 OFL 머리말에 "with Reserved Font Name Pretendard" 가 있다.
+#    글자를 잘라낸 것은 OFL 이 말하는 **Modified Version** 이고, 3항이 수정본은
+#    예약 이름을 못 쓴다고 한다 → 글꼴 안의 이름(name 표)을 우리 이름으로 바꾼다.
+#    (예전 갈무리11 은 예약 이름이 없어서 그대로 뒀었다 — 글꼴마다 확인할 것)
+#    저작권 줄(ID 0)과 라이선스(ID 13·14)는 **그대로 둔다** — 지워야 하는 것이 아니라 지켜야 하는 것이다.
+#    상표 표시(ID 7)와 만든 이 설명(ID 10)도 둔다 — "Pretendard 는 누구의 상표다" 는 **출처 표시**다.
+#    예약 이름이 막는 것은 글꼴을 **그 이름으로 부르는 것**(ID 1·4·6·16…)이지 출처를 밝히는 게 아니다.
+NEW = 'SlimeEscape Sans'
+names = font['name']
+for rec in names.names:
+    if rec.nameID in (1, 4, 16, 18, 21):
+        rec.string = NEW
+    elif rec.nameID == 3:
+        rec.string = NEW + ' Regular (subset)'
+    elif rec.nameID in (6, 20):
+        rec.string = NEW.replace(' ', '') + '-Regular'
+left = [r.toUnicode() for r in names.names
+        if r.nameID not in (0, 7, 9, 10, 13, 14) and 'Pretendard' in r.toUnicode()]   # 9 = 디자이너(출처)
+if left:
+    sys.exit('🔴 예약 이름이 남았다: %r' % left[:3])
+
 subset.save_font(font, OUT, opt)
 
 before = os.path.getsize(SRC) / 1048576.0
