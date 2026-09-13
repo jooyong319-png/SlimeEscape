@@ -224,6 +224,12 @@ namespace SlimeEscape
                 _segPos.Add(_segPos[_segPos.Count - 1]);               // 새 꼬리는 옛 꼬리 자리에서 시작
             }
 
+            //  🔴 소리 (09-13) — 홈이 다 찼으면 빨려드는 소리 하나만. 셋이 겹치면 뭐가 났는지 모른다.
+            //     먹을 때는 몸이 길수록 조금씩 높아진다 — 차오르는 게 귀로도 들린다.
+            if (opened >= 0) Play(Sfx.Door);
+            else if (_st.Length > before) Play(Sfx.Eat, 1f, 1f + 0.025f * Mathf.Min(12, _st.Length - 2));
+            else Play(Sfx.Step, 1f, UnityEngine.Random.Range(0.94f, 1.06f));
+
             // 🔴 몇 칸을 떨어졌나. Settle은 몸 전체를 같은 칸수만큼 아래로 옮기므로,
             //    머리가 걸음만 했을 때의 줄보다 얼마나 아래에 있는지가 곧 낙하 칸수다.
             int steppedRow = fromHead / _L.W + SnakeEngine.Delta[(int)dir].dy;
@@ -292,6 +298,7 @@ namespace SlimeEscape
             _stepT = 999f;
             _pop = 0f;
             _fall = 0; _slid = 1; _land = 0f; _landed = true;
+            Play(Sfx.Undo);
             SyncViews();
         }
 

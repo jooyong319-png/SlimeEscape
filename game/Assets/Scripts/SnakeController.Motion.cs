@@ -45,6 +45,8 @@ namespace SlimeEscape
                 //  🔴 닿는 순간 납작해졌다가 흔들리며 선다. 높이 떨어질수록 세다.
                 float k = JigLand * Mathf.Clamp01(_fall / 3f);
                 Jig(k, -k);
+                //  🔴 떨어졌을 때만 "철퍽" — 높이 떨어질수록 크다. 미끄러져 멈춘 건 소리 안 낸다 (09-13)
+                if (_fall > 0) Play(Sfx.Land, Mathf.Clamp01(0.45f + _fall * 0.18f), UnityEngine.Random.Range(0.95f, 1.05f));
             }
 
             while (_segPos.Count < _st.Length) _segPos.Add(_segPos[_segPos.Count - 1]);

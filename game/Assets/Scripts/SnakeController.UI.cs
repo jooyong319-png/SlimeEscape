@@ -312,6 +312,7 @@ namespace SlimeEscape
                 {
                     if (open) { _menu = false; _allDone = false; Load(li); return; }
                     _lockShake = li; _lockShakeAt = Time.time;
+                    Play(Sfx.Locked);                   // 둔한 "툭" — 아직 못 연다
                 }
             }
 
@@ -576,7 +577,9 @@ namespace SlimeEscape
                                           : new Color(1, 1, 1, 0.78f);
                 GUI.Label(r, label, ls);
             }
-            return on && GUI.Button(r, GUIContent.none, GUIStyle.none);
+            bool click = on && GUI.Button(r, GUIContent.none, GUIStyle.none);
+            if (click) Play(Sfx.Tap);                   // 작은 "톡" (09-13)
+            return click;
         }
 
         /// <summary>
@@ -796,7 +799,9 @@ namespace SlimeEscape
                                d * 0.80f, d * 1.16f), FrameCol,
                       PixelSprites.Diamond().texture);
             }
-            return on && GUI.Button(r, GUIContent.none, GUIStyle.none);
+            bool click = on && GUI.Button(r, GUIContent.none, GUIStyle.none);
+            if (click) Play(Sfx.Tap);
+            return click;
         }
 
         /// <summary>
