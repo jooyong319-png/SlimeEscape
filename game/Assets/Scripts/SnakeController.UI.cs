@@ -1081,17 +1081,9 @@ namespace SlimeEscape
             string keys = Touchy ? "버튼으로 움직인다  ·  되돌리기는 몇 번이든 된다"
                                  : "← ↑ ↓ →  움직이기      Z  되돌리기      R  처음부터";
             GUI.Label(new Rect(0, y, w, s), keys, Fit(_sMid, keys, w - 32f));
-            // 🔴 초기화 버튼은 **안내 화면에만** 둔다.
-            //    게임 중에 두면 실수로 눌러 다 날린다. 여기선 ? 버튼으로만 들어온다.
-            //  ⚠️ 유니티 기본 회색 단추였다 — 조용한 단추(Btn)로 (09-12).
-            //     지우는 쪽 문장이 길어 폭을 조금 넓혔다 (Btn 은 글자를 줄이지 않는다).
-            float rw = (_askReset ? 250 : 150) * _uiScale, rh = 30 * _uiScale;
-            var rr = new Rect(w * 0.5f - rw * 0.5f, h - s * 3.6f, rw, rh);
-            if (_askReset)
-            {
-                if (Btn(rr, "정말 처음부터? (누르면 지워짐)")) { ResetAll(); return; }
-            }
-            else if (Btn(rr, "처음부터 다시")) { _askReset = true; return; }
+            //  ⛔ 여기 있던 「처음부터 다시」(진행 초기화) 단추를 뺐다 (09-13, todo 「없어야 할 것」).
+            //     규칙을 보러 ? 로 들어오는 자리라 실수로 누르기 쉬웠고, 초기화가 세 군데였다.
+            //     지우는 길은 타이틀 「새로 하기」(물어봄) · 설정 「진행 지우기」 둘로 충분하다.
 
             GUI.Label(new Rect(0, h - s * 2.2f, w, s),
                 Touchy ? "화면을 누르면 시작" : "아무 키나 누르면 시작", _sSmall);
