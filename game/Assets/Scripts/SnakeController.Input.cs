@@ -88,7 +88,7 @@ namespace SlimeEscape
                 //     마우스 없이 판에 들어갈 수 있어야 자동 확인이 돌아간다 (09-02).
                 //  🔴 유니티 에디터가 F1 을 먹어서 게임까지 안 온다 (09-02).
                 //     T 를 같은 뜻으로 둔다 — 혼자 확인할 때 필요하다.
-                if (Input.GetKeyDown(KeyCode.F1) || Input.GetKeyDown(KeyCode.T))
+                if (DevAllowed && (Input.GetKeyDown(KeyCode.F1) || Input.GetKeyDown(KeyCode.T)))
                 { _dev = !_dev; if (!_dev) _showPanel = false; }
                 //  🔴 판 고르기에서 **나가는 길**이 없었다. Esc 로 타이틀까지 돌아간다.
                 if (Input.GetKeyDown(KeyCode.Escape)) { _menu = false; _title = true; return; }
@@ -116,7 +116,7 @@ namespace SlimeEscape
             // Esc 로 목록으로 — 언제든 나갈 데가 있어야 갇힌 느낌이 안 든다
             if (Input.GetKeyDown(KeyCode.Escape)) { _menu = true; return; }
 
-            if (Input.GetKeyDown(KeyCode.F1) || Input.GetKeyDown(KeyCode.T))
+            if (DevAllowed && (Input.GetKeyDown(KeyCode.F1) || Input.GetKeyDown(KeyCode.T)))
             { _dev = !_dev; if (!_dev) _showPanel = false; }
 
             if (_dev && Input.GetKeyDown(KeyCode.F3)) { StartReplay(); return; }

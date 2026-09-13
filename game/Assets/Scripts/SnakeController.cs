@@ -603,6 +603,11 @@ namespace SlimeEscape
         //    "최단 14걸음"을 보면 행동이 바뀌고, N을 누르면 판을 건너뛴다.
         //    F1로만 열린다. 기본은 꺼짐.
         bool _dev;
+        //  🔴 개발자 모드는 **에디터와 개발 빌드에서만** 켜진다 (09-13, todo 「없어야 할 것」).
+        //     출시 빌드에서 F1·T 를 누르면 누구나 판을 건너뛰고(N/P) 정답을 재생(F3)할 수 있었고,
+        //     판 오른쪽 아래에 「F1」 글씨도 늘 보였다.
+        //  ⚠️ 웹에 올려 사장님이 직접 확인할 때도 꺼진다 — 그때는 Build Settings 의 Development Build 를 켠다.
+        static bool DevAllowed => Application.isEditor || Debug.isDebugBuild;
 
         // ---- 🔴 게이트 4 기록 ----
         //    플레이어에게는 아무것도 안 보여준다. 파일에만 쌓는다.

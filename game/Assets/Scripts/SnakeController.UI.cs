@@ -1317,7 +1317,7 @@ namespace SlimeEscape
             if (_volPanel) VolumeModal(w, h);
 
             // ---- 개발자가 보는 것 : F1 ----
-            if (!_dev) { GUI.Label(new Rect(w - 60, h - 22, 52, 18), "F1", _sSmall); return; }
+            if (!_dev) { if (DevAllowed) GUI.Label(new Rect(w - 60, h - 22, 52, 18), "F1", _sSmall); return; }
 
             GUI.Box(new Rect(12, 12, 620, 82), GUIContent.none);
             GUILayout.BeginArea(new Rect(22, 18, 600, 70));
