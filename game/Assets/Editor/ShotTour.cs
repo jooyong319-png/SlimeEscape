@@ -87,7 +87,7 @@ namespace SlimeEscape.EditorTools
         static void Clear()
         {
             Set("_title", false); Set("_settings", false); Set("_menu", false);
-            Set("_intro", false); Set("_result", false);
+            Set("_intro", false); Set("_result", false); Set("_allDone", false);
         }
 
         static void Show(string key)
@@ -104,6 +104,7 @@ namespace SlimeEscape.EditorTools
                     Clear();
                     typeof(SnakeController).GetMethod("Load", Bf).Invoke(_c, new object[] { arg < 0 ? 1 : arg });
                     break;
+                case "ending":   Clear(); Set("_allDone", true); break;   // 마지막 판까지 깬 뒤
                 case "result":
                     Set("_result", true); Set("_resultStars", arg < 0 ? 2 : arg);
                     Set("_resultSteps", 20); Set("_resultAt", Time.time - 10f);
