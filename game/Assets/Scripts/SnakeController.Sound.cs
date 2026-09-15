@@ -14,8 +14,9 @@ namespace SlimeEscape
     /// </summary>
     public partial class SnakeController
     {
-        enum Sfx { Step, Eat, Land, Door, Undo, Tap, Locked }
-        const int SfxCount = 7;
+        //  Warp 포탈 · Slide 얼음 미끄러짐 · Push 상자 밀기 · Crack 금 간 바닥 부서짐 (09-16, 다듬기 3단계)
+        enum Sfx { Step, Eat, Land, Door, Undo, Tap, Locked, Warp, Slide, Push, Crack }
+        const int SfxCount = 11;
         //  ⚠️ **직렬화하지 않는다** (09-15). 에디터가 스크립트를 다시 읽을 때 private 배열을
         //     null 이 아니라 **빈 배열**로 되살려서, `_sfx == null` 검사를 지나 _sfxSrc[0] 에서
         //     IndexOutOfRange 가 걸음마다 났다 (41판 정답 재생 중에 잡혔다).
@@ -78,6 +79,47 @@ namespace SlimeEscape
             _sfx[(int)Sfx.Tap] = Bake("tap", 0.05f, t => Blip(t, 900f, 700f, 0.04f, 80f) * 0.10f);
             //  잠긴 판 — 둔한 "툭"
             _sfx[(int)Sfx.Locked] = Bake("lock", 0.10f, t => Blip(t, 170f, 120f, 0.08f, 50f) * 0.22f);
+
+            //  🔴 기믹 넷 (09-16). 전부 걸음 "뽁" 과 **겹쳐서** 난다 — 걸음보다 작게, 성질이 다르게.
+            //  포탈 — 올라갔다 내려오는 "우웅". 떨림을 빠르게 얹어 반짝이는 느낌 (보라 = 신비)
+            _sfx[(int)Sfx.Warp] = Bake("warp", 0.38f, t =>
+            {
+                float env = Mathf.Clamp01(t / 0.03f) * Mathf.Exp(-t * 6f);
+                float up = Phase(Mathf.Min(t, 0.16f), 320f, 1100f, 0.16f);
+                float down = t > 0.16f ? Phase(t - 0.16f, 1100f, 520f, 0.2f) : 0f;
+                float ph = up + down;
+                float trem = 0.75f + 0.25f * Mathf.Sin(2f * Mathf.PI * 23f * t);
+                return env * trem * 0.16f * (Mathf.Sin(ph) + 0.35f * Mathf.Sin(1.5f * ph));
+            });
+            //  얼음 — 잡음을 뭉근하게 걸러 "쉬이익". 미끄러지는 동안 한 번 길게
+            var rs = new System.Random(11);
+            float ls = 0f, ls2 = 0f;
+            _sfx[(int)Sfx.Slide] = Bake("slide", 0.32f, t =>
+            {
+                float n = (float)rs.NextDouble() * 2f - 1f;
+                ls += 0.30f * (n - ls); ls2 += 0.30f * (ls - ls2);          // 두 번 걸러 쇳소리를 뺀다
+                float env = Mathf.Clamp01(t / 0.04f) * Mathf.Clamp01((0.32f - t) / 0.12f);
+                return (ls - ls2 * 0.6f) * env * 0.55f;
+            });
+            //  상자 — 낮고 둔한 "드륵". 무거운 것이 끌린다
+            var rp = new System.Random(5);
+            float lp2 = 0f;
+            _sfx[(int)Sfx.Push] = Bake("push", 0.18f, t =>
+            {
+                float n = (float)rp.NextDouble() * 2f - 1f;
+                lp2 += 0.08f * (n - lp2);
+                float grit = lp2 * (0.6f + 0.4f * Mathf.Sin(2f * Mathf.PI * 38f * t)) * Mathf.Exp(-t * 14f);
+                return Blip(t, 120f, 90f, 0.12f, 20f) * 0.22f + grit * 0.9f;
+            });
+            //  금 간 바닥 — 짧고 마른 "빠직". 되돌릴 수 없는 일이 났다는 걸 귀로 안다
+            var rc = new System.Random(3);
+            _sfx[(int)Sfx.Crack] = Bake("crack", 0.20f, t =>
+            {
+                float n = (float)rc.NextDouble() * 2f - 1f;
+                float burst = n * Mathf.Exp(-t * 60f) * 0.45f;                  // 첫 금이 가는 순간
+                float crumble = n * Mathf.Exp(-(t - 0.05f) * (t - 0.05f) * 900f) * 0.20f; // 부스러기
+                return burst + crumble + Blip(t, 260f, 140f, 0.10f, 30f) * 0.12f;
+            });
         }
 
         /// 휘는 사인 한 번 — f0 에서 f1 로 T 동안 (지수로) 가고, 빨리 치고 k 의 빠르기로 잦아든다

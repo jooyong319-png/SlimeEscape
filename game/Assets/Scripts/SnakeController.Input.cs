@@ -241,6 +241,16 @@ namespace SlimeEscape
             if (opened >= 0) Play(Sfx.Door);
             else if (_st.Length > before) Play(Sfx.Eat, 1f, 1f + 0.025f * Mathf.Min(12, _st.Length - 2));
             else Play(Sfx.Step, 1f, UnityEngine.Random.Range(0.94f, 1.06f));
+            //  기믹 소리는 위의 소리에 **얹는다** (09-16). 앞 상태는 방금 쌓은 되돌리기 맨 위다.
+            if (_undo.Count > 0)
+            {
+                var prev = _undo.Peek();
+                bool pushed = prev.Bx.Count != _st.Bx.Count;
+                for (int i = 0; !pushed && i < _st.Bx.Count; i++) pushed = prev.Bx[i] != _st.Bx[i];
+                if (pushed) Play(Sfx.Push, 1f, UnityEngine.Random.Range(0.95f, 1.05f));
+                if (_st.Cm != prev.Cm) Play(Sfx.Crack, 1f, UnityEngine.Random.Range(0.93f, 1.07f));
+            }
+            if (_st.Slid > 1) Play(Sfx.Slide, Mathf.Clamp01(0.6f + 0.1f * _st.Slid));
 
             // 🔴 몇 칸을 떨어졌나. Settle은 몸 전체를 같은 칸수만큼 아래로 옮기므로,
             //    머리가 걸음만 했을 때의 줄보다 얼마나 아래에 있는지가 곧 낙하 칸수다.
@@ -260,7 +270,12 @@ namespace SlimeEscape
                     //  🔴 **나온 자리에서부터 센다** (09-05 사장님: "떨어지는 느낌 없이 바로 내려와짐").
                     //     처음엔 0 으로 껐는데, 그러면 허공으로 나와 진짜 떨어질 때도
                     //     연출이 없어서 **뚝 내려앉는다.** 나온 칸은 알고 있으니 거기서부터 세면 된다.
+                {
                     _fall = Mathf.Max(0, _st.Head / _L.W - hop2.To / _L.W);
+                    //  🔴 포탈 소리는 **여기서** 낸다 (09-16). 머리가 포탈 칸에 멈췄는지로 보면
+                    //     나와서 떨어진 걸음(대부분이다)을 놓친다 — 41판 정답 재생에서 한 번도 안 울렸다.
+                    Play(Sfx.Warp);
+                }
             }
             //  🔴 미끄러지는 동안에도 **조작을 막는다** (09-05 사장님: "아무 조작이 안 되는 느낌").
             //     낙하와 같은 장치를 쓴다 — 끝나기 전에는 _landed 가 false 다.
