@@ -910,34 +910,50 @@ namespace SlimeEscape
             float lh = big.fontSize * 1.6f;
             GUI.Label(new Rect(0, ly, w, lh), "SlimeEscape", big);
 
-            //  이름 아래 얇은 형광 줄 — 글자 폭에 맞춘다
             float tw2 = big.CalcSize(new GUIContent("SlimeEscape")).x;
-            var rule = FrameCol; rule.a = 0.55f * fade;
-            Bar(new Rect(w * 0.5f - tw2 * 0.34f, ly + lh * 0.86f, tw2 * 0.68f,
-                         Mathf.Max(2f, h * 0.0035f)), rule);
 
             //  🔴 글자 밑으로 **방울이 맺힌다** (09-13 사장님: "슬라임이라는 이름과 어울리면 좋겠는데").
             //     09-04 에 로고의 슬라임 **모양**은 뺐다 — 뒤의 진짜 슬라임과 섞였다.
             //     그래서 캐릭터를 그리지 않고 **글자가 녹아 흐르는 것**으로 말한다. 색도 글자 색 그대로 (초록 아님).
             //  줄기 밑이 평평한 글자에만 단다 — l · m · E · a. p 는 꼬리가 있어 뺐다.
+            //
+            //  🔴 09-16 다듬기: 방울이 **압정(핀)** 처럼 보였다. 까닭 셋 —
+            //     ① 자리가 줄기에서 비껴 있었다. 글자 폭(CalcSize)으로 셈해서 Pretendard 의 자간과 안 맞았다 —
+            //        m 의 방울은 두 다리 **사이 허공**에 매달려 있었다. → 글자의 **진짜 x**(GetCursorPixelPosition)로,
+            //        그 글자에서 줄기가 있는 몫(l 가운데 · m 왼다리 · E 기둥 · a 오른기둥)에 단다
+            //     ② 넓은 깃 → 가는 목 → 알 = 압정 모양. → **획 굵기 그대로** 흘러내리다 끝만 조금 부푼다
+            //     ③ 형광 줄을 가로질러 **꽂힌 것**처럼 보였다. → 줄을 제일 긴 방울 **밑으로** 내린다
+            float dripBottom;
             {
                 const string logo = "SlimeEscape";
                 int[] at = { 1, 3, 5, 8 };
-                float[] len = { 2.6f, 1.3f, 3.4f, 1.8f };
-                float x0 = w * 0.5f - tw2 * 0.5f;
-                float stroke = big.fontSize * 0.085f;
+                float[] frac = { 0.50f, 0.17f, 0.20f, 0.82f };   // 그 글자 안에서 줄기가 있는 몫
+                float[] len = { 3.0f, 1.6f, 4.0f, 2.2f };        // 획 굵기의 몇 배만큼 흘러내리나
+                float stroke = Mathf.Max(2f, big.fontSize * 0.095f);
                 float baseY = ly + lh * 0.5f + big.fontSize * 0.36f;
                 var dc = big.normal.textColor;
+                var lr = new Rect(0, ly, w, lh);
+                var gc = new GUIContent(logo);
+                dripBottom = baseY;
                 for (int k = 0; k < at.Length; k++)
                 {
-                    //  그 글자 **끝까지** 잰 폭에서 글자 반 폭을 뺀다 — 자간(kerning)까지 들어간다
-                    float cxk = x0 + big.CalcSize(new GUIContent(logo.Substring(0, at[k] + 1))).x
-                                   - big.CalcSize(new GUIContent(logo.Substring(at[k], 1))).x * 0.5f;
-                    //  몸통은 획 굵기만 하게 글자 밑에 **묻고**, 방울은 굵게 — 가늘면 점으로 사라진다 (09-13 화면)
-                    float bw3 = stroke * 2.0f, bh3 = stroke * 1.3f;
-                    Goo(new Rect(cxk - bw3 * 0.5f, baseY - bh3 * 0.9f, bw3, bh3), dc, 1, k * 5 + 2, 1f, len[k], 0.42f);
+                    float xa = big.GetCursorPixelPosition(lr, gc, at[k]).x;
+                    float xb = big.GetCursorPixelPosition(lr, gc, at[k] + 1).x;
+                    float x = xa + (xb - xa) * frac[k];
+                    float L = stroke * len[k];
+                    //  줄기 — 글자 **안에서** 시작해 흘러나온다 (위를 묻어야 붙은 것으로 보인다)
+                    Shape(new Rect(x - stroke * 0.5f, baseY - stroke, stroke, L + stroke), dc, Solid(Color.white));
+                    //  끝 — 획보다 조금 굵게 맺힌다. 목이 가늘지 않으니 알이 아니라 **맺힌 방울**이다
+                    float bd = stroke * 1.5f;
+                    Shape(new Rect(x - bd * 0.5f, baseY + L - bd * 0.5f, bd, bd), dc, PixelSprites.Disc().texture);
+                    dripBottom = Mathf.Max(dripBottom, baseY + L + bd * 0.5f);
                 }
             }
+
+            //  이름 아래 얇은 형광 줄 — 글자 폭에 맞춘다. 🔴 방울 **밑에** 둔다 (09-16 — 가로지르면 꽂힌 핀으로 보였다)
+            var rule = FrameCol; rule.a = 0.55f * fade;
+            Bar(new Rect(w * 0.5f - tw2 * 0.34f, dripBottom + big.fontSize * 0.14f, tw2 * 0.68f,
+                         Mathf.Max(2f, h * 0.0035f)), rule);
 
             //  ---- 고를 것 : 오른쪽 ----
             float rowH = Mathf.Clamp(h * 0.085f, 38f, 64f);
