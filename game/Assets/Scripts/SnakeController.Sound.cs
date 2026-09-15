@@ -16,8 +16,11 @@ namespace SlimeEscape
     {
         enum Sfx { Step, Eat, Land, Door, Undo, Tap, Locked }
         const int SfxCount = 7;
-        AudioClip[] _sfx;
-        AudioSource[] _sfxSrc;
+        //  ⚠️ **직렬화하지 않는다** (09-15). 에디터가 스크립트를 다시 읽을 때 private 배열을
+        //     null 이 아니라 **빈 배열**로 되살려서, `_sfx == null` 검사를 지나 _sfxSrc[0] 에서
+        //     IndexOutOfRange 가 걸음마다 났다 (41판 정답 재생 중에 잡혔다).
+        [System.NonSerialized] AudioClip[] _sfx;
+        [System.NonSerialized] AudioSource[] _sfxSrc;
         int _sfxNext;
         readonly float[] _sfxAt = new float[SfxCount];
 
@@ -28,7 +31,8 @@ namespace SlimeEscape
             //  같은 소리가 한꺼번에 겹치면 커지기만 한다 — 40ms 안엔 한 번
             if (Time.unscaledTime - _sfxAt[k] < 0.04f) return;
             _sfxAt[k] = Time.unscaledTime;
-            if (_sfx == null) BakeSfx();
+            //  길이까지 본다 — 빈 배열이면 null 검사로는 못 잡는다
+            if (_sfx == null || _sfx.Length != SfxCount || _sfxSrc == null || _sfxSrc.Length == 0) BakeSfx();
             //  🔴 높이를 조금씩 흔든다 — 같은 걸음이 매번 똑같으면 기계 소리가 된다.
             //     높이는 AudioSource 에 걸리므로 넷을 돌려 쓴다 (앞에서 울리는 소리의 높이를 안 바꾸게).
             var src = _sfxSrc[_sfxNext];
