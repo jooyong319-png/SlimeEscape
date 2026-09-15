@@ -606,7 +606,9 @@ namespace SlimeEscape
 
         /// <summary>
         /// 🔴 **소리 막대.** 유니티 기본 슬라이더는 회색이라 이 게임의 어느 것과도 안 닮았다.
-        /// 홈과 같은 말투로 — 어두운 속에 형광이 찬 만큼 들어찬다.
+        /// 어두운 속에 찬 만큼 **흰빛**이 들어찬다.
+        /// ⚠️ 전에는 홈 테두리와 같은 **형광 초록**이었다 — 초록은 슬라임만, UI 는 무채색이다 (색 규칙, 09-16).
+        ///    소리 크기는 목표가 아니니 "여기가 출구" 색을 쓰면 안 된다.
         ///
         /// 끌기는 손을 뗄 때까지 이어진다. 막대 밖으로 나가도 놓치지 않는다.
         /// </summary>
@@ -625,7 +627,7 @@ namespace SlimeEscape
             if (v > 0.001f)
             {
                 float fw = Mathf.Max(r.height, r.width * v);
-                Shape(new Rect(r.x, r.y, fw, r.height), FrameCol, PixelSprites.Soft().texture);
+                Shape(new Rect(r.x, r.y, fw, r.height), new Color(1f, 1f, 1f, 0.62f), PixelSprites.Soft().texture);
             }
             //  잡는 자리 — 어디를 끌면 되는지 보여준다
             float hx = r.x + Mathf.Clamp(r.width * v, r.height * 0.5f, r.width - r.height * 0.5f);
@@ -821,7 +823,13 @@ namespace SlimeEscape
         /// 슬라임 모양은 뺐다 (09-04 사장님) — 뒤에 진짜 슬라임이 돌고 있어서
         /// 로고의 슬라임과 섞여 보였다. 이름 하나로 간다.
         /// </summary>
-        void Title(float w, float h)
+        /// <summary>
+        /// 🔴 **타이틀 무대** — 왼쪽 아래에 진짜 플레이어 캐릭터가 돌고, 나머지를 가림막으로 덮는다.
+        /// 타이틀과 설정이 **같이** 쓴다 (09-16 다듬기 4단계). 설정 화면 왼쪽이 텅 비어 있었고,
+        /// 타이틀 → 설정으로 넘어갈 때 슬라임만 뚝 사라져 다른 화면으로 튀어 보였다.
+        /// 같은 자리 같은 슬라임이면 **같은 방에서 오른쪽 글자만 바뀐** 것으로 읽힌다.
+        /// </summary>
+        void TitleStage(float w, float h)
         {
             //  🔴 왼쪽 아래에 **진짜 플레이어 캐릭터**가 돈다 (09-04 사장님, 시안 2).
             //     뒤의 판을 비추는 게 아니라, 시범 인스턴스로 **작은 판 하나**를 따로 돌린다 —
@@ -852,6 +860,11 @@ namespace SlimeEscape
             GUI.DrawTexture(new Rect(0, sy2 + sh2, w, h - sy2 - sh2), st);
             GUI.DrawTexture(new Rect(0, sy2, sx2, sh2), st);
             GUI.DrawTexture(new Rect(sx2 + sw2, sy2, w - sx2 - sw2, sh2), st);
+        }
+
+        void Title(float w, float h)
+        {
+            TitleStage(w, h);
 
             //  ---- 시작 연출 : 슬라임이 홈으로 들어가는 동안 글자가 사라진다 ----
             float fade = 1f;
@@ -961,8 +974,8 @@ namespace SlimeEscape
 
             if (BtnText(new Rect(rx, ry + gap * 2f, colW, rowH), "설정"))
             {
-                //  안 끄면 설정 화면 왼쪽에 슬라임이 그대로 남는다
-                if (_guideCam != null) _guideCam.enabled = false;
+                //  🟢 슬라임은 **끄지 않는다** (09-16) — 설정도 같은 무대(TitleStage)를 쓴다.
+                //     예전엔 여기서 껐다: "안 끄면 설정 화면 왼쪽에 슬라임이 그대로 남는다" — 이제 그게 바라는 것이다.
                 _title = false; _settingsFrom = 0; _settings = true; return;
             }
 
@@ -987,8 +1000,9 @@ namespace SlimeEscape
         /// </summary>
         void Settings(float w, float h)
         {
-            var scrim2 = BgCol; scrim2.a = 1f;
-            GUI.DrawTexture(new Rect(0, 0, w, h), Solid(scrim2));
+            //  🔴 타이틀과 **같은 무대** (09-16) — 왼쪽이 텅 비어 있었다. 통째로 덮던 가림막 대신
+            //     타이틀의 네 조각 가림막을 쓴다. 게임·판 고르기에서 들어와도 같은 슬라임이 돈다.
+            TitleStage(w, h);
 
             //  타이틀과 **같은 짜임**이라야 넘어갈 때 어색하지 않다 — 오른쪽에 글자만.
             var big = new GUIStyle(_sBig)
@@ -1134,8 +1148,9 @@ namespace SlimeEscape
             //  🔴 안내판이 안 뜨는 판에서는 시범 카메라를 꺼둔다.
             //     안 끄면 화면 한 귀퉁이에 시범이 그대로 남는다.
             //  타이틀은 시범을 **직접 켠다** (아래 Title 참고). 여기서 끄면 안 된다.
-            if (_guideCam != null && _guideCam.enabled && !_title
-                && (!Def.tutorial || _menu || _intro || _settings))
+            //  설정도 같은 무대를 쓴다 (09-16, TitleStage) — 설정을 나가면 다음 프레임에 여기서 꺼진다.
+            if (_guideCam != null && _guideCam.enabled && !_title && !_settings
+                && (!Def.tutorial || _menu || _intro))
                 _guideCam.enabled = false;
             Styles();
             float w = Screen.width, h = Screen.height;
