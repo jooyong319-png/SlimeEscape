@@ -611,6 +611,9 @@ namespace SlimeEscape
         //     판 오른쪽 아래에 「F1」 글씨도 늘 보였다.
         //  ⚠️ 웹에 올려 사장님이 직접 확인할 때도 꺼진다 — 그때는 Build Settings 의 Development Build 를 켠다.
         static bool DevAllowed => Application.isEditor || Debug.isDebugBuild;
+        /// 화면을 찍는 동안(Editor/ShotTour) 판 구석의 「F1」 표시를 숨긴다 — 가게 스크린샷에 개발자 표시가 찍혔다 (09-16)
+        //  public — 에디터 도구는 다른 어셈블리(Assembly-CSharp-Editor)라 internal 은 안 보인다
+        public static bool HideDevHint;
 
         // ---- 🔴 게이트 4 기록 ----
         //    플레이어에게는 아무것도 안 보여준다. 파일에만 쌓는다.

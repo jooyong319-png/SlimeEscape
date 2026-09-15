@@ -51,6 +51,7 @@ namespace SlimeEscape.EditorTools
             }
             _steps.Add((null, () => { Show("title"); SetSize("960x600"); }, 0.2f));
             _at = 0; _pending = null; _c = null;
+            SnakeController.HideDevHint = true;          // 찍는 동안 「F1」 을 숨긴다 — 끝나면 되돌린다
             _next = EditorApplication.timeSinceStartup + 0.8;
             EditorApplication.update -= Tick;
             EditorApplication.update += Tick;
@@ -73,7 +74,7 @@ namespace SlimeEscape.EditorTools
                 Debug.Log("[SHOT] " + _pending);
                 _pending = null; _next = EditorApplication.timeSinceStartup + 0.35; return;
             }
-            if (_at >= _steps.Count) { EditorApplication.update -= Tick; Debug.Log("[SHOT] done"); return; }
+            if (_at >= _steps.Count) { EditorApplication.update -= Tick; SnakeController.HideDevHint = false; Debug.Log("[SHOT] done"); return; }
             var st = _steps[_at++];
             try { st.act(); } catch (Exception e) { Debug.LogError("[SHOT] " + st.name + " " + e.Message); }
             _pending = st.name;
