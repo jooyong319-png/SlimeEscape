@@ -1156,7 +1156,41 @@ namespace SlimeEscape
             }
         }
 
+        // ---- 화면 넘김 (09-16 다듬기 4단계) ----
+        //  🔴 화면이 바뀔 때 새 화면이 **배경색에서 스며 나온다** (0.22초). 전에는 뚝 끊겨 바뀌었다 —
+        //     판 고르기 → 판, 판 → 다음 판, 판 → 목록이 한 프레임에 통째로 갈려서 "튄다".
+        //  ⚠️ 넘기지 않는 것: 타이틀 ↔ 설정 (같은 무대라 슬라임만 한 번 어두워진다) ·
+        //     결과 화면 (별이 하나씩 박히는 제 등장이 있다).
+        //  타이틀 → 판은 시작 연출이 배경색으로 **다 덮은 뒤** 넘어가므로, 여기서 스며 나오면 한 줄로 이어진다.
+        int _room = -1;              // 지금 방 — 0 판 · 1 타이틀/설정 · 2 판 고르기 · 3 안내 화면
+        int _roomLevel = -1;         // 판이면 몇 번째 판인가 (판이 바뀌어도 넘긴다)
+        float _roomAt = -9f;         // 방이 바뀐 시각
+        const float RoomFade = 0.22f;
+
         void OnGUI()
+        {
+            OnGUIBody();
+            //  🔴 몸통(OnGUIBody)은 화면마다 **중간에 return** 한다 — 넘김 막을 거기 넣으면 화면마다 빠진다.
+            //     그래서 몸통이 다 그린 **뒤에** 여기서 한 번 덮는다.
+            if (_demo || Event.current.type != EventType.Repaint) return;
+            int room = (_title || _settings) ? 1 : _menu ? 2 : _intro ? 3 : 0;
+            int lv = room == 0 ? _index : -1;
+            if (room != _room || lv != _roomLevel)
+            {
+                //  결과 화면에서 다음 판으로 넘어갈 때도 판 번호가 바뀌므로 여기서 걸린다 — 그건 넘겨도 된다
+                if (_room != -1) _roomAt = Time.unscaledTime;
+                _room = room; _roomLevel = lv;
+            }
+            float u = (Time.unscaledTime - _roomAt) / RoomFade;
+            if (u < 1f)
+            {
+                var c = BgCol;
+                c.a = 1f - u * (2f - u);          // 빨리 걷히다 끝에 부드럽게 (ease-out)
+                GUI.DrawTexture(new Rect(0, 0, Screen.width, Screen.height), Solid(c));
+            }
+        }
+
+        void OnGUIBody()
         {
             if (_demo) return;          // 시범은 판만 보여준다. 글자는 본판이 그린다.
             //  스크립트가 다시 읽힌 직후 한 프레임은 판이 없다 — Update 가 곧 다시 연다 (09-15)
