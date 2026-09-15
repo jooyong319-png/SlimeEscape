@@ -18,6 +18,13 @@ namespace SlimeEscape
             //  ⚠️ 시범(_demo)의 _cam 은 **안내판 카메라**다 (SetupDemo) — 건드리면 안 된다.
             //  ⚠️ 안내 화면(_intro)은 판 위에 겹쳐 그리는지 확인을 안 해서 넣지 않았다.
             //     소리는 그대로 난다 — AudioListener 는 카메라와 다른 부품이다.
+            //  🔴 스크립트가 **게임 도중에 다시 읽히면** (에디터 기본값 "Recompile And Continue Playing")
+            //     판(_L)·상태(_st)·기록(_recs)처럼 유니티가 못 담는 것만 빈 채로 되살아난다.
+            //     그러면 매 프레임 NullReferenceException 이 쏟아졌다 (09-15, 다듬기 루프에서 잡음).
+            //     그 자리에서 기록과 판을 다시 연다. 빌드에서는 일어나지 않는 일이다 — 에디터만 스크립트를 다시 읽는다.
+            if (!_demo && _L == null && _set != null && _set.levels != null && _set.levels.Length > 0)
+            { LoadProgress(); Load(_index); _guideSlide = -1; }   // 시범도 다시 세우게 한다 (int 라 -2 로 남아 있다)
+
             if (!_demo && _cam != null) _cam.enabled = !(_title || _settings || _menu);
 
             //  타이틀·설정에서는 판 입력을 안 받는다. 화살표를 눌러도 슬라임이 움직이면 안 된다.
