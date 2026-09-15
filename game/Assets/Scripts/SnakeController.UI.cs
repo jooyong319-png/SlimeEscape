@@ -1138,7 +1138,11 @@ namespace SlimeEscape
             // 🔴 휴대폰은 화면이 작다. 21px 글씨는 안 보인다 — 높이에 맞춰 키운다.
             if (_sBig != null && _styledAt == Screen.height) return;
             _styledAt = Screen.height;
-            _uiScale = Mathf.Clamp(Screen.height / 720f, 0.85f, 2.2f);
+            //  🔴 바닥을 0.85 → **1.0** (09-16 다듬기 4단계 · 글자 크기 통일).
+            //     웹 960×600 · 가로 폰 844×390 이 둘 다 바닥(0.85)에 걸려 작은 글씨가 **11px** 였다 —
+            //     판 고르기 안내 · 결과의 "판 고르기로 가려면 뒤로" · "아무 키나 누르면 시작" 이 안 읽혔다.
+            //     1.0 이면 작은 13 · 중간 16 · 큰 21 — 이 게임이 처음 정한 크기 그대로다.
+            _uiScale = Mathf.Clamp(Screen.height / 720f, 1.0f, 2.2f);
             _krFont = Resources.Load<Font>("Fonts/kr");
             if (_krFont == null) Debug.LogWarning("[글꼴] Resources/Fonts/kr 를 못 찾았다 — WebGL에서 한글이 깨진다");
             _sBig = new GUIStyle(GUI.skin.label) { fontSize = Mathf.RoundToInt(21 * _uiScale), alignment = TextAnchor.MiddleCenter };
