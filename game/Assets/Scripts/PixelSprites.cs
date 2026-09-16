@@ -234,6 +234,55 @@ namespace SlimeEscape
             return _speaker;
         }
 
+        static Sprite _bulb;
+
+        /// <summary>
+        /// 🔴 **전구** — 힌트 단추 (09-16 사장님: *"? 왼쪽에 번쩍 하면서 아이콘으로 표시되는 게 나을듯"*).
+        ///
+        /// 물음표는 못 쓴다 — 조작 안내 단추가 이미 `?` 다. 둘을 나란히 두면 무엇이 무엇인지 모른다.
+        /// 이모지도 못 쓴다: 잘라낸 글꼴에 없어서 **빌드에서만** 빈칸이 된다 (rev.7-a 의 ※ 사건).
+        /// 그래서 <see cref="Speaker"/> · <see cref="Star"/> 처럼 **모양을 직접 굽는다.**
+        ///
+        /// 머리(둥근 유리) + 목 + 받침. 빛살은 안 넣는다 — 30px 로 줄면 점이 되어 지저분해진다.
+        /// 가장자리는 3×3 으로 재서 부드럽게.
+        /// </summary>
+        public static Sprite Bulb(int size = 96)
+        {
+            if (_bulb != null) return _bulb;
+            var t = new Texture2D(size, size, TextureFormat.RGBA32, false)
+                    { filterMode = FilterMode.Bilinear, wrapMode = TextureWrapMode.Clamp, hideFlags = HideFlags.HideAndDontSave };
+            for (int y = 0; y < size; y++)
+                for (int x = 0; x < size; x++)
+                {
+                    float a = 0f;
+                    for (int sy = 0; sy < 3; sy++)
+                        for (int sx = 0; sx < 3; sx++)
+                            a += InBulb((x + (sx + 0.5f) / 3f) / size,
+                                        (y + (sy + 0.5f) / 3f) / size) ? 1f : 0f;
+                    t.SetPixel(x, y, new Color(1, 1, 1, a / 9f));
+                }
+            t.Apply();
+            _bulb = Sprite.Create(t, new Rect(0, 0, size, size), new Vector2(0.5f, 0.5f), size, 0, SpriteMeshType.FullRect);
+            _bulb.hideFlags = HideFlags.HideAndDontSave;
+            return _bulb;
+        }
+
+        /// 전구 안쪽인가. u·v 는 0~1 (v 는 **아래가 0** — 머리가 위다)
+        static bool InBulb(float u, float v)
+        {
+            //  ⚠️ 받침이 목보다 겨우 조금 넓어 **버섯(또는 도장)** 으로 보였다 (09-17 화면).
+            //     전구로 읽히려면 셋의 굵기가 **확실히 갈려야** 한다 — 넓은 머리 · 잘록한 목 · 넓적한 받침.
+            float dx = u - 0.5f;
+            //  머리 — 둥근 유리. 크고 동그랗게
+            float hy = v - 0.615f;
+            if (dx * dx + hy * hy <= 0.30f * 0.30f) return true;
+            //  목 — 잘록하다. 머리에 파묻혀 짧게만 보인다
+            if (Mathf.Abs(dx) <= 0.105f && v >= 0.22f && v <= 0.36f) return true;
+            //  받침(소켓) — 목의 **두 배 가까이** 넓다. 이 대비가 전구를 전구로 만든다
+            if (Mathf.Abs(dx) <= 0.195f && v >= 0.11f && v <= 0.215f) return true;
+            return false;
+        }
+
         static Sprite _star, _starRing;
 
         /// <summary>

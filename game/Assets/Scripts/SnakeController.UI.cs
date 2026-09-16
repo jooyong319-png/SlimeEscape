@@ -773,6 +773,36 @@ namespace SlimeEscape
                 rx -= qw + pad * 0.45f;
                 if (Btn(new Rect(rx, by0, qw, bh0), "?"))
                 { _intro = true; _introFrom = 1; _askReset = false; }   // 이 띠는 판에서만 ? 를 보여준다
+
+                //  🔴 **힌트는 ? 왼쪽에 아이콘으로** (09-16 사장님: *"? 왼쪽에 번쩍 하면서 아이콘으로
+                //     표시되는 게 나을듯"*). 전에는 **오른쪽 아래에 글자 단추**로 떴다 —
+                //     판을 들여다보다 눈이 화면 구석까지 가야 했고, 띠의 ? 와도 따로 놀았다.
+                //  🔴 나타날 때 **한 번 번쩍**인다. 오래 막혀야 나오는 것이라 조용히 떠 있으면 못 본다.
+                //  ⚠️ `help` 를 그대로 쓴다 — 이 띠가 ? 를 보여주는 곳(판 화면)이 곧 힌트가 필요한 곳이다.
+                //     플래그를 따로 두면 부르는 쪽을 전부 고쳐야 한다.
+                if (Stuck != _hintWasStuck)
+                {
+                    _hintWasStuck = Stuck;
+                    if (Stuck) _hintAt = Time.time;
+                }
+                if (Stuck)
+                {
+                    float iw = Mathf.Clamp(bh * 0.9f, 30f, 52f);
+                    rx -= iw + pad * 0.45f;
+                    var ir = new Rect(rx, by0, iw, bh0);
+                    bool click = Btn(ir, null);
+
+                    //  번쩍 — 나타난 뒤 잠깐 맥동하다 가라앉는다
+                    float since = Time.time - _hintAt;
+                    float flash = since < HintFlash
+                                ? Mathf.Abs(Mathf.Sin(since * 7f)) * (1f - since / HintFlash) : 0f;
+                    var ic = Color.Lerp(new Color(1f, 1f, 1f, 0.70f), StarLit, flash);
+                    Shape(new Rect(ir.x + iw * 0.24f, ir.y + bh0 * 0.18f, iw * 0.52f, bh0 * 0.64f),
+                          ic, PixelSprites.Bulb().texture);
+
+                    //  이미 진 자리에서는 눌러도 아무것도 안 연다 — 되돌리라는 글이 따로 뜬다
+                    if (click && !(_lostSet != null && _lostSet.IsLost(_st))) OpenHint();
+                }
             }
             return by0 + bh0;
         }
@@ -1217,6 +1247,12 @@ namespace SlimeEscape
         //  🔴 조작 안내로 **어디서** 들어왔나 — 0 첫 실행 · 1 판 · 2 판 고르기 · 3 설정 (09-16 사장님:
         //     "조작 안내 들어가면 어디서 들어가든 판이 판 목록으로 가짐"). 나갈 때 그 자리로 돌려보낸다.
         int _introFrom;
+        //  🔴 힌트 아이콘이 **나타난 시각**. 나타날 때 한 번 번쩍이려고 둔다
+        //     (09-16 사장님: "? 왼쪽에 **번쩍 하면서** 아이콘으로 표시되는 게 나을듯").
+        float _hintAt = -9f;
+        bool _hintWasStuck;
+        const float HintFlash = 1.8f;   // 번쩍이 가라앉기까지
+
         int _room = -1;              // 지금 방 — 0 판 · 1 타이틀/설정 · 2 판 고르기 · 3 안내 화면
         int _roomLevel = -1;         // 판이면 몇 번째 판인가 (판이 바뀌어도 넘긴다)
         float _roomAt = -9f;         // 방이 바뀐 시각
@@ -1396,18 +1432,11 @@ namespace SlimeEscape
                 // 🔴 오래 막혔을 때만 도움을 내민다. 처음부터 떠 있으면 아무도 안 푼다.
                 if (Stuck)
                 {
-                    bool dead = _lostSet.IsLost(_st);
-                    //  ⚠️ 유니티 기본 회색 단추였다 — 조용한 단추(Btn)로 (09-12).
-                    float hw = 210f * _uiScale, hh = 30f * _uiScale;
-                    var hr = new Rect(w - hw - 12f, h - hh - 12f, hw, hh);
-                    // 🔴 단계마다 다른 도움. 필요한 만큼만 열어보게 한다.
-                    int nx = NextHint();
-                    string label = dead ? "되돌리세요 (Z)"
-                        : nx == 1 ? "어느 홈부터? (H)"
-                        : nx == 2 ? "먹으면 안 되는 조각은? (H)"
-                        : nx == 3 ? "다음 한 걸음 (H) — 별 셋 포기"
-                        : null;
-                    if (label != null && Btn(hr, label) && !dead) OpenHint();
+                    //  ⛔ 힌트 단추는 **위 띠의 ? 왼쪽**으로 옮겼다 — 전구 아이콘이고, 나타날 때 번쩍인다
+                    //     (09-16 사장님: *"? 왼쪽에 번쩍 하면서 아이콘으로 표시되는 게 나을듯"*).
+                    //     여기 **오른쪽 아래**에 210px 짜리 글자 단추("어느 홈부터? (H)" 등)로 떠 있었다.
+                    //     그리는 곳은 위 띠를 그리는 함수다. 단계마다 다르던 글은 아이콘 하나로 합쳤다 —
+                    //     눌러 보면 순서대로 열리므로 하는 일은 같다.
 
                     // 민 방향을 잠깐 크게 보여준다 — 답이 아니라 **다음 한 수**다
                     if (Time.time - _nudgeShow < 2.2f)
