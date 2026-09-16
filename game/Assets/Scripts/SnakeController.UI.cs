@@ -832,6 +832,69 @@ namespace SlimeEscape
         /// 타이틀 → 설정으로 넘어갈 때 슬라임만 뚝 사라져 다른 화면으로 튀어 보였다.
         /// 같은 자리 같은 슬라임이면 **같은 방에서 오른쪽 글자만 바뀐** 것으로 읽힌다.
         /// </summary>
+        /// <summary>
+        /// 🔴 로고 **안에서 거품이 부글거린다** (09-17 사장님: "로고에 부글 거리는 에니도 넣어주고").
+        ///
+        /// **게임에 이미 있는 표현을 그대로 가져온다** — 새로 지어내지 않는다.
+        /// 지어냈다가 한 번 실패했다: 왼쪽 위에서 오는 빛을 계산해 흰 광을 얹었더니
+        /// 캐릭터에 없는 것이라 안 닮았다 ("이 빛반사가 아니고").
+        /// 슬라임 몸(TickBubbles)과 **같은 배합·같은 박자**다:
+        /// 몸 색 × 0.58 로 어둡게, 아래서 위로, 0.12 까지 나타나고 0.72 부터 터지며 부푼다.
+        /// 🔴 어두워야 한다 — 밝게 하면 표면 **위에 얹힌 것**으로 보인다 (09-03 사장님).
+        ///
+        /// ⛔ 걷어낸 것: 좌에서 우로 **훑고 지나가던 윤기**. 두 판에 걸쳐 네모 판도 세로 줄무늬도
+        ///    잡았지만 사장님이 연출 자체를 빼자고 하셨다 (09-17: "윤기가 흝고 지나가는 건 빼고").
+        ///    대신 **구를 칠하듯** 밝은 쪽을 밝게 하는 쪽으로 갔다 — <see cref="LogoArt"/> 의 Lite · Shade.
+        ///    (되살리려면 이 커밋의 앞 판을 본다: 흰색 판을 좁은 세로 띠로 오려 내 덧칠하는 방식이었다)
+        ///
+        /// ⚠️ 거품은 <see cref="LogoArt.Spot"/> 의 r 을 **넘으면 안 된다** — 그게 몸 밖으로 안 새는 한계다.
+        /// </summary>
+        void LogoLife(Rect r, float fade)
+        {
+            if (fade <= 0.01f) return;
+            var spots = LogoArt.Spots;
+            if (spots == null || spots.Length == 0) return;
+
+            //  ---- 거품 ----
+            var dim = LogoArt.Body * LogoArt.BubbleDim;
+            var disc = PixelSprites.Disc().texture;
+            float now = Time.time;
+            for (int i = 0; i < spots.Length; i++)
+            {
+                var s = spots[i];
+                //  🔴 자리마다 빠르기도 박자도 어긋낸다. 다 같으면 부글부글이 아니라
+                //     한 번 번쩍이는 것으로 보인다 (게임의 BubbleFrom 주석과 같은 까닭).
+                float sp = Mathf.Lerp(0.30f, 0.62f, s.seed);
+                //  🔴 **쉬는 참을 둔다.** 자리마다 늘 하나씩 떠 있으면 부글거림이 아니라
+                //     글자에 낀 **점박이 무늬**가 된다 (09-17 화면).
+                //     1.45 주기로 돌려 1 을 넘는 동안은 아무것도 안 뜬다 — 세 번에 한 번꼴로 빈다.
+                float t = Mathf.Repeat(now * sp + s.seed * 1.45f, 1.45f);
+                if (t > 1f) continue;
+
+                float fin = Mathf.Clamp01(t / 0.12f);               // 나타나고
+                float pop = Mathf.Clamp01((t - 0.72f) / 0.28f);     // 끝에서 터진다
+                float grow = fin * (1f - pop);
+                if (grow <= 0.01f) continue;
+
+                //  🔴 크기를 **고르게 두지 않는다.** 다 같으면 규칙적인 무늬로 보인다 —
+                //     끓는 것은 작은 게 잔뜩에 가끔 큰 게 하나 올라온다 (게임의 BubbleFrom 과 같은 규칙).
+                //  ⚠️ 0.62 로는 작은 쪽이 거의 안 보였다 (09-17 화면) — 올린다.
+                //     다만 1.0 을 넘기면 안 된다: 터질 때 1.75 배까지 부푸는데 그때 획 밖으로 샌다.
+                float big = s.seed < 0.18f ? 1.00f : 0.76f;
+                //  0.85 를 곱해 둔다 — 터질 때 1.75 배까지 부푸는데, 한계를 꽉 채워 두면 그때 샌다
+                float rad = s.r * r.height * 0.85f * big
+                          * (0.55f + 0.45f * Mathf.Clamp01(t / 0.72f)) * (1f + 0.75f * pop);
+                //  몸 안에서 **위로** 오른다. 여유 안에서만 움직인다
+                float rise = (t - 0.5f) * s.r * r.height * 0.5f;
+
+                float cx = r.x + s.u * r.width;
+                float cy = r.y + s.v * r.height - rise;
+                var c = dim; c.a = LogoArt.BubbleMix * grow * fade;
+                Shape(new Rect(cx - rad, cy - rad, rad * 2f, rad * 2f), c, disc);
+            }
+
+        }
+
         void TitleStage(float w, float h)
         {
             //  🔴 왼쪽 아래에 **진짜 플레이어 캐릭터**가 돈다 (09-04 사장님, 시안 2).
@@ -903,60 +966,22 @@ namespace SlimeEscape
             }
 
             //  ---- 로고 : 가운데, 위에서 조금 내려온 자리 ----
-            var big = new GUIStyle(_sBig)
-            {
-                fontSize = Px(Mathf.Clamp(Mathf.Min(w, h) * 0.085f, 24f, 64f)),
-                alignment = TextAnchor.MiddleCenter,
-            };
-            big.normal.textColor = new Color(1, 1, 1, 0.96f * fade);
-            float ly = h * 0.145f;
-            float lh = big.fontSize * 1.6f;
-            GUI.Label(new Rect(0, ly, w, lh), "SlimeEscape", big);
-
-            float tw2 = big.CalcSize(new GUIContent("SlimeEscape")).x;
-
-            //  🔴 글자 밑으로 **방울이 맺힌다** (09-13 사장님: "슬라임이라는 이름과 어울리면 좋겠는데").
-            //     09-04 에 로고의 슬라임 **모양**은 뺐다 — 뒤의 진짜 슬라임과 섞였다.
-            //     그래서 캐릭터를 그리지 않고 **글자가 녹아 흐르는 것**으로 말한다. 색도 글자 색 그대로 (초록 아님).
-            //  줄기 밑이 평평한 글자에만 단다 — l · m · E · a. p 는 꼬리가 있어 뺐다.
-            //
-            //  🔴 09-16 다듬기: 방울이 **압정(핀)** 처럼 보였다. 까닭 셋 —
-            //     ① 자리가 줄기에서 비껴 있었다. 글자 폭(CalcSize)으로 셈해서 Pretendard 의 자간과 안 맞았다 —
-            //        m 의 방울은 두 다리 **사이 허공**에 매달려 있었다. → 글자의 **진짜 x**(GetCursorPixelPosition)로,
-            //        그 글자에서 줄기가 있는 몫(l 가운데 · m 왼다리 · E 기둥 · a 오른기둥)에 단다
-            //     ② 넓은 깃 → 가는 목 → 알 = 압정 모양. → **획 굵기 그대로** 흘러내리다 끝만 조금 부푼다
-            //     ③ 형광 줄을 가로질러 **꽂힌 것**처럼 보였다. → 줄을 제일 긴 방울 **밑으로** 내린다
-            float dripBottom;
-            {
-                const string logo = "SlimeEscape";
-                int[] at = { 1, 3, 5, 8 };
-                float[] frac = { 0.50f, 0.17f, 0.20f, 0.82f };   // 그 글자 안에서 줄기가 있는 몫
-                float[] len = { 3.0f, 1.6f, 4.0f, 2.2f };        // 획 굵기의 몇 배만큼 흘러내리나
-                float stroke = Mathf.Max(2f, big.fontSize * 0.095f);
-                float baseY = ly + lh * 0.5f + big.fontSize * 0.36f;
-                var dc = big.normal.textColor;
-                var lr = new Rect(0, ly, w, lh);
-                var gc = new GUIContent(logo);
-                dripBottom = baseY;
-                for (int k = 0; k < at.Length; k++)
-                {
-                    float xa = big.GetCursorPixelPosition(lr, gc, at[k]).x;
-                    float xb = big.GetCursorPixelPosition(lr, gc, at[k] + 1).x;
-                    float x = xa + (xb - xa) * frac[k];
-                    float L = stroke * len[k];
-                    //  줄기 — 글자 **안에서** 시작해 흘러나온다 (위를 묻어야 붙은 것으로 보인다)
-                    Shape(new Rect(x - stroke * 0.5f, baseY - stroke, stroke, L + stroke), dc, Solid(Color.white));
-                    //  끝 — 획보다 조금 굵게 맺힌다. 목이 가늘지 않으니 알이 아니라 **맺힌 방울**이다
-                    float bd = stroke * 1.5f;
-                    Shape(new Rect(x - bd * 0.5f, baseY + L - bd * 0.5f, bd, bd), dc, PixelSprites.Disc().texture);
-                    dripBottom = Mathf.Max(dripBottom, baseY + L + bd * 0.5f);
-                }
-            }
-
-            //  이름 아래 얇은 형광 줄 — 글자 폭에 맞춘다. 🔴 방울 **밑에** 둔다 (09-16 — 가로지르면 꽂힌 핀으로 보였다)
-            var rule = FrameCol; rule.a = 0.55f * fade;
-            Bar(new Rect(w * 0.5f - tw2 * 0.34f, dripBottom + big.fontSize * 0.14f, tw2 * 0.68f,
-                         Mathf.Max(2f, h * 0.0035f)), rule);
+            //  🔴 **로고는 글자가 아니라 그림이다** (09-16 사장님: "SlimeEscape 를 혹시 텍스트가 아니고
+            //     모양으로 만들 수 있어?"). 폰트로 찍은 글자에 장식을 덧붙이던 방식은 세 번 고쳐도 어색했다 —
+            //     압정 → 철봉에 나사 → 빨랫줄에 구슬. 글자와 장식이 **따로 놀았기** 때문이다.
+            //     이제 LogoArt 가 열한 글자를 획으로 그린다.
+            //  ⚠️ **흰색으로 곱한다** — 슬라임 색과 빛 반사가 그림 안에 이미 구워져 있다.
+            //     여기서 딴 색을 곱하면 그 색에 물들어 버린다 (09-16 사장님: "슬라임 색으로 바꿔줘 / 빛반사도 좀").
+            //  ⛔ 걷어낸 것: 폰트 글자 · 형광 밑줄 · 글자 밑 슬라임 띠 · 흘러내리던 방울
+            //     (되돌리려면 커밋 f526725 · 94b2206)
+            float logoH = Mathf.Clamp(Mathf.Min(w, h) * 0.150f, 44f, 120f);
+            float logoW = logoH * LogoArt.Aspect;
+            float maxLogoW = w * 0.62f;
+            if (logoW > maxLogoW) { logoW = maxLogoW; logoH = logoW / LogoArt.Aspect; }
+            float ly = h * 0.115f;
+            var logoR = new Rect(w * 0.5f - logoW * 0.5f, ly, logoW, logoH);
+            Shape(logoR, new Color(1, 1, 1, 0.96f * fade), LogoArt.Get());
+            LogoLife(logoR, 0.96f * fade);
 
             //  ---- 고를 것 : 오른쪽 ----
             float rowH = Mathf.Clamp(h * 0.085f, 38f, 64f);

@@ -29,7 +29,41 @@ namespace SlimeEscape.EditorTools
         static double _next;
         static string _pending, _dir;
 
+        const string Key = "ShotTour.pending";
+
+        /// <summary>
+        /// 🔴 Play 가 꺼져 있으면 **스스로 켠다.**
+        /// 전에는 켜지 않고 <see cref="Tick"/> 이 기다리기만 해서, 예약만 걸린 채 아무 일도 안 일어났다 —
+        /// 09-17 에 두 번 연달아 같은 데서 막혔고, 그때마다 "사진이 왜 안 나오지"부터 다시 캤다.
+        ///
+        /// ⚠️ 그런데 Play 를 켜면 도메인이 다시 올라가면서 정적 예약과 update 구독이 **통째로 날아간다.**
+        ///    그래서 먼저 켜고 나중에 걸어야 한다 — 예약을 세션에 적어 두고,
+        ///    올라온 뒤 <see cref="Resume"/> 가 그걸 보고 다시 건다.
+        /// </summary>
         public static void Run(string screens, string sizes, string dir, string prefix)
+        {
+            if (!EditorApplication.isPlaying)
+            {
+                SessionState.SetString(Key, string.Join("", screens, sizes, dir, prefix));
+                EditorApplication.isPlaying = true;
+                Debug.Log("[SHOT] Play 를 켠다 — 올라오면 다시 건다");
+                return;
+            }
+            Arm(screens, sizes, dir, prefix);
+        }
+
+        /// Play 가 올라온 뒤 불린다. 적어 둔 예약이 있으면 다시 건다.
+        [InitializeOnLoadMethod]
+        static void Resume()
+        {
+            string s = SessionState.GetString(Key, "");
+            if (string.IsNullOrEmpty(s)) return;
+            SessionState.EraseString(Key);
+            var p = s.Split('');
+            if (p.Length == 4) Arm(p[0], p[1], p[2], p[3]);
+        }
+
+        static void Arm(string screens, string sizes, string dir, string prefix)
         {
             _dir = dir;
             _steps.Clear();
