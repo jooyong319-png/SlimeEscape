@@ -1153,7 +1153,11 @@ namespace SlimeEscape
         {
             var rim = RailOf(door);
             if (spent) return Color.Lerp(Color.Lerp(RailDimOf(door), rim, 0.5f), SpentCol, SuckT);
-            float br = 0.76f + 0.24f * (0.5f + 0.5f * Mathf.Sin(Time.time * 1.6f));
+            //  🔴 홈마다 **위상을 어긋내고 진폭을 절반**으로 (09-16 사장님: "홈 들어갈때마다 다른 홈들이 번쩍거림").
+            //     전에는 안 채운 홈이 **전부 같은 박자**로 24% 씩 오르내려, 한 홈에 몸을 넣는 순간
+            //     나머지 홈이 한 덩어리로 출렁여 번쩍이는 것으로 보였다.
+            //     (Wiki_gm/game-feel.md 「애니는 자리마다 빠르기를 다르게」 — 우리가 그걸 어기고 있었다)
+            float br = 0.88f + 0.12f * (0.5f + 0.5f * Mathf.Sin(Time.time * 1.15f + door * 1.9f));
             rim = new Color(rim.r * br, rim.g * br, rim.b * br, 1f);
             // 🔴 힌트 1 — 먼저 채울 홈만 깜빡인다. "왼쪽 아래요" 라고 쓰는 것보다 빠르다.
             if (_hint >= 1 && door == _hintDoor)

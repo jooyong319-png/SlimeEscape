@@ -520,6 +520,9 @@ namespace SlimeEscape
 
                 _starView = NewSprite("Star", 1);
                 _starView.transform.position = CellPos(_L.Star);
+                //  🔴 그림을 안 넣어 기본 **네모**가 나오고 있었다 (09-16 사장님: "필드에 있는 별 모양이 그냥 정사각형임").
+                //     결과 화면과 **같은 별**을 쓴다 — 같은 것을 두 모양으로 그리면 안 된다.
+                _starView.sprite = PixelSprites.Star();
                 _starView.color = StarLit;
             }
 
@@ -1081,8 +1084,10 @@ namespace SlimeEscape
                 bool gSpent = (_st.Dm & (1 << g.door)) != 0;
                 var gc = RailOf(g.door);
                 //  숨은 **진하기 전체**에 곱한다 — 겹끼리 따로 뛰면 층이 드러난다
+                //  🔴 테두리와 **같은 박자·같은 위상**으로 (09-16). 홈마다 어긋내고 진폭을 절반으로 —
+                //     번지는 빛까지 다 같이 뛰면 판 전체가 한 덩어리로 깜빡인다.
                 float pulse = gSpent ? Mathf.Max(0f, 1f - SuckT)
-                                     : 0.78f + 0.22f * (0.5f + 0.5f * Mathf.Sin(Time.time * 1.6f));
+                                     : 0.88f + 0.12f * (0.5f + 0.5f * Mathf.Sin(Time.time * 1.15f + g.door * 1.9f));
                 gc.a = g.a * pulse;
                 g.sr.color = gc;
             }

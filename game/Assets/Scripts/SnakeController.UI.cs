@@ -375,7 +375,7 @@ namespace SlimeEscape
 
             //  ⚠️ 유니티 기본 회색 단추(GUI.skin.button)였다 — 납작한 화면에서 혼자 옛 모양이었다 (09-12).
             if (Btn(new Rect(12f, h - 34f * _uiScale, 84f * _uiScale, 26f * _uiScale), "설명"))
-            { _intro = true; _askReset = false; }
+            { _intro = true; _introFrom = 2; _askReset = false; }
         }
 
 
@@ -479,7 +479,10 @@ namespace SlimeEscape
         {
             _intro = false;
             _title = false;
-            _menu = true;              // 🔴 안내 다음은 판 고르기다
+            //  🔴 들어온 자리로 돌아간다 (09-16). 전에는 어디서 들어가든 판 고르기로 갔다 —
+            //     판을 풀다 조작을 확인하면 판이 사라져 버렸다. 첫 실행(0)만 전처럼 판 고르기로.
+            _menu = _introFrom == 0 || _introFrom == 2;
+            _settings = _introFrom == 3;
             PlayerPrefs.SetInt(IntroKey, 1);
             PlayerPrefs.Save();
         }
@@ -766,7 +769,7 @@ namespace SlimeEscape
                 float qw = Mathf.Clamp(bh * 0.9f, 30f, 52f);
                 rx -= qw + pad * 0.45f;
                 if (Btn(new Rect(rx, by0, qw, bh0), "?"))
-                { _intro = true; _askReset = false; }
+                { _intro = true; _introFrom = 1; _askReset = false; }   // 이 띠는 판에서만 ? 를 보여준다
             }
             return by0 + bh0;
         }
@@ -1066,7 +1069,7 @@ namespace SlimeEscape
                 PlayerPrefs.SetInt(MuteKey, _mute ? 1 : 0); PlayerPrefs.Save();
             }
             if (BtnText(new Rect(bx, by + gap * 2f, bw, bh), "조작 안내 다시 보기"))
-            { _settings = false; _intro = true; return; }
+            { _settings = false; _intro = true; _introFrom = 3; return; }
 
             if (_askReset)
             {
@@ -1166,6 +1169,9 @@ namespace SlimeEscape
         //  ⚠️ 넘기지 않는 것: 타이틀 ↔ 설정 (같은 무대라 슬라임만 한 번 어두워진다) ·
         //     결과 화면 (별이 하나씩 박히는 제 등장이 있다).
         //  타이틀 → 판은 시작 연출이 배경색으로 **다 덮은 뒤** 넘어가므로, 여기서 스며 나오면 한 줄로 이어진다.
+        //  🔴 조작 안내로 **어디서** 들어왔나 — 0 첫 실행 · 1 판 · 2 판 고르기 · 3 설정 (09-16 사장님:
+        //     "조작 안내 들어가면 어디서 들어가든 판이 판 목록으로 가짐"). 나갈 때 그 자리로 돌려보낸다.
+        int _introFrom;
         int _room = -1;              // 지금 방 — 0 판 · 1 타이틀/설정 · 2 판 고르기 · 3 안내 화면
         int _roomLevel = -1;         // 판이면 몇 번째 판인가 (판이 바뀌어도 넘긴다)
         float _roomAt = -9f;         // 방이 바뀐 시각
