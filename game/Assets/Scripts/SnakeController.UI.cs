@@ -194,6 +194,9 @@ namespace SlimeEscape
             //  지도도 **보고 있는 굴의 색**으로 칠한다 — 넘길 때 굴이 바뀐 게 보인다.
             var cave = CaveOf(_menuCh);
             GUI.DrawTexture(new Rect(0, 0, w, h), Solid(cave.bg));
+            //  🔴 단색 한 겹이라 허전했다 (09-16 사장님) — 굴 벽과 흘러내리는 슬라임을 깐다.
+            //     굴을 넘기면 배경 그림도 같이 바뀐다 (굴마다 늘 같은 그림이다).
+            CaveBackdrop(new Rect(0, 0, w, h), _menuCh);
             var idx = new List<int>();
             for (int i = 0; i < _set.levels.Length; i++)
                 if (ChapterOf(_set.levels[i]) == _menuCh) idx.Add(i);
@@ -926,6 +929,23 @@ namespace SlimeEscape
             GUI.DrawTexture(new Rect(0, sy2 + sh2, w, h - sy2 - sh2), st);
             GUI.DrawTexture(new Rect(0, sy2, sx2, sh2), st);
             GUI.DrawTexture(new Rect(sx2 + sw2, sy2, w - sx2 - sw2, sh2), st);
+
+            //  🔴 굴 배경도 **같은 네 조각에만** 그린다 (09-16 사장님: 타이틀이 허전하다).
+            //  ⚠️ 통째로 그리면 **시범 슬라임을 덮는다** — IMGUI 는 카메라보다 위에 그려지므로,
+            //     가림막을 네 조각으로 나눠 슬라임 자리를 비워 둔 것이다. 배경도 같은 사정이다.
+            //     오려 낸 조각마다 **그림 전체 자리**를 넘겨야 네 조각이 한 그림으로 이어진다.
+            var pieces = new[] {
+                new Rect(0, 0, w, sy2),
+                new Rect(0, sy2 + sh2, w, h - sy2 - sh2),
+                new Rect(0, sy2, sx2, sh2),
+                new Rect(sx2 + sw2, sy2, w - sx2 - sw2, sh2) };
+            foreach (var piece in pieces)
+            {
+                if (piece.width <= 1f || piece.height <= 1f) continue;
+                GUI.BeginGroup(piece);
+                CaveBackdrop(new Rect(-piece.x, -piece.y, w, h), 1);
+                GUI.EndGroup();
+            }
         }
 
         void Title(float w, float h)
