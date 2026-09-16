@@ -30,6 +30,62 @@ namespace SlimeEscape
         /// 한 화면을 내려오는 데 걸리는 초 — 크면 느리다. 🔴 눈에 띄면 너무 빠른 것이다.
         const float CaveFlowSec = 42f;
 
+        //  굴마다 한 마디. 판 고르기의 "제 N 굴" 밑에 붙일 이름이다.
+        //  🔴 기믹 이름을 그대로 쓴다 — 그 굴에서 **처음 만나는 것**이 곧 그 굴의 이름이다.
+        static readonly string[] CaveNames =
+            { "홈을 채운다", "상자", "금 간 바닥", "얼음", "포탈", "마지막 굴" };
+
+        /// 알림이 떠 있는 시간 (나타나고 · 머물고 · 사라지고)
+        const float BannerIn = 0.45f, BannerHold = 1.25f, BannerOut = 0.75f;
+
+        /// <summary>
+        /// 🔴 **굴에 들어섰다고 알린다** (09-16 사장님: *"굴 바뀌는 게 약하다"*).
+        /// 굴이 바뀐 판에 들어설 때 한 번, 화면 위쪽에 굴 번호와 이름이 떴다 사라진다.
+        ///
+        /// ⚠️ **판을 가리면 안 된다.** 퍼즐은 가운데에 있으므로 위쪽 1/4 자리에만 둔다.
+        ///    글자 뒤에 판을 어둡게 덮지도 않는다 — 알림 하나 때문에 판이 안 보이면 본말이 뒤집힌다.
+        /// </summary>
+        void CaveBanner(float w, float h)
+        {
+            float t = Time.time - _caveAt;
+            float total = BannerIn + BannerHold + BannerOut;
+            if (_caveShown <= 0 || t < 0f || t > total) return;
+
+            float a = t < BannerIn ? t / BannerIn
+                    : t < BannerIn + BannerHold ? 1f
+                    : 1f - (t - BannerIn - BannerHold) / BannerOut;
+            a = Mathf.Clamp01(a);
+            a = a * a * (3f - 2f * a);           // 뚝 끊기지 않게
+
+            //  살짝 위로 떠오르며 나타난다 — 자리에 박혀 있으면 글자판처럼 보인다
+            float rise = (1f - a) * h * 0.02f;
+            //  ⚠️ **화면 비율로 잡으면 폰에서 겹친다.** 0.14 도 0.225 도 폰(844x390)에서
+            //     「☆ 0걸음 · 커트」 줄을 잘랐다 — 그 줄들의 자리는 상단 띠 높이(bh)를 따라가는데,
+            //     bh 는 작은 화면에서 **바닥값(30)에 걸려 덜 줄어든다.** 그래서 비율로 내린 알림이
+            //     줄보다 위로 올라온다. 두 크기 모두에서 비켜나도록 넉넉히 내린다.
+            //     판 위에 겹치지만 어두운 판을 깔아 두었고 2.45 초뿐이다.
+            float y = h * 0.30f + rise;
+
+            //  🔴 글자 뒤에 **어두운 판**을 깐다.
+            //  ⚠️ 처음엔 글자만 띄웠더니 판 위에 겹쳐 안 읽혔다 (09-17 화면: 굴 4 의 "얼음" 이
+            //     판 안으로 들어갔다). 굴마다 판 크기가 달라 **위로 피할 자리가 없다** —
+            //     상단 띠 · 홈 점 · 걸음/커트 줄이 이미 위쪽을 채우고 있다.
+            //     가리는 건 2.45 초뿐이고, 사장님이 말씀하신 건 *"굴 바뀌는 게 약하다"* 였다.
+            float pw = Mathf.Min(w * 0.44f, 430f);
+            var plate = HoleCol; plate.a = 0.78f * a;
+            Goo(new Rect(w * 0.5f - pw * 0.5f, y - h * 0.015f, pw, h * 0.145f), plate);
+
+            var big = new GUIStyle(_sBig) { fontSize = Px(Mathf.Clamp(h * 0.052f, 20f, 40f)) };
+            big.normal.textColor = new Color(1f, 1f, 1f, 0.92f * a);
+            GUI.Label(new Rect(0, y, w, h * 0.09f), "제 " + _caveShown + " 굴", big);
+
+            var sub = new GUIStyle(_sMid) { fontSize = Px(Mathf.Clamp(h * 0.030f, 13f, 22f)) };
+            sub.normal.textColor = new Color(1f, 1f, 1f, 0.55f * a);
+            string name = _caveShown >= 1 && _caveShown <= CaveNames.Length
+                        ? CaveNames[_caveShown - 1] : "";
+            GUI.Label(new Rect(0, y + h * 0.075f, w, h * 0.06f), name, sub);
+        }
+
         /// <summary>
         /// 굴 배경을 <paramref name="area"/> 에 그린다.
         /// 🔴 <paramref name="area"/> 는 **그림 전체의 자리**다 — 잘라 그리고 싶으면

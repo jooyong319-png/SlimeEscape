@@ -67,12 +67,23 @@ namespace SlimeEscape
         };
         static CaveLook CaveOf(int ch) => Caves[Mathf.Clamp(ch, 1, Caves.Length) - 1];
 
+        //  🔴 **굴이 바뀐 것을 알린다** (09-16 사장님: *"굴 바뀌는 게 약하다"* ·
+        //     *"이펙트가 좀 약했어. 개인적으로 뒷 배경이 좀 바뀌는 것도 방법이라 생각함"*).
+        //     굴별 색은 09-12 부터 있었지만 **지형만** 아주 옅게 바뀌어서, 넘어간 줄을 모르고 지나쳤다.
+        //     배경은 판 고르기·타이틀에 깔았고(SnakeController.Cave.cs), 여기서는 **판에 들어설 때** 알린다.
+        int _caveShown = -1;
+        float _caveAt = -9f;
+
         /// 판을 짓기 **전에** 부른다 — BuildBoard 가 이 값들을 한 번 읽어 칠한다.
         void ApplyCaveLook(int ch)
         {
             var k = CaveOf(ch);
             BgCol = k.bg; FloorLit = k.lit; Floor = k.mid; FloorDim = k.dim; Rock = k.rock; RockTop = k.top;
             if (_cam != null) _cam.backgroundColor = BgCol;
+
+            //  ⚠️ 이 함수는 **판을 열 때마다** 불린다 — 같은 굴 안에서 다음 판으로 가거나
+            //     R 로 다시 시작할 때도 온다. 그래서 **굴이 바뀔 때만** 시각을 적는다.
+            if (ch != _caveShown) { _caveShown = ch; _caveAt = Time.time; }
         }
         static Color HeadCol = new Color32(0x9b, 0xe8, 0xad, 0xff);   // 지도 위 "여기 있다" 표시
         static Color BodyCol = new Color32(0x6f, 0xd0, 0x8c, 0xff);   // 나

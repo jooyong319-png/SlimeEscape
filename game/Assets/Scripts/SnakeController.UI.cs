@@ -1112,6 +1112,13 @@ namespace SlimeEscape
                 c.a = 1f - u * (2f - u);          // 빨리 걷히다 끝에 부드럽게 (ease-out)
                 GUI.DrawTexture(new Rect(0, 0, Screen.width, Screen.height), Solid(c));
             }
+
+            //  🔴 **굴에 들어섰다고 알린다** (09-16 사장님: "굴 바뀌는 게 약하다").
+            //     굴이 바뀐 판에 들어설 때만 한 번, 굴 번호와 이름이 떴다 사라진다.
+            //  🔴 **여기가 맨 끝이다.** 판 화면 그리는 도중에 불렀더니 뒤에 오는 홈 점·걸음/커트 줄이
+            //     그 위로 올라와 글자가 포개졌다 (09-17 폰 화면). 다 그린 뒤에 얹어야 안 덮인다.
+            //     넘김 막보다도 뒤다 — 화면이 바뀌며 스며 나오는 동안에도 알림은 보여야 한다.
+            if (room == 0) CaveBanner(Screen.width, Screen.height);
         }
 
         void OnGUIBody()
@@ -1225,6 +1232,10 @@ namespace SlimeEscape
                 for (int k = 0; k < 3; k++) stars += k < got ? "★" : "☆";
                 barY = TopBar(w, h, def.id + "   " + stars, () => { _menu = true; _volPanel = false; }, true, true);
             }
+
+            //  ⛔ 굴 알림(CaveBanner)은 **OnGUI 맨 끝**으로 옮겼다.
+            //     여기(띠 바로 뒤)에서 그렸더니 **뒤에 오는 홈 점·걸음/커트 줄이 그 위에 올라와**
+            //     글자가 포개져 안 읽혔다 (09-17 폰 844x390 화면). 맨 마지막에 그려야 안 덮인다.
 
             // 남은 홈을 점으로 — 숫자보다 한눈에 들어온다
             string dots = "";
