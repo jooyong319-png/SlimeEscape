@@ -1,0 +1,1290 @@
+[
+ {
+  "id": "1-0",
+  "v": 1,
+  "lost": 0.040983606557377046,
+  "wander": 0,
+  "earliest": 1,
+  "states": 122
+ },
+ {
+  "id": "1-1",
+  "v": 2,
+  "lost": 0,
+  "wander": 0,
+  "earliest": null,
+  "states": 180
+ },
+ {
+  "id": "1-2",
+  "v": 3,
+  "lost": 0.012121212121212121,
+  "wander": 0,
+  "earliest": 8,
+  "states": 165
+ },
+ {
+  "id": "1-3",
+  "v": 2,
+  "lost": 0.9900798041037896,
+  "wander": 32,
+  "earliest": 2,
+  "states": 135582
+ },
+ {
+  "id": "1-4",
+  "v": 2,
+  "lost": 0.9657770346977109,
+  "wander": 35,
+  "earliest": 1,
+  "states": 48447
+ },
+ {
+  "id": "1-5",
+  "v": 2,
+  "lost": null,
+  "wander": null,
+  "earliest": null,
+  "states": null
+ },
+ {
+  "id": "1-6",
+  "v": 2,
+  "lost": null,
+  "wander": null,
+  "earliest": null,
+  "states": null
+ },
+ {
+  "id": "1-7",
+  "v": 2,
+  "lost": null,
+  "wander": null,
+  "earliest": null,
+  "states": null
+ },
+ {
+  "id": "1-8",
+  "v": 2,
+  "lost": 0.8971882230498619,
+  "wander": 24,
+  "earliest": 7,
+  "states": 116261
+ },
+ {
+  "id": "1-9",
+  "v": 2,
+  "lost": 0.9486769099445156,
+  "wander": 23,
+  "earliest": 2,
+  "states": 9372
+ },
+ {
+  "id": "1-10",
+  "v": 2,
+  "lost": 0.7709929705655925,
+  "wander": 29,
+  "earliest": 4,
+  "states": 138987
+ },
+ {
+  "id": "1-11",
+  "v": 2,
+  "lost": null,
+  "wander": null,
+  "earliest": null,
+  "states": null
+ },
+ {
+  "id": "1-12",
+  "v": 2,
+  "lost": 0.9758155888458067,
+  "wander": 33,
+  "earliest": 3,
+  "states": 1145614
+ },
+ {
+  "id": "1-13",
+  "v": 2,
+  "lost": 0.9729055831280276,
+  "wander": 53,
+  "earliest": 2,
+  "states": 168042
+ },
+ {
+  "id": "1-14",
+  "v": 2,
+  "lost": 0.9039843290284617,
+  "wander": 44,
+  "earliest": 2,
+  "states": 129156
+ },
+ {
+  "id": "1-15",
+  "v": 2,
+  "lost": 0.9695481688989939,
+  "wander": 62,
+  "earliest": 2,
+  "states": 528671
+ },
+ {
+  "id": "1-16",
+  "v": 2,
+  "lost": 0.9189061429010376,
+  "wander": 44,
+  "earliest": 1,
+  "states": 42309
+ },
+ {
+  "id": "1-17",
+  "v": 2,
+  "lost": 0.9721141565969152,
+  "wander": 40,
+  "earliest": 1,
+  "states": 203580
+ },
+ {
+  "id": "1-18",
+  "v": 2,
+  "lost": 0.9702634358695305,
+  "wander": 87,
+  "earliest": 1,
+  "states": 31241
+ },
+ {
+  "id": "1-19",
+  "v": 2,
+  "lost": 0.952947041723426,
+  "wander": 39,
+  "earliest": 8,
+  "states": 142414
+ },
+ {
+  "id": "1-20",
+  "v": 2,
+  "lost": 0.9933960060657151,
+  "wander": 69,
+  "earliest": 3,
+  "states": 843429
+ },
+ {
+  "id": "1-21",
+  "v": 1,
+  "lost": 0.9008182304809972,
+  "wander": 30,
+  "earliest": 7,
+  "states": 39231
+ },
+ {
+  "id": "1-23",
+  "v": 2,
+  "lost": null,
+  "wander": null,
+  "earliest": null,
+  "states": null
+ },
+ {
+  "id": "1-24",
+  "v": 3,
+  "lost": 0.9113589590387041,
+  "wander": 23,
+  "earliest": 7,
+  "states": 75315
+ },
+ {
+  "id": "1-25",
+  "v": 1,
+  "lost": 0.747037428135633,
+  "wander": 39,
+  "earliest": 1,
+  "states": 8523
+ },
+ {
+  "id": "1-26",
+  "v": 2,
+  "lost": 0.7544912095471197,
+  "wander": 30,
+  "earliest": 3,
+  "states": 62511
+ },
+ {
+  "id": "1-27",
+  "v": 1,
+  "lost": null,
+  "wander": null,
+  "earliest": null,
+  "states": null
+ },
+ {
+  "id": "1-30",
+  "v": 2,
+  "lost": 0.9188872772482387,
+  "wander": 29,
+  "earliest": 7,
+  "states": 96520
+ },
+ {
+  "id": "1-31",
+  "v": 2,
+  "lost": null,
+  "wander": null,
+  "earliest": null,
+  "states": null
+ },
+ {
+  "id": "1-32",
+  "v": 2,
+  "lost": 0.9159921304103429,
+  "wander": 32,
+  "earliest": 5,
+  "states": 71160
+ },
+ {
+  "id": "1-35",
+  "v": 2,
+  "lost": null,
+  "wander": null,
+  "earliest": null,
+  "states": null
+ },
+ {
+  "id": "1-36",
+  "v": 1,
+  "lost": null,
+  "wander": null,
+  "earliest": null,
+  "states": null
+ },
+ {
+  "id": "1-37",
+  "v": 2,
+  "lost": null,
+  "wander": null,
+  "earliest": null,
+  "states": null
+ },
+ {
+  "id": "1-38",
+  "v": 2,
+  "lost": null,
+  "wander": null,
+  "earliest": null,
+  "states": null
+ },
+ {
+  "id": "1-39",
+  "v": 2,
+  "lost": null,
+  "wander": null,
+  "earliest": null,
+  "states": null
+ },
+ {
+  "id": "1-40",
+  "v": 2,
+  "lost": null,
+  "wander": null,
+  "earliest": null,
+  "states": null
+ },
+ {
+  "id": "fin-5",
+  "v": 2,
+  "lost": null,
+  "wander": null,
+  "earliest": null,
+  "states": null
+ },
+ {
+  "id": "fin-6",
+  "v": 2,
+  "lost": null,
+  "wander": null,
+  "earliest": null,
+  "states": null
+ },
+ {
+  "id": "fin-7",
+  "v": 2,
+  "lost": null,
+  "wander": null,
+  "earliest": null,
+  "states": null
+ },
+ {
+  "id": "fin-8",
+  "v": 2,
+  "lost": null,
+  "wander": null,
+  "earliest": null,
+  "states": null
+ },
+ {
+  "id": "fin-10",
+  "v": 2,
+  "lost": null,
+  "wander": null,
+  "earliest": null,
+  "states": null
+ },
+ {
+  "id": "fin-13",
+  "v": 2,
+  "lost": 0.9513112099611011,
+  "wander": 45,
+  "earliest": 1,
+  "states": 53729
+ },
+ {
+  "id": "fin-16",
+  "v": 2,
+  "lost": null,
+  "wander": null,
+  "earliest": null,
+  "states": null
+ },
+ {
+  "id": "plain-2",
+  "v": 3,
+  "lost": 0,
+  "wander": 0,
+  "earliest": null,
+  "states": 258
+ },
+ {
+  "id": "plain-3",
+  "v": 3,
+  "lost": 0.9903733270720827,
+  "wander": 28,
+  "earliest": 4,
+  "states": 4259
+ },
+ {
+  "id": "plain-4",
+  "v": 3,
+  "lost": 0.4601593625498008,
+  "wander": 12,
+  "earliest": 3,
+  "states": 502
+ },
+ {
+  "id": "plain-6",
+  "v": 2,
+  "lost": 0.9478886310904873,
+  "wander": 24,
+  "earliest": 8,
+  "states": 21550
+ },
+ {
+  "id": "plain-8",
+  "v": 2,
+  "lost": 0.8378623188405797,
+  "wander": 20,
+  "earliest": 4,
+  "states": 1104
+ },
+ {
+  "id": "plain-13",
+  "v": 2,
+  "lost": 0.981632800636344,
+  "wander": 40,
+  "earliest": 3,
+  "states": 82974
+ },
+ {
+  "id": "plain-15",
+  "v": 3,
+  "lost": null,
+  "wander": null,
+  "earliest": null,
+  "states": null
+ },
+ {
+  "id": "plain-16",
+  "v": 3,
+  "lost": 0.9177362589161697,
+  "wander": 30,
+  "earliest": 9,
+  "states": 191506
+ },
+ {
+  "id": "plain-17",
+  "v": 3,
+  "lost": 0.9453506792087814,
+  "wander": 28,
+  "earliest": 9,
+  "states": 713330
+ },
+ {
+  "id": "plain-18",
+  "v": 3,
+  "lost": 0.8726030587687291,
+  "wander": 23,
+  "earliest": 9,
+  "states": 115929
+ },
+ {
+  "id": "plain-19",
+  "v": 3,
+  "lost": 0.7954170644909296,
+  "wander": 39,
+  "earliest": 12,
+  "states": 23042
+ },
+ {
+  "id": "plain-20",
+  "v": 3,
+  "lost": 0.8909406489561738,
+  "wander": 32,
+  "earliest": 6,
+  "states": 20741
+ },
+ {
+  "id": "plain-21",
+  "v": 3,
+  "lost": 0.9373077072112218,
+  "wander": 44,
+  "earliest": 11,
+  "states": 258070
+ },
+ {
+  "id": "plain-22",
+  "v": 3,
+  "lost": null,
+  "wander": null,
+  "earliest": null,
+  "states": null
+ },
+ {
+  "id": "plain-23",
+  "v": 3,
+  "lost": 0.7698522913773513,
+  "wander": 34,
+  "earliest": 6,
+  "states": 55447
+ },
+ {
+  "id": "plain-24",
+  "v": 3,
+  "lost": null,
+  "wander": null,
+  "earliest": null,
+  "states": null
+ },
+ {
+  "id": "plain-25",
+  "v": 3,
+  "lost": 0.9750279942791888,
+  "wander": 58,
+  "earliest": 1,
+  "states": 901970
+ },
+ {
+  "id": "plain-26",
+  "v": 3,
+  "lost": 0.9451706466375838,
+  "wander": 40,
+  "earliest": 1,
+  "states": 383043
+ },
+ {
+  "id": "plain-27",
+  "v": 3,
+  "lost": 0.9375883167533349,
+  "wander": 36,
+  "earliest": 4,
+  "states": 566144
+ },
+ {
+  "id": "plain-28",
+  "v": 2,
+  "lost": 0.8029888219661053,
+  "wander": 40,
+  "earliest": 2,
+  "states": 74879
+ },
+ {
+  "id": "plain-29",
+  "v": 3,
+  "lost": 0.9459937855862867,
+  "wander": 48,
+  "earliest": 7,
+  "states": 182479
+ },
+ {
+  "id": "plain-30",
+  "v": 2,
+  "lost": 0.9330287206266319,
+  "wander": 61,
+  "earliest": 2,
+  "states": 7660
+ },
+ {
+  "id": "ice-1",
+  "v": 2,
+  "lost": 0.7380772550712128,
+  "wander": 18,
+  "earliest": 7,
+  "states": 55608
+ },
+ {
+  "id": "ice-2",
+  "v": 2,
+  "lost": 0.7563497680270505,
+  "wander": 22,
+  "earliest": 4,
+  "states": 50868
+ },
+ {
+  "id": "ice-3",
+  "v": 3,
+  "lost": 0.7908187867682516,
+  "wander": 32,
+  "earliest": 5,
+  "states": 10369
+ },
+ {
+  "id": "ice-5",
+  "v": 2,
+  "lost": 0.8839902858210349,
+  "wander": 20,
+  "earliest": 3,
+  "states": 21412
+ },
+ {
+  "id": "ice-6",
+  "v": 3,
+  "lost": 0.9369948776323278,
+  "wander": 22,
+  "earliest": 5,
+  "states": 35140
+ },
+ {
+  "id": "ice-7",
+  "v": 3,
+  "lost": 0.7222624637825956,
+  "wander": 20,
+  "earliest": 6,
+  "states": 80072
+ },
+ {
+  "id": "ice-8",
+  "v": 2,
+  "lost": 0.5469156291727258,
+  "wander": 28,
+  "earliest": 5,
+  "states": 184981
+ },
+ {
+  "id": "ice-9",
+  "v": 2,
+  "lost": 0.912989660247686,
+  "wander": 30,
+  "earliest": 8,
+  "states": 162383
+ },
+ {
+  "id": "ice-12",
+  "v": 2,
+  "lost": 0.771956043956044,
+  "wander": 25,
+  "earliest": 7,
+  "states": 56875
+ },
+ {
+  "id": "ice-14",
+  "v": 2,
+  "lost": 0.7664857753658938,
+  "wander": 31,
+  "earliest": 2,
+  "states": 12162
+ },
+ {
+  "id": "ice-16",
+  "v": 2,
+  "lost": 0.9336312849162011,
+  "wander": 37,
+  "earliest": 1,
+  "states": 17900
+ },
+ {
+  "id": "ice-17",
+  "v": 2,
+  "lost": 0.9162312938535778,
+  "wander": 25,
+  "earliest": 6,
+  "states": 671838
+ },
+ {
+  "id": "ice-18",
+  "v": 2,
+  "lost": 0.8882948790095667,
+  "wander": 33,
+  "earliest": 4,
+  "states": 60418
+ },
+ {
+  "id": "ice-19",
+  "v": 2,
+  "lost": 0.9767248545303409,
+  "wander": 26,
+  "earliest": 3,
+  "states": 60150
+ },
+ {
+  "id": "ice-20",
+  "v": 2,
+  "lost": 0.8770833561801573,
+  "wander": 35,
+  "earliest": 4,
+  "states": 911870
+ },
+ {
+  "id": "ice-21",
+  "v": 2,
+  "lost": 0.9084524901209455,
+  "wander": 30,
+  "earliest": 7,
+  "states": 934553
+ },
+ {
+  "id": "ice-22",
+  "v": 2,
+  "lost": 0.9177968562067106,
+  "wander": 56,
+  "earliest": 5,
+  "states": 988551
+ },
+ {
+  "id": "ice-23",
+  "v": 2,
+  "lost": 0.9154190144999186,
+  "wander": 37,
+  "earliest": 5,
+  "states": 1068006
+ },
+ {
+  "id": "ice-24",
+  "v": 2,
+  "lost": 0.9893839133091974,
+  "wander": 58,
+  "earliest": 2,
+  "states": 322341
+ },
+ {
+  "id": "ice-25",
+  "v": 2,
+  "lost": 0.948130883207834,
+  "wander": 39,
+  "earliest": 8,
+  "states": 366403
+ },
+ {
+  "id": "ice-26",
+  "v": 2,
+  "lost": 0.9187340050560894,
+  "wander": 35,
+  "earliest": 5,
+  "states": 577917
+ },
+ {
+  "id": "ice-27",
+  "v": 2,
+  "lost": 0.9132498572469613,
+  "wander": 54,
+  "earliest": 3,
+  "states": 1052517
+ },
+ {
+  "id": "ice-28",
+  "v": 2,
+  "lost": 0.9798862438748791,
+  "wander": 51,
+  "earliest": 3,
+  "states": 368156
+ },
+ {
+  "id": "ice-29",
+  "v": 2,
+  "lost": 0.9554911030618847,
+  "wander": 43,
+  "earliest": 3,
+  "states": 681639
+ },
+ {
+  "id": "ice-30",
+  "v": 2,
+  "lost": 0.8748036906164115,
+  "wander": 55,
+  "earliest": 5,
+  "states": 20376
+ },
+ {
+  "id": "crack-1",
+  "v": 2,
+  "lost": 0.9866054497503377,
+  "wander": 48,
+  "earliest": 1,
+  "states": 572173
+ },
+ {
+  "id": "crack-2",
+  "v": 2,
+  "lost": 0.9754375958076361,
+  "wander": 47,
+  "earliest": 1,
+  "states": 28051
+ },
+ {
+  "id": "crack-3",
+  "v": 3,
+  "lost": 0.8457425660319137,
+  "wander": 33,
+  "earliest": 1,
+  "states": 168517
+ },
+ {
+  "id": "crack-4",
+  "v": 3,
+  "lost": 0.8977416440831075,
+  "wander": 35,
+  "earliest": 1,
+  "states": 94095
+ },
+ {
+  "id": "crack-5",
+  "v": 3,
+  "lost": 0.9621507840289898,
+  "wander": 46,
+  "earliest": 1,
+  "states": 75061
+ },
+ {
+  "id": "crack-6",
+  "v": 3,
+  "lost": 0.8230494471008456,
+  "wander": 46,
+  "earliest": 1,
+  "states": 87629
+ },
+ {
+  "id": "crack-7",
+  "v": 3,
+  "lost": 0.8594543293374,
+  "wander": 35,
+  "earliest": 3,
+  "states": 217054
+ },
+ {
+  "id": "crack-8",
+  "v": 3,
+  "lost": 0.9898777836095074,
+  "wander": 51,
+  "earliest": 1,
+  "states": 160044
+ },
+ {
+  "id": "crack-9",
+  "v": 3,
+  "lost": 0.8380217042064194,
+  "wander": 38,
+  "earliest": 7,
+  "states": 488016
+ },
+ {
+  "id": "crack-10",
+  "v": 3,
+  "lost": 0.9506623888033728,
+  "wander": 39,
+  "earliest": 1,
+  "states": 161763
+ },
+ {
+  "id": "crack-11",
+  "v": 3,
+  "lost": 0.9509819399921747,
+  "wander": 34,
+  "earliest": 3,
+  "states": 582724
+ },
+ {
+  "id": "crack-12",
+  "v": 3,
+  "lost": 0.9656930111691362,
+  "wander": 69,
+  "earliest": 1,
+  "states": 360189
+ },
+ {
+  "id": "crack-13",
+  "v": 3,
+  "lost": 0.8628189844186376,
+  "wander": 44,
+  "earliest": 1,
+  "states": 239902
+ },
+ {
+  "id": "crack-14",
+  "v": 3,
+  "lost": 0.8794135036064799,
+  "wander": 42,
+  "earliest": 1,
+  "states": 84570
+ },
+ {
+  "id": "crack-15",
+  "v": 3,
+  "lost": null,
+  "wander": null,
+  "earliest": null,
+  "states": null
+ },
+ {
+  "id": "crack-16",
+  "v": 3,
+  "lost": 0.8541413053656709,
+  "wander": 31,
+  "earliest": 7,
+  "states": 341728
+ },
+ {
+  "id": "crack-17",
+  "v": 3,
+  "lost": 0.8563891667592901,
+  "wander": 36,
+  "earliest": 2,
+  "states": 269910
+ },
+ {
+  "id": "crack-18",
+  "v": 3,
+  "lost": null,
+  "wander": null,
+  "earliest": null,
+  "states": null
+ },
+ {
+  "id": "crack-19",
+  "v": 3,
+  "lost": 0.9572377302373084,
+  "wander": 44,
+  "earliest": 4,
+  "states": 1159293
+ },
+ {
+  "id": "crack-20",
+  "v": 3,
+  "lost": 0.8094291128079095,
+  "wander": 32,
+  "earliest": 3,
+  "states": 53303
+ },
+ {
+  "id": "crack-21",
+  "v": 3,
+  "lost": 0.9029523161579747,
+  "wander": 30,
+  "earliest": 6,
+  "states": 767262
+ },
+ {
+  "id": "crack-24",
+  "v": 2,
+  "lost": 0.9176601598323071,
+  "wander": 33,
+  "earliest": 2,
+  "states": 30532
+ },
+ {
+  "id": "crack-25",
+  "v": 2,
+  "lost": null,
+  "wander": null,
+  "earliest": null,
+  "states": null
+ },
+ {
+  "id": "crack-26",
+  "v": 3,
+  "lost": 0.9956751766968731,
+  "wander": 64,
+  "earliest": 1,
+  "states": 608811
+ },
+ {
+  "id": "crack-27",
+  "v": 2,
+  "lost": 0.9553499444229769,
+  "wander": 46,
+  "earliest": 1,
+  "states": 419238
+ },
+ {
+  "id": "crack-28",
+  "v": 2,
+  "lost": 0.7133595970677704,
+  "wander": 34,
+  "earliest": 7,
+  "states": 20053
+ },
+ {
+  "id": "crack-29",
+  "v": 3,
+  "lost": 0.9921101305923195,
+  "wander": 82,
+  "earliest": 1,
+  "states": 500642
+ },
+ {
+  "id": "crack-30",
+  "v": 3,
+  "lost": 0.9700283907600981,
+  "wander": 59,
+  "earliest": 1,
+  "states": 30996
+ },
+ {
+  "id": "box-3",
+  "v": 3,
+  "lost": 0.9281696235395932,
+  "wander": 32,
+  "earliest": 4,
+  "states": 2311
+ },
+ {
+  "id": "box-4",
+  "v": 3,
+  "lost": 0.857421875,
+  "wander": 13,
+  "earliest": 4,
+  "states": 512
+ },
+ {
+  "id": "box-6",
+  "v": 3,
+  "lost": 0.9053548774788008,
+  "wander": 29,
+  "earliest": 3,
+  "states": 29954
+ },
+ {
+  "id": "box-7",
+  "v": 3,
+  "lost": 0.817377868367414,
+  "wander": 27,
+  "earliest": 5,
+  "states": 395434
+ },
+ {
+  "id": "box-8",
+  "v": 3,
+  "lost": 0.7018984400646314,
+  "wander": 27,
+  "earliest": 4,
+  "states": 469122
+ },
+ {
+  "id": "box-9",
+  "v": 3,
+  "lost": 0.8770737873281719,
+  "wander": 48,
+  "earliest": 2,
+  "states": 75948
+ },
+ {
+  "id": "box-10",
+  "v": 3,
+  "lost": 0.701159636642883,
+  "wander": 32,
+  "earliest": 7,
+  "states": 464887
+ },
+ {
+  "id": "box-11",
+  "v": 3,
+  "lost": 0.7910483130424479,
+  "wander": 26,
+  "earliest": 3,
+  "states": 101277
+ },
+ {
+  "id": "box-12",
+  "v": 3,
+  "lost": 0.7151829988193624,
+  "wander": 24,
+  "earliest": 5,
+  "states": 169400
+ },
+ {
+  "id": "box-13",
+  "v": 3,
+  "lost": 0.9608824285588202,
+  "wander": 52,
+  "earliest": 4,
+  "states": 260599
+ },
+ {
+  "id": "box-14",
+  "v": 3,
+  "lost": null,
+  "wander": null,
+  "earliest": null,
+  "states": null
+ },
+ {
+  "id": "box-16",
+  "v": 3,
+  "lost": null,
+  "wander": null,
+  "earliest": null,
+  "states": null
+ },
+ {
+  "id": "box-17",
+  "v": 3,
+  "lost": null,
+  "wander": null,
+  "earliest": null,
+  "states": null
+ },
+ {
+  "id": "box-18",
+  "v": 3,
+  "lost": 0.9710924250721171,
+  "wander": 44,
+  "earliest": 6,
+  "states": 790727
+ },
+ {
+  "id": "box-20",
+  "v": 3,
+  "lost": null,
+  "wander": null,
+  "earliest": null,
+  "states": null
+ },
+ {
+  "id": "box-21",
+  "v": 3,
+  "lost": 0.8372227949342377,
+  "wander": 31,
+  "earliest": 7,
+  "states": 401598
+ },
+ {
+  "id": "box-22",
+  "v": 3,
+  "lost": null,
+  "wander": null,
+  "earliest": null,
+  "states": null
+ },
+ {
+  "id": "box-23",
+  "v": 2,
+  "lost": null,
+  "wander": null,
+  "earliest": null,
+  "states": null
+ },
+ {
+  "id": "box-24",
+  "v": 3,
+  "lost": null,
+  "wander": null,
+  "earliest": null,
+  "states": null
+ },
+ {
+  "id": "box-25",
+  "v": 3,
+  "lost": 0.9968919770068857,
+  "wander": 51,
+  "earliest": 6,
+  "states": 703341
+ },
+ {
+  "id": "box-26",
+  "v": 3,
+  "lost": null,
+  "wander": null,
+  "earliest": null,
+  "states": null
+ },
+ {
+  "id": "box-27",
+  "v": 3,
+  "lost": null,
+  "wander": null,
+  "earliest": null,
+  "states": null
+ },
+ {
+  "id": "box-28",
+  "v": 3,
+  "lost": 0.9381918743099668,
+  "wander": 52,
+  "earliest": 9,
+  "states": 848691
+ },
+ {
+  "id": "box-29",
+  "v": 3,
+  "lost": 0.9622539992101903,
+  "wander": 50,
+  "earliest": 2,
+  "states": 782467
+ },
+ {
+  "id": "box-30",
+  "v": 2,
+  "lost": 0.9744719105905133,
+  "wander": 80,
+  "earliest": 1,
+  "states": 187989
+ },
+ {
+  "id": "portal-3",
+  "v": 2,
+  "lost": 0.9909207171283094,
+  "wander": 49,
+  "earliest": 3,
+  "states": 125891
+ },
+ {
+  "id": "portal-5",
+  "v": 3,
+  "lost": 0.8017565872020075,
+  "wander": 24,
+  "earliest": 5,
+  "states": 1594
+ },
+ {
+  "id": "portal-7",
+  "v": 3,
+  "lost": 0.9353304802662863,
+  "wander": 28,
+  "earliest": 6,
+  "states": 10515
+ },
+ {
+  "id": "portal-12",
+  "v": 3,
+  "lost": 0.5925925925925926,
+  "wander": 22,
+  "earliest": 2,
+  "states": 4023
+ },
+ {
+  "id": "portal-13",
+  "v": 3,
+  "lost": 0.7520283975659229,
+  "wander": 26,
+  "earliest": 2,
+  "states": 1972
+ },
+ {
+  "id": "portal-14",
+  "v": 3,
+  "lost": 0.8602580480327031,
+  "wander": 29,
+  "earliest": 4,
+  "states": 78280
+ },
+ {
+  "id": "portal-17",
+  "v": 2,
+  "lost": 0.9280728661303953,
+  "wander": 39,
+  "earliest": 4,
+  "states": 127796
+ },
+ {
+  "id": "portal-18",
+  "v": 2,
+  "lost": null,
+  "wander": null,
+  "earliest": null,
+  "states": null
+ },
+ {
+  "id": "portal-20",
+  "v": 3,
+  "lost": 0.8246122517456626,
+  "wander": 29,
+  "earliest": 13,
+  "states": 172857
+ },
+ {
+  "id": "portal-22",
+  "v": 2,
+  "lost": null,
+  "wander": null,
+  "earliest": null,
+  "states": null
+ },
+ {
+  "id": "portal-23",
+  "v": 2,
+  "lost": null,
+  "wander": null,
+  "earliest": null,
+  "states": null
+ },
+ {
+  "id": "portal-24",
+  "v": 2,
+  "lost": null,
+  "wander": null,
+  "earliest": null,
+  "states": null
+ },
+ {
+  "id": "portal-25",
+  "v": 2,
+  "lost": null,
+  "wander": null,
+  "earliest": null,
+  "states": null
+ },
+ {
+  "id": "portal-26",
+  "v": 2,
+  "lost": 0.9981389930673941,
+  "wander": 54,
+  "earliest": 6,
+  "states": 774312
+ },
+ {
+  "id": "portal-27",
+  "v": 2,
+  "lost": 0.8953909907630014,
+  "wander": 46,
+  "earliest": 8,
+  "states": 316120
+ },
+ {
+  "id": "portal-28",
+  "v": 2,
+  "lost": 0.9714441901112322,
+  "wander": 59,
+  "earliest": 3,
+  "states": 1093928
+ },
+ {
+  "id": "portal-29",
+  "v": 2,
+  "lost": 0.9510433386837881,
+  "wander": 70,
+  "earliest": 6,
+  "states": 144536
+ },
+ {
+  "id": "portal-30",
+  "v": 2,
+  "lost": 0.9924293299001584,
+  "wander": 78,
+  "earliest": 1,
+  "states": 539054
+ }
+]

@@ -54,22 +54,45 @@ namespace SlimeEscape
             return sb.ToString();
         }
 
+        /// 🔴 브라우저에 남기는 자리 (PlayerPrefs = 웹에서는 localStorage).
+        public const string PrefKey = "playtest_csv";
+        const string Header = "때,판,클리어,걸린초,이미진상태초,걸음,최단,막힌입력,되돌리기,다시시작";
+        static string Line(Run r, string now) =>
+            $"{now},{r.level},{(r.cleared ? 1 : 0)},{r.seconds:0.0},{r.lostSeconds:0.0}," +
+            $"{r.moves},{r.best},{r.blocked},{r.undo},{r.restart}";
+
+        /// 브라우저에 쌓인 기록 전부 (CSV). 없으면 빈 문자열.
+        public static string Saved => PlayerPrefs.GetString(PrefKey, "");
+
         public static void Flush()
         {
 #if UNITY_WEBGL && !UNITY_EDITOR
-            return;                 // 브라우저엔 파일 시스템이 없다 — 화면으로 보여준다
+            //  🔴 브라우저엔 파일이 없다. 그렇다고 **버리면 화면을 닫는 순간 기록이 사라진다** —
+            //     2026-09-16 에 사장님이 40판을 끝까지 하신 기록 41판치를 통째로 잃었다.
+            //     PlayerPrefs(웹에서는 브라우저 저장소)에 덧붙인다. 다음에 열어도 남아 있다.
+            //  ⚠️ _runs 는 **안 비운다** — 끝 화면 표가 이번에 한 판들을 그대로 보여줘야 한다.
+            try
+            {
+                var wb = new StringBuilder(PlayerPrefs.GetString(PrefKey, ""));
+                if (wb.Length == 0) wb.AppendLine(Header);
+                string wnow = System.DateTime.Now.ToString("MM-dd HH:mm");
+                foreach (var r in _runs) wb.AppendLine(Line(r, wnow));
+                PlayerPrefs.SetString(PrefKey, wb.ToString());
+                PlayerPrefs.Save();
+            }
+            catch (Exception e) { Debug.LogWarning("[기록] 브라우저에 못 남김 — " + e.Message); }
+            return;
 #else
             try
             {
                 // 🔴 **덧붙인다.** 예전엔 통째로 덮어써서 Play 를 다시 켤 때마다 앞 기록이 날아갔다.
                 //    실제로 16판 중 앞 14판의 시간을 잃었다 (08-30). 이 값이 분량의 유일한 자다.
+                //  🔴 CSV 한 줄을 만드는 식은 **한 곳**에만 둔다 (Line) — 웹과 파일이 두 벌이면 한쪽만 고쳐져 어긋난다
                 bool isNew = !System.IO.File.Exists(Path);
                 var sb = new StringBuilder();
-                if (isNew) sb.AppendLine("때,판,클리어,걸린초,이미진상태초,걸음,최단,막힌입력,되돌리기,다시시작");
+                if (isNew) sb.AppendLine(Header);
                 string now = System.DateTime.Now.ToString("MM-dd HH:mm");
-                foreach (var r in _runs)
-                    sb.AppendLine($"{now},{r.level},{(r.cleared ? 1 : 0)},{r.seconds:0.0},{r.lostSeconds:0.0}," +
-                                  $"{r.moves},{r.best},{r.blocked},{r.undo},{r.restart}");
+                foreach (var r in _runs) sb.AppendLine(Line(r, now));
                 System.IO.File.AppendAllText(Path, sb.ToString(), Encoding.UTF8);
                 _runs.Clear();          // 이미 적었으니 다시 안 적는다
             }
@@ -114,6 +137,8 @@ namespace SlimeEscape
             sb.Append('|'); sb.Append(st.Dm);
             sb.Append('|'); sb.Append(st.Sc);
             sb.Append('|'); sb.Append(st.Pm);
+            //  🔴 슬라임 둘 — 다른 슬라임 자리도 상태다
+            if (st.Ob != null) { sb.Append('|'); foreach (int c in st.Ob) { sb.Append(c); sb.Append(','); } sb.Append(st.Opg); }
             return sb.ToString();
         }
 
@@ -141,7 +166,7 @@ namespace SlimeEscape
                 var outs = new List<int>();
                 edges[i] = outs;
                 if (SnakeEngine.IsWin(L, st)) { win.Add(i); continue; }
-                int acts = L.Pads.Count > 0 ? 5 : 4;
+                int acts = L.SwapKey ? 6 : L.Pads.Count > 0 ? 5 : 4;
                 for (int d = 0; d < acts; d++)
                     if (SnakeEngine.Step(L, st, (SnakeEngine.Dir)d, out var ns)) outs.Add(Id(ns));
             }
@@ -189,7 +214,7 @@ namespace SlimeEscape
             dir = SnakeEngine.Dir.Up;
             int here = ToGo(st);
             if (here <= 0) return false;
-            int acts = L.Pads.Count > 0 ? 5 : 4;
+            int acts = L.SwapKey ? 6 : L.Pads.Count > 0 ? 5 : 4;
             for (int d = 0; d < acts; d++)
             {
                 if (!SnakeEngine.Step(L, st, (SnakeEngine.Dir)d, out var ns)) continue;

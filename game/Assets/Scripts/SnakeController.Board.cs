@@ -506,6 +506,7 @@ namespace SlimeEscape
                     _gateOf[c] = gi;
                     _gateInner[c] = inner;
                 }
+            BuildSwitchViews();
 
             // 🔴 별 — 먹어도 몸이 안 자란다. 그래서 조각(주황)과 **다른 색·다른 크기**로 둔다.
             //    헷갈리면 사람이 문 계산을 틀린다.
@@ -977,24 +978,44 @@ namespace SlimeEscape
                 _gateFadeOf[gi] = (_st.Dm & (1 << gi)) != 0
                     ? Mathf.Min(1f, _gateFadeOf[gi] + Time.deltaTime / 0.45f)
                     : 0f;
+            for (int di = 0; di < _coverOf.Length; di++)
+            {
+                _coverOf[di] = 0f;
+                if (di >= _L.Doors.Count) continue;
+                int n = 0;
+                foreach (int c in _st.Body) if (_L.Doors[di].Set.Contains(c)) n++;
+                _coverOf[di] = n / (float)_L.Doors[di].Cells.Count;
+            }
             foreach (var kv in _gateViews)
             {
                 int gi2 = _gateOf[kv.Key];
                 bool open = (_st.Dm & (1 << gi2)) != 0;
-                float fade = _gateFadeOf[gi2];
-                float a = open ? 1f - fade : 1f;
-                var ec = GateEdge; ec.a = a;
+                //  🔴 불빛이 날아오는 동안은 음수 — 도착한 **뒤에** 바뀐다
+                float fade = Mathf.Clamp01(_gateFadeOf[gi2]);
+                //  🔴 **자기 홈의 색**을 입는다 (09-23 사장님: "홈 하면 저기가 열릴 거라는 느낌이 전혀 안 들어").
+                //     회색이면 어느 홈에 묶였는지 알 길이 없다.
+                Color rail = gi2 < _L.Doors.Count ? RailOf(gi2) : GateEdge;
+                //  🔴 몸이 홈에 들어가기 시작하면 묶인 칸이 **숨 쉰다** — "이걸 채우면 저게 바뀐다" 예고
+                float beat = !open && _coverOf[gi2] > 0
+                    ? 0.5f + 0.5f * Mathf.Sin(Time.time * (4f + 6f * _coverOf[gi2]))
+                    : 0f;
+                Color ec = Color.Lerp(Color.Lerp(GateEdge, rail, 0.45f), rail, beat);
+                float ea = open ? 1f - fade : 1f;
+                ec.a = ea;
                 kv.Value.color = ec;
-                kv.Value.enabled = a > 0.01f;
+                kv.Value.enabled = ea > 0.01f;
                 if (_gateInner.TryGetValue(kv.Key, out var gin))
                 {
-                    var ic = GateCol; ic.a = a;
-                    gin.color = ic;
-                    gin.enabled = a > 0.01f;
+                    Color ic = GateCol; ic.a = ea;
                     float s = Mathf.Lerp(0.78f, 0.2f, open ? fade : 0f);
+                    gin.color = ic;
+                    gin.enabled = ic.a > 0.01f;
                     gin.transform.localScale = new Vector3(s, s, 1);
                 }
             }
+            TickLinkSparks();
+            TickSwitchViews();
+            TickTwinView();
 
             TickSuck();
 

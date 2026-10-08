@@ -14,15 +14,31 @@
 (function (root) {
   'use strict';
 
-  const DIRS = [[0, -1, '↑'], [0, 1, '↓'], [-1, 0, '←'], [1, 0, '→'], [0, 0, '↧']];
-  // ↧ = 받침대에 몸을 놓는다
+  const DIRS = [[0, -1, '↑'], [0, 1, '↓'], [-1, 0, '←'], [1, 0, '→'], [0, 0, '↧'], [0, 0, '⇄']];
+  // ↧ = 받침대에 몸을 놓는다 · ⇄ = 🔴 슬라임 둘 — 조종할 슬라임을 바꾼다 (키보드 교체 판만)
 
   function parse(def) {
     const g = def.grid.map(r => r.split(''));
     const h = g.length, w = g[0].length;
     let start = null, core = -1;
+    //  🔴 **슬라임 둘** (09-23 사장님): 'Z' = 둘째 슬라임 시작 · '&' = 교체 칸.
+    //     · 서로의 몸은 **딛고 설 수 있다** (올라탄다) · **겹칠 수는 없다** (서로에게 벽이다)
+    //     · 조종 교체는 두 방식 — 판에 '&' 가 있으면 **머리가 '&' 에 들어올 때** 바뀌고,
+    //       없으면 **키보드로** 바꾼다(한 걸음으로 센다).
+    //     상태: body = 지금 조종하는 슬라임, ob = 다른 슬라임, opg = 그쪽의 미룬 성장.
+    let start2 = null;
+    const swaps = [];
     const foods = [], zone = [], ice = [], crack = [];
     const gates = [[], [], []];        // 🔴 문벽: gates[i] = i번 문이 열리면 사라지는 칸들
+    //  🔴 **스위치** (09-23 사장님: "아싸리 슈퍼마리오랑 같은 방식으로 하자. 특정 영역에 머리가
+    //     들어가면 작동하는 걸로. 스위칭 되는 거지") — 마리오 메이커의 ON/OFF 스위치다.
+    //     '!' 스위치 칸 — 머리가 **들어올 때마다** 판 전체가 켜짐↔꺼짐으로 바뀐다. 밟고 지나갈 수 있다.
+    //     '4' 꺼짐 블록 — 꺼져 있을 때 벽, 켜지면 빈칸 (처음엔 벽)
+    //     '5' 켜짐 블록 — 꺼져 있을 때 빈칸, 켜지면 벽 (처음엔 빈칸)
+    //     스위치 상태는 dm 의 **SW 비트**에 담는다 — 문(0~2 비트)과 안 겹친다.
+    //     그래서 isBlocked·settle·상태 열쇠가 따로 고칠 것 없이 스위치를 안다.
+    //     ⚠️ 09-22 에 만든 "홈에 묶인 반전벽"(4 5 6)은 이걸로 **갈아치웠다.**
+    const switches = [], swOff = [], swOn = [];
     // 🔴 별 'o' — 먹어도 **몸이 안 자란다**. 문 계산을 건드리면 안 되기 때문이다.
     //    안 먹어도 판은 깨진다. 별 둘/셋을 받으려면 먹어야 한다.
     let star = -1;
@@ -45,6 +61,8 @@
     for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
       const c = g[y][x];
       if (c === 'S') { start = y * w + x; g[y][x] = '.'; }
+      else if (c === 'Z') { start2 = y * w + x; g[y][x] = '.'; }
+      else if (c === '&') { swaps.push(y * w + x); g[y][x] = '.'; }
       else if (c === '+') { foods.push(y * w + x); g[y][x] = '.'; }
       else if (c === '=') { doors[0].cells.push(y * w + x); g[y][x] = '.'; }
       else if (c === '*') { doors[0].cells.push(y * w + x); doors[0].core = y * w + x; g[y][x] = '.'; }
@@ -54,6 +72,9 @@
       else if (c === '@') { doors[2].cells.push(y * w + x); doors[2].core = y * w + x; g[y][x] = '.'; }
       // 🔴 문벽 — 그 문을 열기 전엔 벽, 열면 사라진다
       else if (c >= '1' && c <= '3') { gates[c.charCodeAt(0) - 49].push(y * w + x); g[y][x] = '.'; }
+      else if (c === '!') { switches.push(y * w + x); g[y][x] = '.'; }
+      else if (c === '4') { swOff.push(y * w + x); g[y][x] = '.'; }
+      else if (c === '5') { swOn.push(y * w + x); g[y][x] = '.'; }
       // 🔴 출구 — 밟을 수 있는 바닥이다. 퍼즐엔 아무 영향이 없고, 게임이 여기서 맵을 넘긴다
       else if (c === 'o') { star = y * w + x; g[y][x] = '.'; }
       else if (c === 'T') { pads.push(y * w + x); g[y][x] = '.'; }
@@ -119,6 +140,15 @@
       hasCrack: crack.length > 0,
       gateSet: gates.map(cs => new Set(cs)),
       hasGates: gates.some(cs => cs.length),
+      start2,
+      twin: start2 !== null,
+      swapSet: new Set(swaps),
+      swapKey: start2 !== null && swaps.length === 0,
+      _solid: null,                    // 🔴 지금 움직이지 않는 슬라임의 칸 — 걸음 동안만 채운다
+      switchSet: new Set(switches),
+      swOffSet: new Set(swOff),
+      swOnSet: new Set(swOn),
+      hasSwitch: switches.length + swOff.length + swOn.length > 0,
       allDoors: (1 << open.length) - 1,
       // 아래 셋은 예전 이름 — 문이 하나뿐인 판을 위해 남겨둔다
       target: open.length ? open[0].cells : [],
@@ -163,16 +193,24 @@
     return false;
   }
 
+  //  🔴 dm 에서 스위치 비트 — 문 비트(0~2) 바로 위
+  const SW = 1 << 3;
+
   function isBlocked(L, cell, dm, cm) {
     if (isWall(L, cell)) return true;
+    //  🔴 다른 슬라임 — 겹칠 수 없고, 벽처럼 딛고 선다
+    if (L._solid && L._solid.has(cell)) return true;
     //  🔴 금 간 바닥 — 아직 안 부서졌으면 **벽이다.** 부서지면 그냥 빈칸이 된다.
     if (L.hasCrack) {
       const ci = L.crackIdx.get(cell);
       if (ci !== undefined && !((cm || 0) & (1 << ci))) return true;
     }
-    if (!L.hasGates) return false;
-    for (let i = 0; i < L.gateSet.length; i++)
-      if (L.gateSet[i].has(cell) && !(dm & (1 << i))) return true;
+    if (L.hasGates)
+      for (let i = 0; i < L.gateSet.length; i++)
+        if (L.gateSet[i].has(cell) && !(dm & (1 << i))) return true;
+    //  🔴 스위치 블록 — 꺼짐 블록(4)은 꺼져 있을 때, 켜짐 블록(5)은 켜져 있을 때 벽이다
+    if (L.hasSwitch)
+      if ((dm & SW) ? L.swOnSet.has(cell) : L.swOffSet.has(cell)) return true;
     return false;
   }
 
@@ -264,14 +302,45 @@
 
   /// 상태: { body: [머리, ..., 꼬리], fm }
   const startState = L => {
+    L._solid = L.twin ? new Set([L.start2]) : null;
     const r = settle(L, [L.start], 0, 0, 0, 0, 0, L.boxes, 0);
+    L._solid = null;
     const st = r || { body: [L.start], fm: 0, pg: 0, sc: 0, bx: (L.boxes || []).slice(), cm: 0 };
     st.pm = 0;
     st.cm = st.cm || 0;               // 🔴 부서진 바닥 비트마스크
     st.dm = 0;                       // 🔴 열린 문 비트마스크
     st.bx = st.bx || (L.boxes || []).slice();
+    if (L.twin) {
+      //  둘째 슬라임도 내려앉힌다 — 첫째를 딛을 수 있다. 그 뒤 첫째를 다시 본다
+      st.ob = [L.start2]; st.opg = 0;
+      if (!settleOther(L, st)) { st.ob = [L.start2]; }
+    }
     return st;
   };
+
+  /// 🔴 **슬라임 둘** — 걸음이 끝난 뒤 **안 움직인 슬라임**을 내려앉힌다.
+  ///    발판이던 슬라임이 비켜나면 떨어진다. 떨어지는 쪽이 움직인 쪽을 딛고 설 수 있고,
+  ///    그러면 다시 움직인 쪽이 흔들릴 일은 없다(위에서 내려앉은 것이라). 그래도 두 번 번갈아 본다.
+  ///    st 를 **고쳐 쓴다.** 떨어질 데가 없으면(판 밖) false.
+  function settleOther(L, st) {
+    for (let round = 0; round < 4; round++) {
+      L._solid = new Set(st.body);
+      const r = settle(L, st.ob.slice(), st.fm, st.opg || 0, st.dm || 0, st.sc || 0, st.pm || 0, st.bx,
+                       st.cm || 0, L.hasCrack ? loadMask(L, st.ob) : 0);
+      if (!r) { L._solid = null; return false; }
+      const moved = r.body[0] !== st.ob[0];
+      st.ob = r.body.slice(); st.opg = r.pg; st.fm = r.fm; st.sc = r.sc; st.bx = r.bx; st.cm = r.cm;
+      L._solid = new Set(st.ob);
+      const a = settle(L, st.body.slice(), st.fm, st.pg || 0, st.dm || 0, st.sc || 0, st.pm || 0, st.bx,
+                       st.cm || 0, L.hasCrack ? loadMask(L, st.body) : 0);
+      if (!a) { L._solid = null; return false; }
+      const moved2 = a.body[0] !== st.body[0];
+      st.body = a.body.slice(); st.pg = a.pg; st.fm = a.fm; st.sc = a.sc; st.bx = a.bx; st.cm = a.cm;
+      if (!moved && !moved2) break;
+    }
+    L._solid = null;
+    return true;
+  }
 
   /// 🔴 받침대에 몸을 놓는다. **몸 전체가 받침대 안에** 있어야 하고, 통째로 놓는다.
   ///    일부만 떼게 하면 덤 조각을 먹고도 살아나서 난이도가 통째로 사라진다.
@@ -294,6 +363,30 @@
 
   /// 한 칸 움직인다. 얼음 미끄러짐은 step() 이 이걸 여러 번 부른다.
   function move1(L, st, di) {
+    const ns = move1Solo(L, st, di);
+    if (!ns || !L.twin) return ns;
+    ns.ob = st.ob; ns.opg = st.opg || 0;
+    if (!settleOther(L, ns)) return null;
+    //  🔴 교체 칸 — 머리가 **들어왔으면** 조종이 넘어간다
+    if (L.swapSet.size && L.swapSet.has(ns.body[0]) && ns.body[0] !== st.body[0]) swapTwin(ns);
+    return ns;
+  }
+
+  /// 조종할 슬라임을 바꾼다 (st 를 고쳐 쓴다)
+  function swapTwin(st) {
+    const b = st.body, pg = st.pg || 0;
+    st.body = st.ob; st.pg = st.opg || 0;
+    st.ob = b; st.opg = pg;
+    st._sw2 = true;
+    st._sl = false;                  // 🔴 조종이 넘어갔으면 얼음 미끄러짐도 거기서 끝난다 (딴 슬라임이 미끄러지면 안 된다)
+  }
+
+  function move1Solo(L, st, di) {
+    L._solid = st.ob ? new Set(st.ob) : null;
+    try { return move1Core(L, st, di); } finally { L._solid = null; }
+  }
+
+  function move1Core(L, st, di) {
     const [dx, dy] = DIRS[di];
     const hx = st.body[0] % L.w, hy = (st.body[0] / L.w) | 0;
     const nx = hx + dx, ny = hy + dy;
@@ -383,6 +476,25 @@
       if (breaks > 1) return null;
     }
 
+    //  🔴 **스위치** — 머리가 스위치 칸에 들어왔으면 판 전체를 뒤집는다.
+    //     떨어져서 들어와도 들어온 것이다. 뒤집은 뒤 다시 떨어져 다른 스위치에 닿아도 **한 번만** 뒤집는다.
+    let switched = false;
+    if (L.hasSwitch && L.switchSet.has(ns.body[0]) && ns.body[0] !== st.body[0]) {
+      switched = true;
+      ns.dm ^= SW;
+      //  생기는 블록 자리에 몸이나 상자가 있으면 이 수는 없다 — 벽에 낄 수는 없다
+      const solid = (ns.dm & SW) ? L.swOnSet : L.swOffSet;
+      for (const c of ns.body) if (solid.has(c)) return null;
+      for (const c of (ns.bx || [])) if (solid.has(c)) return null;
+      for (const c of (st.ob || [])) if (solid.has(c)) return null;      // 🔴 다른 슬라임도 낄 수 없다
+      //  사라진 블록 위에 있었으면 떨어진다
+      const after = settle(L, ns.body, ns.fm, ns.pg, ns.dm, ns.sc, ns.pm, ns.bx,
+                           ns.cm, L.hasCrack ? loadMask(L, ns.body) : 0);
+      if (!after) return null;
+      ns.body = after.body; ns.fm = after.fm; ns.pg = after.pg; ns.sc = after.sc;
+      ns.bx = after.bx; ns.cm = after.cm;
+    }
+
     // 🔴 문이 채워졌나 — 채워졌으면 **몸을 자물쇠에 두고 핵만 남는다.**
     //    (몸이 문 칸을 정확히 덮고 있으므로, 남는 몸의 모양은 곧 그 문이다)
     const opened = matchDoor(L, ns);
@@ -401,7 +513,7 @@
       ns.bx = after.bx; ns.cm = after.cm;
     }
     //  🔴 얼음을 계속 탈 수 있는 걸음인가. 여기서 걸리는 건 전부 "붙잡을 것이 생겼다" 는 뜻이다.
-    ns._sl = !(grows || pushed || warped || fell || opened >= 0);
+    ns._sl = !(grows || pushed || warped || fell || switched || opened >= 0);
     return ns;
   }
 
@@ -412,7 +524,19 @@
   ///    ⚠️ 몇 칸을 갔는지는 ns._n 에 담아 보낸다 — 화면이 그만큼 오래 미끄러뜨리고
   ///       그동안 조작을 막는다 (09-05 사장님: "아무 조작이 안 되는 느낌").
   function step(L, st, di) {
-    if (di === 4) return drop(L, st);
+    if (di === 4) {
+      L._solid = st.ob ? new Set(st.ob) : null;
+      let r;
+      try { r = drop(L, st); } finally { L._solid = null; }
+      if (r && L.twin) { r.ob = st.ob; r.opg = st.opg || 0; if (!settleOther(L, r)) return null; }
+      return r;
+    }
+    if (di === 5) {
+      if (!L.twin || !L.swapKey) return null;
+      const ns = { ...st, body: st.body.slice(), ob: st.ob.slice(), bx: (st.bx || []).slice() };
+      swapTwin(ns); ns._n = 1; ns._sl = false;
+      return ns;
+    }
     let ns = move1(L, st, di);
     if (!ns) return null;
     let n = 1;
@@ -446,7 +570,7 @@
   ///   any — 아무 문이나 하나 열면 끝 (지금까지의 판)
   ///   all — 🔴 문을 다 열어야 끝. 열 때마다 몸을 두고 핵만 간다
   function isWin(L, st, needStar) {
-    const dm = st.dm || 0;
+    const dm = (st.dm || 0) & ~SW;      // 🔴 스위치 비트는 문이 아니다
     const doors = L.clear === 'all'
       ? (dm === L.allDoors && L.allDoors !== 0)
       : (dm !== 0 || matchDoor(L, st) >= 0);
@@ -463,7 +587,8 @@
   //  🔴 상자 자리도 상태다 — 이것 때문에 판이 커지면 솔버가 소코반처럼 터진다.
   const keyOf = st => st.body.join(',') + '|' + st.fm + '|' + (st.pg || 0) + '|' +
                       (st.dm || 0) + '|' + (st.sc || 0) + '|' + (st.pm || 0) + '|' + (st.cm || 0) +
-                      ((st.bx && st.bx.length) ? '|' + st.bx.join('.') : '');
+                      ((st.bx && st.bx.length) ? '|' + st.bx.join('.') : '') +
+                      (st.ob ? '|' + st.ob.join(',') + '/' + (st.opg || 0) : '');
 
   function solve(def, opts) {
     const needStar = !!(opts && opts.needStar);
@@ -501,7 +626,7 @@
       const st = q[head++];
       const sk = keyOf(st), d = dist.get(sk);
       if (d >= gd) continue;
-      const acts = L.pads.length ? 5 : 4;
+      const acts = L.swapKey ? 6 : L.pads.length ? 5 : 4;
       for (let di = 0; di < acts; di++) {
         const ns = step(L, st, di);
         if (!ns) continue;
@@ -556,9 +681,13 @@
         const fi = L.foodIdx.get(c);
         if (c === head) r += 'O';
         else if (body.has(c)) r += 'o';
+        else if (st.ob && st.ob.includes(c)) r += c === st.ob[0] ? 'Z' : 'z';   // 🔴 안 조종하는 슬라임
         else if (L.g[y][x] === '#') r += '#';
         else if (L.hasGates && L.gateSet.some((s, i) => s.has(y * L.w + x) && !((st.dm || 0) & (1 << i))))
           r += L.gateSet.findIndex(s => s.has(y * L.w + x)) + 1;   // 열린 문벽은 안 그린다
+        else if (L.hasSwitch && L.switchSet.has(c)) r += '!';
+        else if (L.hasSwitch && (((st.dm || 0) & SW) ? L.swOnSet : L.swOffSet).has(c))
+          r += L.swOffSet.has(c) ? '4' : '5';                      // 🔴 **지금 벽인** 블록만 그린다
         else if (y * L.w + x === L.star) r += 'o';
         else if (L.padIdx.has(y * L.w + x))
           r += ((st.pm || 0) & (1 << L.padIdx.get(y * L.w + x))) ? 'Ⅰ' : 'T';

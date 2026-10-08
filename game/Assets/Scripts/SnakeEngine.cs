@@ -21,8 +21,9 @@ namespace SlimeEscape
 
         /// 🔴 Drop = 받침대에 몸을 놓는다. 걸음이 아니라 **행동**이지만,
         ///    되돌리기·기록·솔버가 전부 걸음 단위라 같은 자리에 둔다.
-        public enum Dir { Up, Down, Left, Right, Drop }
-        public static readonly (int dx, int dy)[] Delta = { (0, -1), (0, 1), (-1, 0), (1, 0), (0, 0) };
+        ///    Swap = 🔴 슬라임 둘 — 조종할 슬라임을 바꾼다 (키보드 교체 판만. 한 걸음으로 센다).
+        public enum Dir { Up, Down, Left, Right, Drop, Swap }
+        public static readonly (int dx, int dy)[] Delta = { (0, -1), (0, 1), (-1, 0), (1, 0), (0, 0), (0, 0) };
 
         public sealed class Level
         {
@@ -52,6 +53,33 @@ namespace SlimeEscape
             /// </summary>
             public HashSet<int>[] Gates = { new HashSet<int>(), new HashSet<int>(), new HashSet<int>() };
             public bool HasGates;
+
+            /// <summary>
+            /// 🔴 **스위치** (09-23 사장님: "아싸리 슈퍼마리오랑 같은 방식으로. 머리가 들어가면 작동, 스위칭").
+            /// 마리오 메이커의 ON/OFF 스위치다.
+            ///   '!' 스위치 — 머리가 **들어올 때마다** 판 전체가 켜짐↔꺼짐. 밟고 지나간다.
+            ///   '4' 꺼짐 블록 — 꺼져 있을 때 벽 (처음엔 벽)
+            ///   '5' 켜짐 블록 — 켜져 있을 때 벽 (처음엔 빈칸)
+            /// 상태는 Dm 의 <see cref="SW"/> 비트 — 문 비트(0~2)와 안 겹친다.
+            /// 🔴 tools/engine.js 의 switchSet/swOffSet/swOnSet 과 **같아야 한다.**
+            /// </summary>
+            /// <summary>
+            /// 🔴 **슬라임 둘** (09-23 사장님). 'Z' = 둘째 슬라임 시작 · '&amp;' = 교체 칸.
+            ///   · 서로의 몸은 **딛고 설 수 있다** (올라탄다) · **겹칠 수는 없다** (서로에게 벽이다)
+            ///   · 판에 '&amp;' 가 있으면 머리가 거기 **들어올 때** 조종이 넘어가고, 없으면 키보드로 바꾼다.
+            /// 🔴 tools/engine.js 의 start2/swapSet/swapKey 와 **같아야 한다.**
+            /// </summary>
+            public int Start2 = -1;
+            public HashSet<int> Swaps = new HashSet<int>();
+            public bool Twin => Start2 >= 0;
+            public bool SwapKey => Start2 >= 0 && Swaps.Count == 0;
+            /// 🔴 지금 움직이지 않는 슬라임의 칸 — **걸음 계산 동안만** 채운다. 벽으로 친다.
+            public HashSet<int> Solid;
+
+            public HashSet<int> Switches = new HashSet<int>();
+            public HashSet<int> SwOff = new HashSet<int>();
+            public HashSet<int> SwOn = new HashSet<int>();
+            public bool HasSwitch;
 
             /// <summary>
             /// 🔴 무중력 구역 — 벽이 아니라 **뒷벽**이다. 기호 ':' (rev.10, 2026-09-05).
@@ -189,12 +217,15 @@ namespace SlimeEscape
             public bool IsBlocked(int cell, int dm, int cm = 0)
             {
                 if (Wall[cell]) return true;
+                //  🔴 다른 슬라임 — 겹칠 수 없고, 벽처럼 딛고 선다
+                if (Solid != null && Solid.Contains(cell)) return true;
                 //  🔴 금 간 바닥 — 아직 안 부서졌으면 **벽이다.** 부서지면 그냥 빈칸이 된다.
                 if (HasCrack && CrackIdx.TryGetValue(cell, out int ci) && (cm & (1 << ci)) == 0)
                     return true;
-                if (!HasGates) return false;
-                for (int i = 0; i < Gates.Length; i++)
-                    if (Gates[i].Contains(cell) && (dm & (1 << i)) == 0) return true;
+                if (HasGates)
+                    for (int i = 0; i < Gates.Length; i++)
+                        if (Gates[i].Contains(cell) && (dm & (1 << i)) == 0) return true;
+                if (HasSwitch && ((dm & SW) != 0 ? SwOn.Contains(cell) : SwOff.Contains(cell))) return true;
                 return false;
             }
         }
@@ -218,6 +249,12 @@ namespace SlimeEscape
             public int Cm;
             /// 🔴 얼음 위를 계속 미끄러질 수 있는 걸음이었나 (화면·미끄러짐 판정용, 상태 열쇠엔 안 들어간다)
             public bool Sl;
+            /// 🔴 슬라임 둘 — **안 조종하는** 슬라임의 몸 (머리부터). 하나뿐인 판이면 null.
+            public List<int> Ob;
+            /// 🔴 그쪽 슬라임의 미룬 성장
+            public int Opg;
+            /// 🔴 이번 걸음에 조종이 넘어갔나 (화면용, 상태 열쇠엔 안 들어간다)
+            public bool Swapped;
             /// 🔴 이번 걸음에 **몇 칸을 갔나** (얼음이 없으면 늘 1). 화면이 이만큼 오래 미끄러뜨린다.
             public int Slid = 1;
             public State(List<int> body, int fm, int pg = 0, int dm = 0, int sc = 0, int pm = 0,
@@ -260,6 +297,11 @@ namespace SlimeEscape
                         case '@': d2.Cells.Add(c); d2.Core = c; break;
                         case '1': case '2': case '3':
                             L.Gates[grid[y][x] - '1'].Add(c); L.HasGates = true; break;
+                        case '!': L.Switches.Add(c); L.HasSwitch = true; break;
+                        case 'Z': L.Start2 = c; break;
+                        case '&': L.Swaps.Add(c); break;
+                        case '4': L.SwOff.Add(c); L.HasSwitch = true; break;
+                        case '5': L.SwOn.Add(c); L.HasSwitch = true; break;
                         case ':': L.Zone.Add(c); break;
                         case 'B': L.Boxes.Add(c); break;
                         case 'I': L.Ice.Add(c); L.Wall[c] = true; break;
@@ -406,8 +448,59 @@ namespace SlimeEscape
             int fm = 0, pg = 0, sc = 0;
             var bx = new List<int>(L.Boxes);
             int cm = 0;
+            L.Solid = L.Twin ? new HashSet<int> { L.Start2 } : null;
             Settle(L, body, ref fm, ref pg, 0, ref sc, 0, bx, ref cm, -1);   // 시작하자마자 떨어지며 먹을 수도 있다
-            return new State(body, fm, pg, 0, sc, 0, bx, cm);
+            L.Solid = null;
+            var st = new State(body, fm, pg, 0, sc, 0, bx, cm);
+            if (L.Twin)
+            {
+                st.Ob = new List<int> { L.Start2 };
+                if (!SettleOther(L, st)) st.Ob = new List<int> { L.Start2 };
+            }
+            return st;
+        }
+
+        /// 🔴 **슬라임 둘** — 걸음이 끝난 뒤 **안 움직인 슬라임**을 내려앉힌다.
+        ///    발판이던 슬라임이 비켜나면 떨어진다. 두 번 번갈아 본다. st 를 **고쳐 쓴다.**
+        ///    🔴 tools/engine.js 의 settleOther 와 **같아야 한다.**
+        static bool SettleOther(Level L, State st)
+        {
+            try
+            {
+                for (int round = 0; round < 4; round++)
+                {
+                    L.Solid = new HashSet<int>(st.Body);
+                    var ob = new List<int>(st.Ob);
+                    int fm = st.Fm, pg = st.Opg, sc = st.Sc, cm = st.Cm;
+                    var bx = new List<int>(st.Bx);
+                    if (!Settle(L, ob, ref fm, ref pg, st.Dm, ref sc, st.Pm, bx, ref cm,
+                                L.HasCrack ? L.LoadMask(st.Ob) : 0)) return false;
+                    bool moved = ob[0] != st.Ob[0];
+                    st.Ob = ob; st.Opg = pg; st.Fm = fm; st.Sc = sc; st.Bx = bx; st.Cm = cm;
+
+                    L.Solid = new HashSet<int>(st.Ob);
+                    var body = new List<int>(st.Body);
+                    int fm2 = st.Fm, pg2 = st.Pg, sc2 = st.Sc, cm2 = st.Cm;
+                    var bx2 = new List<int>(st.Bx);
+                    if (!Settle(L, body, ref fm2, ref pg2, st.Dm, ref sc2, st.Pm, bx2, ref cm2,
+                                L.HasCrack ? L.LoadMask(st.Body) : 0)) return false;
+                    bool moved2 = body[0] != st.Body[0];
+                    st.Body = body; st.Pg = pg2; st.Fm = fm2; st.Sc = sc2; st.Bx = bx2; st.Cm = cm2;
+                    if (!moved && !moved2) break;
+                }
+                return true;
+            }
+            finally { L.Solid = null; }
+        }
+
+        /// 조종할 슬라임을 바꾼다 (st 를 고쳐 쓴다)
+        static void SwapTwin(State st)
+        {
+            var b = st.Body; int pg = st.Pg;
+            st.Body = st.Ob; st.Pg = st.Opg;
+            st.Ob = b; st.Opg = pg;
+            st.Swapped = true;
+            st.Sl = false;          // 🔴 조종이 넘어갔으면 얼음 미끄러짐도 끝 (딴 슬라임이 미끄러지면 안 된다)
         }
 
         public static bool IsEaten(State st, int foodIndex) => (st.Fm & (1 << foodIndex)) != 0;
@@ -431,11 +524,15 @@ namespace SlimeEscape
         }
 
         /// <summary>이 판이 끝났나.</summary>
+        /// 🔴 Dm 에서 스위치 비트 — 문 비트(0~2) 바로 위. engine.js 의 SW 와 같다.
+        public const int SW = 1 << 3;
+
         public static bool IsWin(Level L, State st)
         {
+            int dm = st.Dm & ~SW;      // 🔴 스위치 비트는 문이 아니다
             bool doors = L.Clear == "all"
-                ? (L.AllDoors != 0 && st.Dm == L.AllDoors)
-                : (st.Dm != 0 || MatchDoor(L, st) >= 0);
+                ? (L.AllDoors != 0 && dm == L.AllDoors)
+                : (dm != 0 || MatchDoor(L, st) >= 0);
             if (!doors) return false;
             // 🔴 홈을 채우면 **거기서 끝난다.** 출구까지 걸어가는 건 없앴다 (08-30 사장님).
             //    출구 그림은 남아 있지만 연출일 뿐이다 — 밟으러 갈 필요가 없다.
@@ -483,6 +580,20 @@ namespace SlimeEscape
 
         /// 한 칸 움직인다. 얼음 미끄러짐은 Step() 이 이걸 여러 번 부른다.
         static bool Move1(Level L, State st, Dir dir, out State result)
+        {
+            L.Solid = st.Ob != null ? new HashSet<int>(st.Ob) : null;
+            bool ok;
+            try { ok = Move1Core(L, st, dir, out result); } finally { L.Solid = null; }
+            if (!ok || !L.Twin) return ok;
+            result.Ob = new List<int>(st.Ob); result.Opg = st.Opg;
+            if (!SettleOther(L, result)) { result = null; return false; }
+            //  🔴 교체 칸 — 머리가 **들어왔으면** 조종이 넘어간다
+            if (L.Swaps.Count > 0 && L.Swaps.Contains(result.Head) && result.Head != st.Head)
+                SwapTwin(result);
+            return true;
+        }
+
+        static bool Move1Core(Level L, State st, Dir dir, out State result)
         {
             result = null;
             var (dx, dy) = Delta[(int)dir];
@@ -574,6 +685,26 @@ namespace SlimeEscape
                 if (breaks > 1) return false;
             }
 
+            //  🔴 **스위치** — 머리가 스위치 칸에 들어왔으면 판 전체를 뒤집는다.
+            //     떨어져서 들어와도 들어온 것이다. 뒤집고 다시 떨어져 다른 스위치에 닿아도 **한 번만**.
+            //     🔴 tools/engine.js 와 **같아야 한다.**
+            bool switched = false;
+            if (L.HasSwitch && L.Switches.Contains(ns.Body[0]) && ns.Body[0] != st.Body[0])
+            {
+                switched = true;
+                ns.Dm ^= SW;
+                //  생기는 블록 자리에 몸이나 상자가 있으면 이 수는 없다 — 벽에 낄 수는 없다
+                var solid = (ns.Dm & SW) != 0 ? L.SwOn : L.SwOff;
+                foreach (int c in ns.Body) if (solid.Contains(c)) return false;
+                foreach (int c in ns.Bx) if (solid.Contains(c)) return false;
+                if (st.Ob != null) foreach (int c in st.Ob) if (solid.Contains(c)) return false;   // 🔴 다른 슬라임도 낄 수 없다
+                //  사라진 블록 위에 있었으면 떨어진다
+                int f3 = ns.Fm, p3 = ns.Pg, s3 = ns.Sc, c3 = ns.Cm;
+                if (!Settle(L, ns.Body, ref f3, ref p3, ns.Dm, ref s3, ns.Pm, ns.Bx, ref c3,
+                            L.HasCrack ? L.LoadMask(ns.Body) : 0)) return false;
+                ns.Fm = f3; ns.Pg = p3; ns.Sc = s3; ns.Cm = c3;
+            }
+
             // 🔴 문이 채워졌나 — 채워졌으면 **몸을 자물쇠에 두고 핵만 남는다.**
             int opened = MatchDoor(L, ns);
             if (opened >= 0 && (ns.Dm & (1 << opened)) == 0)
@@ -594,7 +725,7 @@ namespace SlimeEscape
             }
 
             //  🔴 얼음을 계속 탈 수 있는 걸음인가. 걸리는 건 전부 "붙잡을 것이 생겼다" 는 뜻이다.
-            ns.Sl = !(grows || pushed || warped || fell || opened >= 0);
+            ns.Sl = !(grows || pushed || warped || fell || switched || opened >= 0);
             result = ns;
             return true;
         }
@@ -609,7 +740,26 @@ namespace SlimeEscape
         /// </summary>
         public static bool Step(Level L, State st, Dir dir, out State result)
         {
-            if (dir == Dir.Drop) return Drop(L, st, out result);
+            if (dir == Dir.Drop)
+            {
+                L.Solid = st.Ob != null ? new HashSet<int>(st.Ob) : null;
+                bool ok;
+                try { ok = Drop(L, st, out result); } finally { L.Solid = null; }
+                if (!ok || !L.Twin) return ok;
+                result.Ob = new List<int>(st.Ob); result.Opg = st.Opg;
+                if (!SettleOther(L, result)) { result = null; return false; }
+                return true;
+            }
+            if (dir == Dir.Swap)
+            {
+                result = null;
+                if (!L.SwapKey) return false;
+                result = new State(new List<int>(st.Body), st.Fm, st.Pg, st.Dm, st.Sc, st.Pm, st.Bx, st.Cm)
+                         { Ob = new List<int>(st.Ob), Opg = st.Opg };
+                SwapTwin(result);
+                result.Slid = 1;
+                return true;
+            }
             if (!Move1(L, st, dir, out result)) return false;
             int n = 1;
             if (L.Ice.Count > 0 && (dir == Dir.Left || dir == Dir.Right))

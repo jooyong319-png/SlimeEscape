@@ -32,11 +32,71 @@ namespace SlimeEscape
 
         //  굴마다 한 마디. 판 고르기의 "제 N 굴" 밑에 붙일 이름이다.
         //  🔴 기믹 이름을 그대로 쓴다 — 그 굴에서 **처음 만나는 것**이 곧 그 굴의 이름이다.
-        static readonly string[] CaveNames =
-            { "홈을 채운다", "상자", "금 간 바닥", "얼음", "포탈", "마지막 굴" };
+        //  🔴 굴 이름 — 사장님이 09-20 에 잡으신 구성 그대로다 ([[wiki/stage-plan.md]]).
+        //     배우기와 써먹기가 번갈아 온다: 새것을 배우고 바로 조합으로 써먹는다.
+        //     ⚠️ 굴 9~12 는 아직 **만들어야 할 것**이다 (반전 바닥 · 몸 둘).
+        static readonly string[] CaveNames = {
+            "굴 바닥",          //  1 기본
+            "상자",             //  2
+            "얼음",             //  3
+            "상자와 얼음",      //  4 조합
+            "금 간 바닥",       //  5
+            "무너지는 빙판",    //  6 조합 둘 (금간+얼음 · 상자+금간)
+            "포탈",             //  7
+            "포탈 너머",        //  8 조합 여럿
+            "뒤바뀌는 바닥",    //  9 새 기믹
+            "뒤바뀌는 길",      // 10 기믹 + 조합
+            "둘이서",           // 11 몸 둘
+            "둘이서 넘는다",    // 12 몸 둘 + 조합
+            "출구",             // 13 엔딩
+        };
 
         /// 알림이 떠 있는 시간 (나타나고 · 머물고 · 사라지고)
         const float BannerIn = 0.45f, BannerHold = 1.25f, BannerOut = 0.75f;
+
+        /// <summary>
+        /// 🔴 **지금 몇 층까지 올라왔나** (09-20 사장님이 받아오신 조언:
+        /// *"화면 한쪽에 13칸짜리 세로 게이지로 지금 몇 번째 깊이인지만 보여줘도 비슷한 효과가 난다"*).
+        ///
+        /// 굴은 **아래에서 위로** 올라간다. 그래서 게이지도 세로다 —
+        /// **맨 아래가 1굴(가장 깊다), 맨 위가 출구.** 지나온 아래쪽은 은은히 남고,
+        /// 아직 못 간 위쪽은 어둡다. 판 고르기를 넘길 때마다 칸이 하나씩 차오른다.
+        ///
+        /// ⚠️ 판을 가리면 안 되므로 **왼쪽 가장자리**에 얇게만 둔다. 숫자는 안 쓴다 —
+        ///    "몇 번째"를 읽게 하는 게 아니라 **얼마나 올라왔나**를 느끼게 하는 것이다.
+        /// </summary>
+        void CaveGauge(float w, float h, int maxCh)
+        {
+            int depth = Mathf.Max(CaveDepth, maxCh);
+            //  ⚠️ 5~10 은 **너무 가늘어 눈에 안 들어왔다** (09-20 화면) — 굵힌다
+            float gw = Mathf.Clamp(w * 0.013f, 8f, 15f);          // 막대 굵기
+            float gap = Mathf.Clamp(h * 0.006f, 3f, 6f);          // 칸 사이
+            float total = h * 0.56f;
+            float cell = (total - gap * (depth - 1)) / depth;
+            float x = Mathf.Clamp(w * 0.022f, 12f, 30f);
+            float y0 = h * 0.5f - total * 0.5f;
+
+            for (int i = 0; i < depth; i++)
+            {
+                int ch = i + 1;
+                //  🔴 **아래가 1굴이다** — 화면은 위가 0 이므로 뒤집어 그린다
+                float y = y0 + (depth - ch) * (cell + gap);
+                var r = new Rect(x, y, gw, cell);
+
+                Color c;
+                if (ch == _menuCh)       c = new Color(1f, 1f, 1f, 0.92f);   // 지금 여기
+                else if (ch < _menuCh)   c = new Color(1f, 1f, 1f, 0.34f);   // 지나온 아래쪽
+                else                     c = new Color(1f, 1f, 1f, 0.10f);   // 아직 못 간 위쪽
+
+                Shape(r, c, PixelSprites.Round().texture);
+            }
+
+            //  출구 표시 — 맨 위 칸 위에 작은 점. 어디로 가고 있는지 보여준다
+            var goal = new Color(1f, 1f, 1f, _menuCh >= depth ? 0.85f : 0.22f);
+            float ds = gw * 1.5f;
+            Shape(new Rect(x + gw * 0.5f - ds * 0.5f, y0 - ds - gap * 1.5f, ds, ds),
+                  goal, PixelSprites.Disc().texture);
+        }
 
         /// <summary>
         /// 🔴 **굴에 들어섰다고 알린다** (09-16 사장님: *"굴 바뀌는 게 약하다"*).

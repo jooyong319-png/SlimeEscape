@@ -107,8 +107,13 @@ namespace SlimeEscape
                 if (_dev && Input.GetKeyDown(KeyCode.N)) { _menu = false; _allDone = false; Load(_index + 1); return; }
                 if (_dev && Input.GetKeyDown(KeyCode.P)) { _menu = false; _allDone = false; Load(_index - 1); return; }
                 //  굴 넘기기 — 판 고르기는 굴 하나씩 보여준다 (09-12)
-                if (Input.GetKeyDown(KeyCode.LeftArrow)  || Input.GetKeyDown(KeyCode.A)) MenuChapter(-1);
-                if (Input.GetKeyDown(KeyCode.RightArrow) || Input.GetKeyDown(KeyCode.D)) MenuChapter(+1);
+                //  🔴 **위아래다** (09-20). 굴은 아래에서 위로 올라간다 — 1굴이 제일 깊고,
+                //     위로 갈수록 출구에 가깝다. 좌우로 넘기면 "옆으로 간다" 로 읽혀
+                //     탈출하고 있다는 감각이 안 산다. 좌우 키도 함께 받는다(손버릇).
+                if (Input.GetKeyDown(KeyCode.DownArrow) || Input.GetKeyDown(KeyCode.S)
+                 || Input.GetKeyDown(KeyCode.LeftArrow) || Input.GetKeyDown(KeyCode.A)) MenuChapter(-1);
+                if (Input.GetKeyDown(KeyCode.UpArrow)   || Input.GetKeyDown(KeyCode.W)
+                 || Input.GetKeyDown(KeyCode.RightArrow)|| Input.GetKeyDown(KeyCode.D)) MenuChapter(+1);
                 Animate(Time.deltaTime);
                 return;
             }
@@ -168,6 +173,12 @@ namespace SlimeEscape
                 if (_run != null) _run.restart++;
                 Restart(); return;
             }
+            //  🔴 **판 걸러내기** (09-20 사장님). 표를 찍으면 바로 다음 판으로 넘어간다 —
+            //     몇 수 두어 보고 아니다 싶으면 3 을 쳐서 계속 넘긴다. SnakeController.Pick 참고.
+            if (_dev && Input.GetKeyDown(KeyCode.Alpha1)) { Pick(1); return; }
+            if (_dev && Input.GetKeyDown(KeyCode.Alpha2)) { Pick(2); return; }
+            if (_dev && Input.GetKeyDown(KeyCode.Alpha3)) { Pick(3); return; }
+
             if (_dev && Input.GetKeyDown(KeyCode.N)) { Load(_index + 1); return; }
             if (_dev && Input.GetKeyDown(KeyCode.P)) { Load(_index - 1); return; }
             if (Input.GetKeyDown(KeyCode.Z)) { Undo(); return; }
@@ -184,6 +195,10 @@ namespace SlimeEscape
             if (_L.Pads.Count > 0 &&
                 (Input.GetKeyDown(KeyCode.Space) || Input.GetKeyDown(KeyCode.X)))
             { Step(SnakeEngine.Dir.Drop); return; }
+
+            // 🔴 슬라임 둘 — 조종 바꾸기: Tab · Q (키보드 교체 판에서만. 교체 칸 판은 칸을 밟아야 바뀐다)
+            if (_L.SwapKey && (Input.GetKeyDown(KeyCode.Tab) || Input.GetKeyDown(KeyCode.Q)))
+            { Step(SnakeEngine.Dir.Swap); return; }
 
             if (Input.GetKeyDown(KeyCode.UpArrow) || Input.GetKeyDown(KeyCode.W)) Step(SnakeEngine.Dir.Up);
             else if (Input.GetKeyDown(KeyCode.DownArrow) || Input.GetKeyDown(KeyCode.S)) Step(SnakeEngine.Dir.Down);
@@ -220,7 +235,7 @@ namespace SlimeEscape
             int opened = -1;
             for (int i = 0; i < _L.Doors.Count; i++)
                 if ((hadDm & (1 << i)) == 0 && (_st.Dm & (1 << i)) != 0) { opened = i; break; }
-            if (opened >= 0) StartSuck(opened);
+            if (opened >= 0) { StartSuck(opened); StartLinkSparks(opened); }
 
             if (!_won && SnakeEngine.IsWin(_L, _st))
             {
@@ -304,7 +319,23 @@ namespace SlimeEscape
                 if (dx1 + dy1 > 1 && _L.Portal.ContainsKey(now)) { _warpIn = was; _warpOut = now; _warpT = 0f; }
             }
             _stepT = 0f;
+            //  🔴 슬라임 둘 — 조종이 넘어갔으면 **딱 붙인다.** 그리는 몸이 딴 슬라임으로 바뀌었으니
+            //     옛 자리에서 미끄러뜨리면 한 슬라임이 판을 가로질러 날아간다.
+            //     (나중에 "넘어가는" 연출을 따로 만든다 — 지금은 기능 시험용)
+            if (_st.Swapped) SnapToState();
             SyncViews();
+        }
+
+        void SnapToState()
+        {
+            while (_segPos.Count > _st.Length) _segPos.RemoveAt(_segPos.Count - 1);
+            while (_segPos.Count < _st.Length) _segPos.Add(CellPos(_st.Head));
+            for (int i = 0; i < _st.Length; i++) _segPos[i] = CellPos(_st.Body[i]);
+            _from.Clear(); _from.AddRange(_segPos);
+            _mid.Clear(); _mid.AddRange(_segPos);
+            _stepT = 999f;
+            _fall = 0; _slid = 1; _land = 0f; _landed = true;
+            _twinSnap = true;
         }
 
         void Undo()
@@ -325,6 +356,7 @@ namespace SlimeEscape
             _stepT = 999f;
             _pop = 0f;
             _fall = 0; _slid = 1; _land = 0f; _landed = true;
+            _twinSnap = true;
             Play(Sfx.Undo);
             SyncViews();
         }

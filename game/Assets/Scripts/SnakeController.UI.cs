@@ -323,12 +323,21 @@ namespace SlimeEscape
             // ---- 굴 넘기기 — 양옆 가장자리 ----
             //  ⚠️ 새 글자를 쓰지 않는다 — 잘라낸 글꼴에 없는 글자는 빈칸이 된다 (덫 13).
             int maxCh = MaxChapter();
+            //  🔴 **위아래로 넘긴다** (09-20). 굴은 아래에서 위로 올라간다 —
+            //     위 화살표가 **출구 쪽**, 아래가 더 깊은 곳이다.
+            //     좌우로 두면 "옆으로 간다" 로 읽혀 탈출하고 있다는 감각이 안 산다.
+            //  ⚠️ 처음엔 `top * 0.34` 에 뒀다가 **상단 띠 글자와 겹쳤다** (09-20 화면: 굴 1 의 ∧ 가
+            //     "제 1 굴" 아래 파묻혔다). 띠가 끝나는 자리 **아래**로 내린다.
             var arS = new GUIStyle(_sBig) { alignment = TextAnchor.MiddleCenter };
-            float aw = Mathf.Max(36f, pad * 0.9f), ah = aw * 1.6f;
-            if (_menuCh > 1 &&
-                GUI.Button(new Rect(4f, h * 0.5f - ah * 0.5f, aw, ah), "<", arS)) MenuChapter(-1);
+            arS.normal.textColor = new Color(1f, 1f, 1f, 0.55f);
+            float ah = Mathf.Max(26f, pad * 0.8f), aw = ah * 2.6f;
+            float barEnd = pad + Mathf.Clamp(h * 0.052f, 30f, 44f);      // 상단 띠가 끝나는 자리
             if (_menuCh < maxCh &&
-                GUI.Button(new Rect(w - aw - 4f, h * 0.5f - ah * 0.5f, aw, ah), ">", arS)) MenuChapter(+1);
+                GUI.Button(new Rect(w * 0.5f - aw * 0.5f, barEnd + 6f, aw, ah), "∧", arS)) MenuChapter(+1);
+            if (_menuCh > 1 &&
+                GUI.Button(new Rect(w * 0.5f - aw * 0.5f, h - bot * 0.30f - ah, aw, ah), "∨", arS)) MenuChapter(-1);
+
+            CaveGauge(w, h, maxCh);
 
             // ---- 머리글 ----
             //  🔴 여기도 나가는 길이 Esc 뿐이었다. 띠를 얹어 타이틀로 돌아간다.
@@ -1119,6 +1128,8 @@ namespace SlimeEscape
             //     그 위로 올라와 글자가 포개졌다 (09-17 폰 화면). 다 그린 뒤에 얹어야 안 덮인다.
             //     넘김 막보다도 뒤다 — 화면이 바뀌며 스며 나오는 동안에도 알림은 보여야 한다.
             if (room == 0) CaveBanner(Screen.width, Screen.height);
+            //  판 걸러내기 표 — 개발자 모드에서만 뜬다 (09-20)
+            PickHud(Screen.width, Screen.height);
         }
 
         void OnGUIBody()

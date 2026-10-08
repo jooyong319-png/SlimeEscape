@@ -55,17 +55,44 @@ namespace SlimeEscape
         static Color C32(uint v) => new Color32((byte)(v >> 16), (byte)(v >> 8), (byte)v, 0xff);
         static CaveLook Cave(uint bg, uint lit, uint mid, uint dim, uint rock, uint top) => new CaveLook
             { bg = C32(bg), lit = C32(lit), mid = C32(mid), dim = C32(dim), rock = C32(rock), top = C32(top) };
-        static readonly CaveLook[] Caves =
+        /// <summary>
+        /// 🔴 **굴은 아래에서 위로 올라간다** (09-20 사장님이 받아오신 조언).
+        /// 게임 이름이 *탈출*이고 배경에 종유석이 있다 — **1굴이 가장 깊고 어둡고,
+        /// 출구로 갈수록 밝아진다.** 그러면 "얼마나 왔나"가 **진행도 자체**에 담기고,
+        /// 마지막에 처음 빛을 보는 순간이 세진다.
+        ///
+        /// ⛔ 전에는 반대였다 — 굴 6(피날레)이 *"제일 어둡고 윗면만 또렷"* 이었다.
+        ///    깊이로 뒤집으면서 손으로 적던 여섯 벌을 **계산식 한 벌**로 바꿨다:
+        ///    굴이 13층으로 늘었는데 열세 벌을 손으로 적으면 사다리가 고르지 않고,
+        ///    층수가 또 바뀌면 전부 다시 적어야 한다.
+        ///
+        /// ⚠️ 색 규칙은 지킨다 — 초록은 슬라임만. 출구 쪽의 따뜻함은 **아주 옅게**만 섞는다
+        ///    (빛이 스며드는 것이지 색을 칠하는 게 아니다).
+        /// </summary>
+        public const int CaveDepth = 13;          // 굴이 몇 층인가 (맨 아래 1 ~ 출구 13)
+
+        /// 배경에서 살짝 들어올린 색 — 빈 칸을 그린다
+        static Color Lift(Color c, float up) => new Color(c.r + up, c.g + up * 1.02f, c.b + up * 1.06f, 1f);
+
+        static CaveLook CaveOf(int ch)
         {
-            //     배경      빈칸 위    빈칸      빈칸 아래  벽        벽 윗면
-            Cave(0x0b0d10, 0x151a20, 0x12161b, 0x0f1217, 0x2b323c, 0x4a5563),  // 1 홈만   — 차가운 회청색 (원래 값)
-            Cave(0x0c0c0e, 0x17181b, 0x131417, 0x101113, 0x2e2f33, 0x4f5157),  // 2 상자   — 중성 회색
-            Cave(0x090b0f, 0x131821, 0x10141b, 0x0d1016, 0x262d38, 0x435063),  // 3 금간   — 깊고 차가운 청회색
-            Cave(0x080c12, 0x131b25, 0x10171f, 0x0d131a, 0x27313f, 0x4a5b70),  // 4 얼음   — 푸르게
-            Cave(0x0a0a0f, 0x16151d, 0x121219, 0x0f0e15, 0x2c2d38, 0x4b4d5e),  // 5 포탈   — 옅은 보라 기운
-            Cave(0x07080a, 0x111317, 0x0e1013, 0x0c0e11, 0x2a2e35, 0x55606e),  // 6 피날레 — 제일 어둡고 윗면만 또렷
-        };
-        static CaveLook CaveOf(int ch) => Caves[Mathf.Clamp(ch, 1, Caves.Length) - 1];
+            //  ⚠️ **제곱근을 썼다가 물렀다** (09-20). 아래쪽만 확 벌어지고 위쪽 여섯 굴이 뭉쳤다 —
+            //     밝기가 6 14 18 21 23 25 27 28 30 31 33 34 35 로, 칸 차이가 처음엔 8 이고 나중엔 1 이었다.
+            //     **직선**이 고르다 (칸 차이 3~4). 대신 출구를 더 밝게 잡아 폭을 넓혔다 (6 → 48).
+            float k = Mathf.Clamp01((Mathf.Clamp(ch, 1, CaveDepth) - 1) / (float)(CaveDepth - 1));
+
+            //  깊은 바닥 → 출구. 위로 갈수록 붉은 기가 아주 조금 는다 (빛이 든다)
+            Color bg   = Color.Lerp(C32(0x05060a), C32(0x26313f), k);
+            Color rock = Color.Lerp(C32(0x22262e), C32(0x59657a), k);
+            Color top  = Color.Lerp(C32(0x39414f), C32(0x95a3b8), k);
+
+            return new CaveLook {
+                bg = bg,
+                lit = Lift(bg, 0.055f),           // 빈칸 위
+                mid = Lift(bg, 0.032f),           // 빈칸
+                dim = Lift(bg, 0.014f),           // 빈칸 아래
+                rock = rock, top = top };
+        }
 
         //  🔴 **굴이 바뀐 것을 알린다** (09-16 사장님: *"굴 바뀌는 게 약하다"* ·
         //     *"이펙트가 좀 약했어. 개인적으로 뒷 배경이 좀 바뀌는 것도 방법이라 생각함"*).
@@ -998,6 +1025,7 @@ namespace SlimeEscape
                     case '←': d = SnakeEngine.Dir.Left; break;
                     case '→': d = SnakeEngine.Dir.Right; break;
                     case '↧': d = SnakeEngine.Dir.Drop; break;
+                    case '⇄': d = SnakeEngine.Dir.Swap; break;
                     default: continue;
                 }
                 if (!SnakeEngine.Step(_L, st, d, out var ns)) break;
