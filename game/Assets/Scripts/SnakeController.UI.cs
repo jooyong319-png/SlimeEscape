@@ -29,7 +29,10 @@ namespace SlimeEscape
         /// 버튼이 커야 한다 — 작은 버튼은 그 자체가 난이도가 된다.
         void Pad(float w, float h)
         {
-            float b = Mathf.Clamp(Mathf.Min(w, h) * 0.12f, 46f, 108f);   // 버튼 한 변
+            //  🔴 (10-09 디테일 루프 5) 패드가 큰 판의 슬라임 · 바닥을 덮었다 → 조금 작게(0.12 → 0.105) · 옅게.
+            //     손가락이 올라간 단추만 또렷해진다 (Btn 의 _btnFade).
+            float b = Mathf.Clamp(Mathf.Min(w, h) * 0.105f, 44f, 96f);   // 버튼 한 변
+            _btnFade = 0.55f;
             float m = b * 0.28f;                                          // 가장자리 여백
             // 왼쪽 아래 십자 — 판의 단추와 **같은 말투**로 (형광 테 + 어두운 속)
             float px = m, py = h - m - b * 3f;
@@ -44,12 +47,16 @@ namespace SlimeEscape
             //     **폰에서 진행이 막힌다** (todo 모바일 손질, 09-12). 되돌리기 위 빈 줄에 둔다.
             if (_L.Pads.Count > 0 && Btn(new Rect(qx, py + b * 0.2f, b * 1.6f, b * 0.7f), "몸 놓기"))
                 Step(SnakeEngine.Dir.Drop);
+            //  🔴 슬라임 둘 · 키보드 교체 판 — 폰엔 Tab/Q 가 없다. 같은 빈 줄에 둔다 (10-08)
+            if (_L.Twin && _L.SwapKey && Btn(new Rect(qx, py + b * 0.2f, b * 1.6f, b * 0.7f), "바꾸기"))
+                Step(SnakeEngine.Dir.Swap);
             if (Btn(new Rect(qx, py + b, b * 1.6f, b), "되돌리기")) Undo();
             if (Btn(new Rect(qx, py + b * 2f + m * 0.4f, b * 1.6f, b * 0.8f), "다시"))
             {
                 if (_run != null) _run.restart++;
                 Restart();
             }
+            _btnFade = 1f;
         }
 
         /// <summary>
@@ -88,13 +95,25 @@ namespace SlimeEscape
             var dim = BgCol; dim.a = Mathf.Clamp01(el / 0.25f) * 0.78f;
             Tex(new Rect(0, 0, w, h), dim);
 
-            var big = new GUIStyle(_sBig) { alignment = TextAnchor.MiddleCenter };
-            GUI.Label(new Rect(0, h * 0.5f - 128f * _uiScale, w, 36f * _uiScale), "CLEAR", big);
-
-            // ---- 별 셋 ----
+            // ---- 별 셋 자리 (카드 크기를 먼저 정하려고 위로 올렸다) ----
             float sz = Mathf.Clamp(64f * _uiScale, 48f, 96f), gap = sz * 0.34f;
             float total = 3 * sz + 2 * gap;
             float sy = h * 0.5f - sz * 0.5f - 18f * _uiScale;
+
+            //  🔴 (10-09 디테일 루프) **카드 한 장** — 별과 글씨가 판 위에 그냥 떠 있어
+            //     뒤의 홈 · 슬라임과 섞여 어수선했다. 판은 둘레로 보이게 두고(방금 채운 판이 보상이다),
+            //     읽을 것만 말랑한 어두운 판 위에 모은다. 
+            {
+                float ca = Mathf.Clamp01(el / 0.25f);
+                float cw = Mathf.Min(Mathf.Max(total + 120f * _uiScale, w * 0.40f), w - 32f);
+                float top = h * 0.5f - 150f * _uiScale, bot = sy + sz + 74f * _uiScale;
+                var card = BgCol; card.a = 0.86f * ca;
+                //  ⚠️ Goo 로 깔았더니 **커다란 타원 덩어리**가 됐다 (10-09 화면) — 모서리만 둥근 카드로
+                Shape(new Rect(w * 0.5f - cw * 0.5f, top, cw, bot - top), card, PixelSprites.Soft().texture);
+            }
+
+            var big = new GUIStyle(_sBig) { alignment = TextAnchor.MiddleCenter };
+            GUI.Label(new Rect(0, h * 0.5f - 128f * _uiScale, w, 36f * _uiScale), "CLEAR", big);
 
             for (int k = 0; k < 3; k++)
             {
@@ -191,6 +210,13 @@ namespace SlimeEscape
             //  🔴 아래 여백을 넉넉히 — 52 였을 때 안내 글이 「설명」 단추와 **겹쳤다** (09-12 세로 폰 화면).
             //     폰에서는 글자가 커져서 두 줄이 한 자리에 앉는다. 글은 단추 **위**에 온다.
             float top = 78f * _uiScale, bot = 84f * _uiScale;
+            //  🔴 (10-09 디테일 루프 4) 위로 가는 단추 자리를 **따로 비운다** — 「∧」가 마디 첫 줄 사이에
+            //     끼어 마디인지 단추인지 헷갈렸다. 띠 끝 + 단추 높이만큼 목록을 내린다.
+            {
+                float barEnd0 = pad + Mathf.Clamp(h * 0.052f, 30f, 44f);
+                float ah0 = Mathf.Max(26f, pad * 0.8f);
+                top = Mathf.Max(top, barEnd0 + ah0 + 14f * _uiScale);
+            }
             int maxCols = Mathf.Clamp(Mathf.FloorToInt((w - pad * 2f) / (86f * _uiScale)), 3, 6);
             int rows = Mathf.CeilToInt(n / (float)maxCols);
             //  🔴 줄을 **고르게** 나눈다 — 7판을 6칸에 넣으니 윗줄 6 · 아랫줄 1 이 되어
@@ -328,14 +354,37 @@ namespace SlimeEscape
             //     좌우로 두면 "옆으로 간다" 로 읽혀 탈출하고 있다는 감각이 안 산다.
             //  ⚠️ 처음엔 `top * 0.34` 에 뒀다가 **상단 띠 글자와 겹쳤다** (09-20 화면: 굴 1 의 ∧ 가
             //     "제 1 굴" 아래 파묻혔다). 띠가 끝나는 자리 **아래**로 내린다.
-            var arS = new GUIStyle(_sBig) { alignment = TextAnchor.MiddleCenter };
-            arS.normal.textColor = new Color(1f, 1f, 1f, 0.55f);
-            float ah = Mathf.Max(26f, pad * 0.8f), aw = ah * 2.6f;
+            //  🔴 (10-09) 화살표 글자 하나 → **알약 단추 + 갈 굴 번호** 「∧  제 2 굴」.
+            //     어디로 가는지 써 있어야 누를 마음이 든다. 글자는 이미 쓰는 것만 (제 · 굴 · 숫자 · ∧∨).
+            var arS = new GUIStyle(_sSmall) { alignment = TextAnchor.MiddleCenter };
+            arS.normal.textColor = new Color(1f, 1f, 1f, 0.75f);
+            arS.hover.textColor = Color.white;
+            float ah = Mathf.Max(26f, pad * 0.8f) * 0.82f;
             float barEnd = pad + Mathf.Clamp(h * 0.052f, 30f, 44f);      // 상단 띠가 끝나는 자리
-            if (_menuCh < maxCh &&
-                GUI.Button(new Rect(w * 0.5f - aw * 0.5f, barEnd + 6f, aw, ah), "∧", arS)) MenuChapter(+1);
-            if (_menuCh > 1 &&
-                GUI.Button(new Rect(w * 0.5f - aw * 0.5f, h - bot * 0.30f - ah, aw, ah), "∨", arS)) MenuChapter(-1);
+            System.Func<Rect, string, bool> pillBtn = (r, label) =>
+            {
+                bool over = r.Contains(Event.current.mousePosition);
+                if (Event.current.type == EventType.Repaint)
+                {
+                    var pc = BgCol; pc.a = over ? 0.95f : 0.75f;
+                    Shape(new Rect(r.x + r.height * 0.5f, r.y, r.width - r.height, r.height), pc, Solid(Color.white));
+                    Shape(new Rect(r.x, r.y, r.height, r.height), pc, PixelSprites.Disc().texture);
+                    Shape(new Rect(r.xMax - r.height, r.y, r.height, r.height), pc, PixelSprites.Disc().texture);
+                }
+                return GUI.Button(r, label, arS);
+            };
+            if (_menuCh < maxCh)
+            {
+                string lb = "∧   제 " + (_menuCh + 1) + " 굴";
+                float aw = arS.CalcSize(new GUIContent(lb)).x + ah * 1.4f;
+                if (pillBtn(new Rect(w * 0.5f - aw * 0.5f, barEnd + 6f, aw, ah), lb)) MenuChapter(+1);
+            }
+            if (_menuCh > 1)
+            {
+                string lb = "∨   제 " + (_menuCh - 1) + " 굴";
+                float aw = arS.CalcSize(new GUIContent(lb)).x + ah * 1.4f;
+                if (pillBtn(new Rect(w * 0.5f - aw * 0.5f, h - bot * 0.30f - ah, aw, ah), lb)) MenuChapter(-1);
+            }
 
             CaveGauge(w, h, maxCh);
 
@@ -366,8 +415,9 @@ namespace SlimeEscape
             {
                 //  폰에는 방향키도 Esc 도 없다 — 양옆 < > 단추를 말한다
                 GUI.Label(new Rect(0, h - bot + 4f, w, 22f * _uiScale),
-                          Touchy ? "판을 눌러 시작 · < > 로 굴"
-                                 : "판을 눌러 시작 · ← → 굴 · 게임 중 Esc 로 여기로", _sSmall);
+                          //  🔴 (10-09) 굴 넘기기는 09-20 에 **위아래**로 바뀌었는데 글은 「< >」 · 「← →」 그대로였다
+                          Touchy ? "판을 눌러 시작 · 위아래 단추로 굴"
+                                 : "판을 눌러 시작 · ↑ ↓ 굴 · 게임 중 Esc 로 여기로", _sSmall);
             }
 
             //  ⚠️ 유니티 기본 회색 단추(GUI.skin.button)였다 — 납작한 화면에서 혼자 옛 모양이었다 (09-12).
@@ -812,7 +862,7 @@ namespace SlimeEscape
                 }
                 //  🔴 배경을 타이틀과 **같은 색**으로. 안내판 무대 색(StageBg) 이면
                 //     여기서 네모난 상자로 떠 보인다.
-                _guideCam.backgroundColor = BgCol;
+                _guideCam.backgroundColor = CaveLift(CaveOf(1));   // (10-09) 타이틀 바탕과 같은 색
                 _guideCam.rect = new Rect(sx2 / w, 1f - (sy2 + sh2) / h, sw2 / w, sh2 / h);
                 _guideCam.enabled = true;
             }
@@ -840,8 +890,31 @@ namespace SlimeEscape
             {
                 if (piece.width <= 1f || piece.height <= 1f) continue;
                 GUI.BeginGroup(piece);
-                CaveBackdrop(new Rect(-piece.x, -piece.y, w, h), 1);
+                CaveBackdrop(new Rect(-piece.x, -piece.y, w, h), 1, true);
                 GUI.EndGroup();
+            }
+
+            //  🔴 (10-09 디테일 루프 2) 시범 판 둘레를 **로비 바탕색으로 녹인다**.
+            //     시범 판은 가장자리가 어둡게 녹아서, 로비 바탕이 밝아진 뒤로 오려 낸 네모가 검게 드러났다.
+            //     IMGUI 는 카메라 위에 그려지므로, 네모 안쪽 가장자리에 바탕색 → 투명 띠를 덮는다.
+            if (Event.current == null || Event.current.type == EventType.Repaint)
+            {
+                var fade = PixelSprites.Fade().texture;
+                float fw = sw2 * 0.24f, fh = sh2 * 0.24f;
+                GUI.color = CaveLift(CaveOf(1));
+                GUI.DrawTextureWithTexCoords(new Rect(sx2, sy2, fw, sh2), fade, new Rect(0, 0, 1, 1));            // 왼
+                GUI.DrawTextureWithTexCoords(new Rect(sx2 + sw2 - fw, sy2, fw, sh2), fade, new Rect(1, 0, -1, 1)); // 오른
+                var m = GUI.matrix;
+                //  위 — 왼쪽이 짙은 띠를 시계 방향 90° 돌리면 위쪽이 짙어진다
+                var top = new Vector2(sx2 + sw2 * 0.5f, sy2 + fh * 0.5f);
+                GUIUtility.RotateAroundPivot(90f, top);
+                GUI.DrawTexture(new Rect(top.x - fh * 0.5f, top.y - sw2 * 0.5f, fh, sw2), fade);
+                GUI.matrix = m;
+                var bot = new Vector2(sx2 + sw2 * 0.5f, sy2 + sh2 - fh * 0.5f);
+                GUIUtility.RotateAroundPivot(-90f, bot);
+                GUI.DrawTexture(new Rect(bot.x - fh * 0.5f, bot.y - sw2 * 0.5f, fh, sw2), fade);
+                GUI.matrix = m;
+                GUI.color = Color.white;
             }
         }
 
@@ -1044,27 +1117,37 @@ namespace SlimeEscape
         {
             float s = Mathf.Clamp(h * 0.055f, 22f, 52f);          // 색 조각 한 변
             float gap = s * 1.5f;
-            float x = w * 0.5f - Mathf.Min(w * 0.42f, 320f);
             float y = h * 0.5f - gap * 2.6f;
+            //  🔴 (10-09 디테일 루프 7) 설명 묶음을 **글 길이에 맞춰 가운데**에 둔다.
+            //     전에는 왼쪽 끝(가운데 - 320)에 붙어 있어 제목 · 조작 줄(가운데 정렬)과 어긋나 왼쪽으로 쏠렸다.
+            string[] lines = { "이게 나. 한 칸씩 움직인다", "조각을 먹으면 몸이 길어진다",
+                               "여기를 몸으로 채운다  —  남아도 모자라도 안 된다", "머리의 마름모가 여기 앉아야 끝난다" };
+            float maxW = 0f;
+            foreach (var ln in lines) maxW = Mathf.Max(maxW, _sMid.CalcSize(new GUIContent(ln)).x);
+            float blockW = s * 1.5f + maxW;
+            float x = Mathf.Max(16f, w * 0.5f - blockW * 0.5f);
 
             //  🔴 판 위에 **그냥 겹쳐 그리고 있었다** — 설명 글이 뒤의 판(홈·조각)과 섞여 안 읽혔다 (09-13 화면).
-            //     굴 배경색으로 거의 불투명하게 먼저 덮는다. 판 카메라는 그대로 돈다 (todo 모바일 항목).
-            var veil = BgCol; veil.a = 0.94f;
+            //  ⚠️ (10-09) 0.94 로 덮었더니 뒤 판이 **흐린 네모로 비쳐** 지저분했다 → 완전히 덮는다.
+            var veil = BgCol; veil.a = 1f;
             Tex(new Rect(0, 0, w, h), veil);
+            //  설명 네 줄 뒤에 옅은 카드 — 한 묶음으로 읽히게
+            Shape(new Rect(x - s * 0.9f, y - s * 0.75f, blockW + s * 1.8f, gap * 3f + s * 2.5f),
+                  new Color(1f, 1f, 1f, 0.045f), PixelSprites.Soft().texture);
 
             GUI.Label(new Rect(0, y - gap * 2.0f, w, s * 1.4f), "슬라임 탈출", _sBig);
 
             //  글 폭은 **화면 안에서** 잰다 — 620 고정이라 세로 폰(390)에서 오른쪽이 잘렸다 (09-13).
             float tw = w - (x + s * 1.5f) - 16f;
-            Row(x, y, s, BodyCol, new Color(0, 0, 0, 0), "이게 나. 한 칸씩 움직인다", _sMid, false, tw);
+            Row(x, y, s, BodyCol, new Color(0, 0, 0, 0), lines[0], _sMid, false, tw);
             y += gap;
-            Row(x, y, s, Floor, FoodCol, "조각을 먹으면 몸이 길어진다", _sMid, false, tw);
+            Row(x, y, s, Floor, FoodCol, lines[1], _sMid, false, tw);
             y += gap;
             //  🔴 홈 테두리는 **FrameCol**(형광 초록)이다. HoleEdge 는 칸이 앉을 때
             //     한 번 번쩍이는 색이라, 여기 쓰면 게임에 없는 색을 가르치게 된다.
-            Row(x, y, s, FrameCol, HoleCol, "여기를 몸으로 채운다  —  남아도 모자라도 안 된다", _sMid, false, tw);
+            Row(x, y, s, FrameCol, HoleCol, lines[2], _sMid, false, tw);
             y += gap;
-            Row(x, y, s, HoleCol, CoreCol, "머리의 마름모가 여기 앉아야 끝난다", _sMid, true, tw);
+            Row(x, y, s, HoleCol, CoreCol, lines[3], _sMid, true, tw);
             y += gap * 1.5f;
 
             string keys = Touchy ? "버튼으로 움직인다  ·  되돌리기는 몇 번이든 된다"
@@ -1248,28 +1331,74 @@ namespace SlimeEscape
             //     여기(띠 바로 뒤)에서 그렸더니 **뒤에 오는 홈 점·걸음/커트 줄이 그 위에 올라와**
             //     글자가 포개져 안 읽혔다 (09-17 폰 844x390 화면). 맨 마지막에 그려야 안 덮인다.
 
-            // 남은 홈을 점으로 — 숫자보다 한눈에 들어온다
-            string dots = "";
-            for (int i = 0; i < need; i++) dots += (i < filled ? "●" : "○") + " ";
-            // 🔴 문이 여럿이면 남은 문도 보여준다
-            if (_L.Doors.Count > 1)
+            //  🔴 (10-09 디테일 루프 3) **정보 한 줄 · 알약 하나** — 글자 원(○●) · 「문 0/2」 · 걸음/커트가
+            //     두 줄로 흩어져 판 위 허공에 떠 있었다. 어두운 알약 하나에 모은다:
+            //       [ ● ● ○ ○ ○ │ 문 0/2 │ ☆ 0걸음 · 커트 15 ]
+            //     홈 점은 글자가 아니라 **도형 점**으로 — 채운 칸은 홈 테 색으로 밝다.
+            //     ⚠️ 칸이 많으면(14 넘게) 점 대신 「채움 n/m」 글로 줄인다 — 알약이 화면을 가로지른다.
             {
-                int openCount = 0;
-                for (int i = 0; i < _L.Doors.Count; i++) if ((_st.Dm & (1 << i)) != 0) openCount++;
-                dots += "     문 " + openCount + "/" + _L.Doors.Count;
+                var st = new GUIStyle(_sSmall) { alignment = TextAnchor.MiddleLeft };
+                float ph = Mathf.Max(24f, 26f * _uiScale), pad = 12f * _uiScale, gapX = 10f * _uiScale;
+                float dot = Mathf.Max(7f, 9f * _uiScale), dg = 5f * _uiScale;
+                bool useDots = need <= 14;
+                string fillTxt = useDots ? null : "채움 " + filled + "/" + need;
+                string doorTxt = null;
+                if (_L.Doors.Count > 1)
+                {
+                    int openCount = 0;
+                    for (int i = 0; i < _L.Doors.Count; i++) if ((_st.Dm & (1 << i)) != 0) openCount++;
+                    doorTxt = "문 " + openCount + "/" + _L.Doors.Count;
+                }
+                string stepTxt = null;
+                if (_L.Star >= 0 || def.cut > 0)
+                {
+                    stepTxt = (_st.Sc != 0 ? "★ " : "☆ ") + _steps + "걸음";
+                    if (def.cut > 0) stepTxt += "  ·  커트 " + def.cut;
+                }
+                float w0 = useDots ? need * (dot + dg) - dg : st.CalcSize(new GUIContent(fillTxt)).x;
+                float w1 = doorTxt != null ? st.CalcSize(new GUIContent(doorTxt)).x : 0f;
+                float w2 = stepTxt != null ? st.CalcSize(new GUIContent(stepTxt)).x : 0f;
+                float sep = gapX * 2f + 1f;
+                float pw = pad * 2f + w0 + (doorTxt != null ? sep + w1 : 0f) + (stepTxt != null ? sep + w2 : 0f);
+                float px = w * 0.5f - pw * 0.5f, py = barY + 6f * _uiScale;
+                var pill = BgCol; pill.a = 1f;   // 불투명 — 반투명이면 양 끝 반원과 겹치는 자리가 진해진다
+                //  ⚠️ Round 를 길게 늘이면 끝이 **렌즈 모양**이 된다 (10-09 화면) — 가운데 네모 + 양 끝 반원
+                Shape(new Rect(px + ph * 0.5f, py, pw - ph, ph), pill, Solid(Color.white));
+                Shape(new Rect(px, py, ph, ph), pill, PixelSprites.Disc().texture);
+                Shape(new Rect(px + pw - ph, py, ph, ph), pill, PixelSprites.Disc().texture);
+                float x = px + pad, cy = py + ph * 0.5f;
+                if (useDots)
+                {
+                    var on = RailOf(0);
+                    for (int i = 0; i < need; i++)
+                    {
+                        var dr = new Rect(x + i * (dot + dg), cy - dot * 0.5f, dot, dot);
+                        if (i < filled) Shape(dr, on, PixelSprites.Disc().texture);
+                        else
+                        {
+                            Shape(dr, new Color(1f, 1f, 1f, 0.35f), PixelSprites.Disc().texture);
+                            var inner = new Rect(dr.x + dot * 0.22f, dr.y + dot * 0.22f, dot * 0.56f, dot * 0.56f);
+                            var hole = BgCol; hole.a = 1f; Shape(inner, hole, PixelSprites.Disc().texture);
+                        }
+                    }
+                }
+                else GUI.Label(new Rect(x, py, w0 + 4f, ph), fillTxt, st);
+                x += w0;
+                var sepCol = new Color(1f, 1f, 1f, 0.16f);
+                if (doorTxt != null)
+                {
+                    x += gapX; Bar(new Rect(x, cy - ph * 0.28f, 1f, ph * 0.56f), sepCol); x += 1f + gapX;
+                    GUI.Label(new Rect(x, py, w1 + 4f, ph), doorTxt, st); x += w1;
+                }
+                if (stepTxt != null)
+                {
+                    x += gapX; Bar(new Rect(x, cy - ph * 0.28f, 1f, ph * 0.56f), sepCol); x += 1f + gapX;
+                    GUI.Label(new Rect(x, py, w2 + 4f, ph), stepTxt, st);
+                }
             }
-            GUI.Label(new Rect(0, barY + 4f * _uiScale, w, 22f * _uiScale), dots, _sMid);
 
             //  ⛔ "몸 N칸 · 홈 M칸" 줄은 일반 판에서 뺐다 (09-12 사장님: "튜토일 때만 알려주면 됨").
             //     튜토리얼은 위에서 빠져나가 오른쪽 안내판의 Coach() 가 같은 걸 말한다.
-
-            // 🔴 걸음 수와 커트라인은 늘 보여야 한다. 다 끝나고 알려주면 늦다.
-            if (_L.Star >= 0 || def.cut > 0)
-            {
-                string s = (_st.Sc != 0 ? "★ " : "☆ ") + _steps + "걸음";
-                if (def.cut > 0) s += "  ·  커트 " + def.cut;
-                GUI.Label(new Rect(0, barY + 27f * _uiScale, w, 20f * _uiScale), s, _sSmall);
-            }
 
             // 🔴 지도 대신 **지나온 길**을 보여준다. 어디서 갈렸는지가 남는다.
             //  🔴 몸 길이 줄(88)과 겹치지 않게 내렸다
@@ -1294,14 +1423,46 @@ namespace SlimeEscape
                     //     눌러 보면 순서대로 열리므로 하는 일은 같다.
 
                     // 민 방향을 잠깐 크게 보여준다 — 답이 아니라 **다음 한 수**다
+                    //  🔴 (10-09 디테일 루프 9) 판 한가운데 금색 큰 글씨 → **머리 옆 화살표 말풍선**.
+                    //     가운데 글은 판을 가렸고, 어느 쪽으로 가라는 건지 머리와 떨어져 있어 한 번 더 읽어야 했다.
+                    //     말로 해야 하는 것(진 자리 · 몸 놓기)은 판이 아니라 위쪽 정보 줄 아래 알약에 띄운다.
                     if (Time.time - _nudgeShow < 2.2f)
                     {
-                        string face = _lostSet.IsLost(_st) ? "여긴 이미 진 자리다 — 되돌리세요"
-                            : _nudgeDir == SnakeEngine.Dir.Drop ? "여기서 몸을 놓으세요"
-                            : "이쪽으로   " + "↑↓←→"[(int)_nudgeDir];
-                        var ns2 = new GUIStyle(_sBig) { fontSize = Mathf.RoundToInt(26 * _uiScale) };
-                        ns2.normal.textColor = StarLit;
-                        GUI.Label(new Rect(0, h * 0.5f - 24f, w, 44f), face, ns2);
+                        float age = Time.time - _nudgeShow;
+                        float fadeA = Mathf.Clamp01(age / 0.15f) * Mathf.Clamp01((2.2f - age) / 0.35f);
+                        bool lost = _lostSet != null && _lostSet.IsLost(_st);   // 판별기가 아직 없으면 진 자리로 안 친다
+                        if (lost || _nudgeDir == SnakeEngine.Dir.Drop)
+                        {
+                            string say = lost ? "여긴 이미 진 자리다 — 되돌리세요" : "여기서 몸을 놓으세요";
+                            var ns2 = new GUIStyle(_sMid) { alignment = TextAnchor.MiddleCenter };
+                            ns2.normal.textColor = new Color(StarLit.r, StarLit.g, StarLit.b, fadeA);
+                            float tw2 = ns2.CalcSize(new GUIContent(say)).x + 36f * _uiScale, th2 = 30f * _uiScale;
+                            var pc = BgCol; pc.a = 0.88f * fadeA;
+                            var pr = new Rect(w * 0.5f - tw2 * 0.5f, barY + 42f * _uiScale, tw2, th2);
+                            Shape(new Rect(pr.x + th2 * 0.5f, pr.y, pr.width - th2, th2), pc, Solid(Color.white));
+                            Shape(new Rect(pr.x, pr.y, th2, th2), pc, PixelSprites.Disc().texture);
+                            Shape(new Rect(pr.xMax - th2, pr.y, th2, th2), pc, PixelSprites.Disc().texture);
+                            GUI.Label(pr, say, ns2);
+                        }
+                        else if (_cam != null)
+                        {
+                            //  머리 화면 자리 + 한 칸 크기(화소)
+                            Vector3 sp = _cam.WorldToScreenPoint(CellPos(_st.Head));
+                            float cell = Screen.height / (2f * _cam.orthographicSize);
+                            Vector2 dir = _nudgeDir == SnakeEngine.Dir.Up ? Vector2.down
+                                        : _nudgeDir == SnakeEngine.Dir.Down ? Vector2.up
+                                        : _nudgeDir == SnakeEngine.Dir.Left ? Vector2.left : Vector2.right;
+                            float bob = 0.12f * Mathf.Sin(age * 9f);
+                            Vector2 c = new Vector2(sp.x, Screen.height - sp.y) + dir * cell * (1.05f + bob);
+                            float d = cell * 0.78f;
+                            var bub = BgCol; bub.a = 0.9f * fadeA;
+                            var ring = StarLit; ring.a = fadeA;
+                            Shape(new Rect(c.x - d * 0.56f, c.y - d * 0.56f, d * 1.12f, d * 1.12f), ring, PixelSprites.Disc().texture);
+                            Shape(new Rect(c.x - d * 0.5f, c.y - d * 0.5f, d, d), bub, PixelSprites.Disc().texture);
+                            var ar = new GUIStyle(_sBig) { alignment = TextAnchor.MiddleCenter, fontSize = Px(Mathf.Clamp(d * 0.62f, 14f, 40f)) };
+                            ar.normal.textColor = ring;
+                            GUI.Label(new Rect(c.x - d * 0.5f, c.y - d * 0.52f, d, d), "↑↓←→"[(int)_nudgeDir].ToString(), ar);
+                        }
                     }
                     string note = _tooBig ? "이 판은 너무 커서 다음 걸음은 못 알려드립니다"
                                 : _hint == 1 ? "먼저 채울 홈이 깜빡입니다"

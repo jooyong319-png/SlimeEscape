@@ -29,6 +29,17 @@ namespace SlimeEscape
         const int CaveStreams = 8;
         /// 한 화면을 내려오는 데 걸리는 초 — 크면 느리다. 🔴 눈에 띄면 너무 빠른 것이다.
         const float CaveFlowSec = 42f;
+        /// 🔴 (10-09) 흐린 배경 — 덩어리 수 · 색 · 초록빛 세기. 시안 slime-soft 의 흐림 22 · 진하기 65 에 맞췄다
+        const int CaveBlobs = 16, CaveGlows = 5;
+        static readonly Color CaveBlobCol = new Color(0.035f, 0.047f, 0.07f, 0.70f);
+        const float CaveGlowA = 0.07f;
+        /// 굴 안쪽을 밝히는 세기 — 예전 바위(0.55)와 비슷한 밝기가 되게
+        const float CaveLiftA = 1f;
+        /// 타이틀 바탕색 — 시범 판 카메라도 이 색을 써야 오려 낸 네모가 안 드러난다
+        static Color CaveLift(CaveLook cave)
+        {
+            var c = Color.Lerp(cave.rock, new Color32(0x21, 0x2a, 0x36, 0xff), 0.5f); c.a = CaveLiftA; return c;
+        }
 
         //  굴마다 한 마디. 판 고르기의 "제 N 굴" 밑에 붙일 이름이다.
         //  🔴 기믹 이름을 그대로 쓴다 — 그 굴에서 **처음 만나는 것**이 곧 그 굴의 이름이다.
@@ -52,7 +63,7 @@ namespace SlimeEscape
         };
 
         /// 알림이 떠 있는 시간 (나타나고 · 머물고 · 사라지고)
-        const float BannerIn = 0.45f, BannerHold = 1.25f, BannerOut = 0.75f;
+        const float BannerIn = 0.30f, BannerHold = 0.95f, BannerOut = 0.65f;   // (10-09) 2.45 → 1.9 초
 
         /// <summary>
         /// 🔴 **지금 몇 층까지 올라왔나** (09-20 사장님이 받아오신 조언:
@@ -131,19 +142,26 @@ namespace SlimeEscape
             //     판 안으로 들어갔다). 굴마다 판 크기가 달라 **위로 피할 자리가 없다** —
             //     상단 띠 · 홈 점 · 걸음/커트 줄이 이미 위쪽을 채우고 있다.
             //     가리는 건 2.45 초뿐이고, 사장님이 말씀하신 건 *"굴 바뀌는 게 약하다"* 였다.
-            float pw = Mathf.Min(w * 0.44f, 430f);
-            var plate = HoleCol; plate.a = 0.78f * a;
-            Goo(new Rect(w * 0.5f - pw * 0.5f, y - h * 0.015f, pw, h * 0.145f), plate);
+            //  🔴 (10-09 디테일 루프 6) **판이 뜨기 전 짧은 장면**으로 바꿨다.
+            //     반투명 판을 판 한가운데 깔아 2.45 초 가리던 것은 "판 위에 무언가 떴다"로 읽혀
+            //     판도 글자도 어중간했다. 이제 화면 전체를 굴 바탕색으로 덮고 가운데에 크게 —
+            //     걷히면서 판이 드러난다. 굴을 넘는 순간이 **장(章)이 바뀌는 순간**이 된다.
+            //  ⚠️ 굴 바탕(밝힌 회청색)으로 덮었더니 판과 색이 같아 **비쳐 보여 흐리멍덩**했다 → 더 어둡게.
+            var cover = Color.Lerp(BgCol, CaveLift(CaveOf(_caveShown)), 0.35f); cover.a = a;
+            //  글자는 덮개보다 **먼저** 사라진다 — 같이 옅어지면 걷히는 동안 글자가 판 위에 겹쳐 남는다
+            float ta = a * a * a * a;   // 걷힐 때 판 위에 글자 자국이 남지 않게 더 빨리
+            Shape(new Rect(0, 0, w, h), cover, Solid(Color.white));
+            y = h * 0.40f + rise;
 
-            var big = new GUIStyle(_sBig) { fontSize = Px(Mathf.Clamp(h * 0.052f, 20f, 40f)) };
-            big.normal.textColor = new Color(1f, 1f, 1f, 0.92f * a);
-            GUI.Label(new Rect(0, y, w, h * 0.09f), "제 " + _caveShown + " 굴", big);
+            var big = new GUIStyle(_sBig) { fontSize = Px(Mathf.Clamp(h * 0.075f, 26f, 58f)) };
+            big.normal.textColor = new Color(1f, 1f, 1f, 0.92f * ta);
+            GUI.Label(new Rect(0, y, w, h * 0.11f), "제 " + _caveShown + " 굴", big);
 
             var sub = new GUIStyle(_sMid) { fontSize = Px(Mathf.Clamp(h * 0.030f, 13f, 22f)) };
-            sub.normal.textColor = new Color(1f, 1f, 1f, 0.55f * a);
+            sub.normal.textColor = new Color(1f, 1f, 1f, 0.55f * ta);
             string name = _caveShown >= 1 && _caveShown <= CaveNames.Length
                         ? CaveNames[_caveShown - 1] : "";
-            GUI.Label(new Rect(0, y + h * 0.075f, w, h * 0.06f), name, sub);
+            GUI.Label(new Rect(0, y + h * 0.095f, w, h * 0.06f), name, sub);
         }
 
         /// <summary>
@@ -152,7 +170,7 @@ namespace SlimeEscape
         ///    부르는 쪽이 <c>GUI.BeginGroup</c> 으로 오려 내고, 여기에는 통째 자리를 그대로 준다.
         ///    (타이틀은 시범 슬라임을 덮지 않으려고 네 조각으로 오려 부른다)
         /// </summary>
-        void CaveBackdrop(Rect area, int chapter)
+        void CaveBackdrop(Rect area, int chapter, bool lit = false)
         {
             if (Event.current != null && Event.current.type != EventType.Repaint) return;
             var cave = CaveOf(chapter);
@@ -162,61 +180,55 @@ namespace SlimeEscape
             //     해시에 들어가는 자리가 너무 가까웠다. 굴마다 크게 벌려 준다.
             int salt = chapter * CaveSalt + chapter * chapter * 7919 + 131;
 
-            //  ---- ① 굴 벽 ----
-            //  🔴 위아래에서 밀고 들어온 덩어리. **둥근 네모**를 반쯤 화면 밖으로 빼서 그린다 —
-            //     모서리만 보이므로 바위처럼 읽히고, 가운데는 비어 있어 글자를 안 가린다.
-            var rock = cave.rock; rock.a = 0.55f;
-            var round = PixelSprites.Round().texture;
-            for (int i = 0; i < 7; i++)
+            //  🔴 **(10-09) 흐릿하게 다시 그렸다.** 사장님: *"배경도 저렇게 디테일할 필요 없고,
+            //     좀 뒤에 흐리샇게 나오기만 하면 되거든"*. 브라우저 시안(slime-soft)에서 고른 그대로다.
+            //     예전 ① 둥근 네모 바위 ② 흘러내리는 줄기는 **모양이 읽혀서** 뺐다 (git 에 남아 있다).
+            //     이제는 무엇인지 알아볼 필요 없는 **흐린 덩어리**와 **은은한 초록빛**뿐이다.
+            //     흐림은 Halo(가장자리로 옅어지는 동그라미)로 낸다 — IMGUI 에는 흐림 효과가 없다.
+            float now = Time.unscaledTime;
+            var halo = PixelSprites.Halo().texture;
+
+            //  ---- ⓪ 굴 안쪽 ---- 🔴 바탕(cave.bg)은 거의 검정이다. 예전엔 밝은 바위 덩어리가 화면 대부분을
+            //     덮어서 회청색으로 보였다 — 덩어리를 어둡게 바꾸면 화면 전체가 까매진다 (10-09 첫 화면).
+            //     그래서 굴 색으로 먼저 한 겹 밝혀 두고, 그 위에 어두운 덩어리를 흐리게 얹는다.
+            //  예전 타이틀의 회청색(33,42,54)에 맞춘다 — 굴 돌색을 푸른 회색 쪽으로 반쯤 당긴다
+            //  ⚠️ 판 고르기에는 **안 깐다** — 바탕이 밝아지면 열린 판의 받침이 묻혀 숫자만 뜬다 (10-09 화면)
+            if (lit) Shape(area, CaveLift(cave), Solid(Color.white));
+
+            //  ---- ① 흐린 덩어리 ---- 위에서 늘어진 것 · 아래에서 솟은 것 · 양옆 벽
+            for (int i = 0; i < CaveBlobs; i++)
             {
-                bool up = i % 2 == 0;
-                float rx = Hash(salt + i * 17 + 3);
-                //  ⚠️ **알약 여러 개가 떠 있는 꼴**이었다 (09-17 화면: 판 고르기 위쪽에 가로로 긴
-                //     둥근 판이 그대로 드러났다). 둥근 네모의 모서리가 다 보였기 때문이다.
-                //     🔴 훨씬 넓게 만들어 **거의 다 화면 밖으로** 밀어 넣는다 — 걸치는 건 모서리 하나뿐이다.
-                float rw = w * Mathf.Lerp(0.55f, 1.15f, Hash(salt + i * 29 + 7));
-                float rh = h * Mathf.Lerp(0.30f, 0.60f, Hash(salt + i * 41 + 11));
-                float x = area.x + w * Mathf.Lerp(-0.25f, 1.25f, rx) - rw * 0.5f;
-                float y = up ? area.y - rh * 0.86f : area.y + h - rh * 0.14f;
-                var c = rock; c.a *= Mathf.Lerp(0.5f, 1f, Hash(salt + i * 53 + 13));
-                Shape(new Rect(x, y, rw, rh), c, round);
+                int side = i < 7 ? 0 : i < 14 ? 1 : 2;           // 0 위 · 1 아래 · 2 옆
+                float rx = w * Mathf.Lerp(0.12f, 0.25f, Hash(salt + i * 29 + 7));
+                float ry = h * Mathf.Lerp(0.22f, 0.40f, Hash(salt + i * 41 + 11));
+                float cx, cy;
+                if (side == 2) { cx = (i % 2 == 0) ? -w * 0.02f : w * 1.02f; cy = h * 0.5f; rx = w * 0.14f; ry = h * 0.9f; }
+                else
+                {
+                    cx = w * Mathf.Lerp(-0.05f, 1.05f, Hash(salt + i * 17 + 3));
+                    cy = side == 0 ? h * Mathf.Lerp(-0.16f, 0.0f, Hash(salt + i * 23 + 5))
+                                   : h * Mathf.Lerp(1.0f, 1.16f, Hash(salt + i * 23 + 5));
+                }
+                //  아주 느리게 좌우로 흔들리고 숨 쉰다 — 움직이는 게 눈에 띄면 너무 빠른 것이다
+                float ph = Hash(salt + i * 53 + 13) * 6.283f;
+                float sp = Mathf.Lerp(0.03f, 0.09f, Hash(salt + i * 61 + 17));
+                cx += Mathf.Sin(now * sp + ph) * w * 0.02f;
+                float sy = 1f + 0.04f * Mathf.Sin(now * sp * 1.3f + ph);
+                var c = CaveBlobCol; c.a *= Mathf.Lerp(0.8f, 1f, Hash(salt + i * 67 + 19));
+                Shape(new Rect(area.x + cx - rx, area.y + cy - ry * sy, rx * 2f, ry * 2f * sy), c, halo);
             }
 
-            //  ---- ② 흐르는 슬라임 ----
-            //  천장에서 한 가닥씩 늘어져 내려온다. 게임의 말랑한 덩어리를 그대로 쓴다 —
-            //  몸통 아래 방울이 매달려 있어 "흘러내리는 것"으로 읽힌다.
-            float now = Time.unscaledTime;
-            for (int i = 0; i < CaveStreams; i++)
+            //  ---- ② 은은한 초록빛 ---- 굴 어딘가에 슬라임이 있다는 느낌만
+            for (int i = 0; i < CaveGlows; i++)
             {
-                float lane = (i + 0.5f) / CaveStreams;
-                float jx = (Hash(salt + i * 61 + 5) - 0.5f) * (w / CaveStreams) * 0.7f;
-                float x = area.x + w * lane + jx;
-
-                //  ⚠️ 화면 높이의 26~52% 로 잡았더니 **이끼 낀 기둥**처럼 보였다 (09-17 화면) —
-                //     너무 길쭉하면 매달려 흐르는 게 아니라 **서 있는 것**으로 읽힌다.
-                //     짧고 굵게, 아래 방울을 키워야 "늘어진 것"이 된다.
-                //  다 자랐을 때의 길이. 아래에서 이 길이의 0.22~1 배 사이를 오간다.
-                float len = h * Mathf.Lerp(0.17f, 0.31f, Hash(salt + i * 71 + 9));
-                float wide = len * Mathf.Lerp(0.26f, 0.40f, Hash(salt + i * 83 + 15));
-
-                //  가닥마다 빠르기와 박자를 어긋낸다 — 나란히 움직이면 발처럼 보인다
-                float sp = Mathf.Lerp(0.72f, 1.35f, Hash(salt + i * 97 + 21));
-                float t = Mathf.Repeat(now / CaveFlowSec * sp + Hash(salt + i * 31 + 2), 1f);
-
-                //  🔴 **천장에 붙여 둔다.** 화면을 훑고 내려가게 했더니 한가운데 뜬 가닥이 잔뜩 생겨
-                //     흘러내리는 것이 아니라 **떠 있는 알약**으로 보였다 (09-17 화면).
-                //     흘러내리는 것은 어딘가에 **매달려 있어야** 그렇게 읽힌다 —
-                //     천장에서 자라 내려오다 도로 줄어든다. 떠 있는 가닥이 아예 안 생긴다.
-                float ease = t < 0.5f ? t * 2f : (1f - t) * 2f;
-                ease = ease * ease * (3f - 2f * ease);
-                float grow = 0.22f + 0.78f * ease;
-                float y = area.y - wide * 0.35f;
-
-                var tex = PixelSprites.Goo(wide / len, 1, i + chapter, 1f, 0.55f, 0.34f);
-                float room = PixelSprites.GooRoom(1, 0.55f);
-                var col = BodyCol;
-                col.a = 0.085f * Mathf.Lerp(0.6f, 1f, Hash(salt + i * 13 + 1));
-                Shape(new Rect(x - wide * 0.5f, y, wide, len * grow * (1f + room)), col, tex);
+                float gx = w * Mathf.Lerp(0.08f, 0.92f, Hash(salt + i * 71 + 23));
+                float gy = h * Mathf.Lerp(0.13f, 0.87f, Hash(salt + i * 83 + 29));
+                float gr = h * Mathf.Lerp(0.26f, 0.42f, Hash(salt + i * 89 + 31));
+                float ph = Hash(salt + i * 97 + 37) * 6.283f;
+                float sp = Mathf.Lerp(0.15f, 0.30f, Hash(salt + i * 101 + 41));
+                gx += Mathf.Sin(now * 0.05f + ph) * 20f;
+                var g = BodyCol; g.a = (CaveGlowA + 0.035f * Mathf.Sin(now * sp * 2f + ph));
+                Shape(new Rect(area.x + gx - gr, area.y + gy - gr, gr * 2f, gr * 2f), g, halo);
             }
         }
     }

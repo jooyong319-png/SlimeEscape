@@ -89,15 +89,21 @@ namespace SlimeEscape
         ///
         /// 그래서 UI 는 무채색만 쓴다. 손이 올라가면 **밝아질 뿐**이다.
         /// </summary>
+        /// 🔴 (10-09 디테일 루프 5) 손가락 패드처럼 **판 위에 얹히는 단추**를 옅게 그릴 때 쓴다 (1 = 보통).
+        ///    누르고 있는(손가락이 올라간) 단추는 옅어지지 않는다.
+        float _btnFade = 1f;
+
         bool Btn(Rect r, string label, bool on = true)
         {
             bool hot = on && r.Contains(Event.current.mousePosition);
+            float fade = hot ? 1f : _btnFade;
             Color fill = !on ? new Color(1, 1, 1, 0.035f)
                        : hot ? new Color(1, 1, 1, 0.155f)
                              : new Color(1, 1, 1, 0.075f);
+            fill.a *= fade;
             //  🔴 네모난 판이 아니라 **젤리 알**로 (09-13). 테는 여전히 없다 — 윤만 얹는다.
             Goo(r, fill);
-            if (on) Sheen(r, Color.white, hot ? 0.10f : 0.05f);
+            if (on) Sheen(r, Color.white, (hot ? 0.10f : 0.05f) * fade);
 
             if (!string.IsNullOrEmpty(label))
             {
@@ -106,9 +112,14 @@ namespace SlimeEscape
                     fontSize = Px(Mathf.Clamp(r.height * 0.42f, 12f, 20f)),
                     alignment = TextAnchor.MiddleCenter,
                 };
+                //  🔴 (10-10 디테일 루프 10) **글자가 단추보다 넓으면 줄인다** — 가로 폰(844×390)에서
+                //     「되돌리기」가 단추 오른쪽으로 삐져나왔다. 글자 크기는 높이로만 정하고 폭은 안 봤다.
+                float room = r.width * 0.86f;
+                for (int k = 0; k < 8 && ls.fontSize > 10 && ls.CalcSize(new GUIContent(label)).x > room; k++)
+                    ls.fontSize -= 1;
                 ls.normal.textColor = !on ? new Color(1, 1, 1, 0.30f)
                                     : hot ? Color.white
-                                          : new Color(1, 1, 1, 0.78f);
+                                          : new Color(1, 1, 1, 0.78f * Mathf.Lerp(1f, fade, 0.6f));
                 GUI.Label(r, label, ls);
             }
             bool click = on && GUI.Button(r, GUIContent.none, GUIStyle.none);
@@ -146,6 +157,16 @@ namespace SlimeEscape
         ///
         /// 끌기는 손을 뗄 때까지 이어진다. 막대 밖으로 나가도 놓치지 않는다.
         /// </summary>
+        /// 양 끝이 반원인 막대 (가운데 네모 + 반원 둘)
+        void Pill(Rect r, Color c)
+        {
+            float d = r.height;
+            if (r.width <= d) { Shape(r, c, PixelSprites.Disc().texture); return; }
+            Shape(new Rect(r.x + d * 0.5f, r.y, r.width - d, d), c, Solid(Color.white));
+            Shape(new Rect(r.x, r.y, d, d), c, PixelSprites.Disc().texture);
+            Shape(new Rect(r.xMax - d, r.y, d, d), c, PixelSprites.Disc().texture);
+        }
+
         float VolumeBar(Rect r, float v)
         {
             var e = Event.current;
@@ -157,17 +178,18 @@ namespace SlimeEscape
                 e.Use();
             }
 
-            Shape(r, HoleCol, PixelSprites.Soft().texture);
-            if (v > 0.001f)
-            {
-                float fw = Mathf.Max(r.height, r.width * v);
-                Shape(new Rect(r.x, r.y, fw, r.height), new Color(1f, 1f, 1f, 0.62f), PixelSprites.Soft().texture);
-            }
-            //  잡는 자리 — 어디를 끌면 되는지 보여준다
-            float hx = r.x + Mathf.Clamp(r.width * v, r.height * 0.5f, r.width - r.height * 0.5f);
-            Shape(new Rect(hx - r.height * 0.34f, r.y - r.height * 0.34f,
-                           r.height * 0.68f, r.height * 1.68f),
-                  Color.white, PixelSprites.Round().texture);
+            //  🔴 (10-09 디테일 루프 8) 두꺼운 회색 막대 + 가는 흰 손잡이 → **얇은 알약 막대 + 동그란 공**.
+            //     끄는 자리(r)는 그대로 두고 보이는 것만 얇게 — 손가락으로 잡기 어려워지면 안 된다.
+            float th = Mathf.Max(4f, r.height * 0.55f), ty = r.y + (r.height - th) * 0.5f;
+            float knob = Mathf.Max(14f, r.height * 2.3f);
+            float hx = r.x + Mathf.Clamp(r.width * v, knob * 0.5f, r.width - knob * 0.5f);
+            Pill(new Rect(r.x, ty, r.width, th), new Color(1f, 1f, 1f, 0.10f));
+            if (v > 0.001f) Pill(new Rect(r.x, ty, Mathf.Max(th, hx - r.x), th), new Color(1f, 1f, 1f, 0.70f));
+            //  잡는 자리 — 어디를 끌면 되는지 보여준다. 둘레에 옅은 그림자를 깔아 막대 위에 떠 보이게
+            float cy = r.y + r.height * 0.5f;
+            var sh = BgCol; sh.a = 0.55f;
+            Shape(new Rect(hx - knob * 0.62f, cy - knob * 0.62f, knob * 1.24f, knob * 1.24f), sh, PixelSprites.Halo().texture);
+            Shape(new Rect(hx - knob * 0.5f, cy - knob * 0.5f, knob, knob), Color.white, PixelSprites.Disc().texture);
             return v;
         }
 

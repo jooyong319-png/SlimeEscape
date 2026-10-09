@@ -158,6 +158,7 @@ namespace SlimeEscape
         //    벽과 가르는 건 색이 아니라 **윗면이 밝고 테가 있다**는 것 — "이건 낱개다".
         static readonly Color BoxCol  = new Color32(0x44, 0x4d, 0x5a, 0xff);
         static readonly Color BoxTop  = new Color32(0x6e, 0x7a, 0x8a, 0xff);
+        static readonly Color BoxIn   = new Color32(0x37, 0x3f, 0x4b, 0xff);   // 상자 안쪽 판 (10-09)
         // 🔴 포탈 — **보라**다 (09-05 사장님: "포털색 + 이게 포털이다! 라는 느낌").
         //    ⚠️ 색 규칙 ③(나머지는 무채색)의 **예외**다. 사장님이 정하셨다.
         //       무채색으로 뒀더니 바닥에 묻혀 "이게 뭐지" 가 됐다.
@@ -176,6 +177,7 @@ namespace SlimeEscape
         static readonly Color IceTop   = new Color32(0x8f, 0xb8, 0xd4, 0xff);  // 🔴 **밟는 면.** 미끄럽다는 말은 여기서 한다
         static readonly Color IceLine  = new Color32(0x8f, 0xa6, 0xbe, 0xff);  // 결
         static readonly Color IceShine = new Color32(0xdf, 0xec, 0xf8, 0xff);  // 미끄러져 지나가는 빛
+        static readonly Color SnowCol  = new Color32(0xe2, 0xe9, 0xef, 0xf0);  // (10-09) 얼음 윗면의 얇은 눈
         // 🔴 금 간 바닥 (rev.12) — **딛고 설 수 있는 것**이라 벽(Rock)과 같은 계열이다.
         //    벽과 가르는 건 **따뜻한 쪽으로 기운 어두움 + 금**. "돌인데 삭았다".
         //    ⚠️ 색을 주면 정보로 읽혀 조각(주황)과 다툰다 — 갈색이 아니라 **따뜻한 회색**이다.
@@ -379,6 +381,7 @@ namespace SlimeEscape
         //  미는 상자 — 자리가 매 걸음 바뀐다 (몸처럼 따라 그린다)
         readonly List<SpriteRenderer> _boxViews = new List<SpriteRenderer>();
         readonly List<SpriteRenderer> _boxTops = new List<SpriteRenderer>();
+        readonly List<SpriteRenderer> _boxInner = new List<SpriteRenderer>();
         // 🔴 **상자는 무겁게 움직인다** (09-05 사장님: "너무 슥 하고 밀리거든?").
         //    자리를 바로 찍으면 순간이동으로 보인다. 슬라임과 반대 곡선을 쓴다 —
         //    슬라임은 빨리 떠서 사뿐히 앉고(Ease), 상자는 **버티다 밀려서 쿵 선다**.

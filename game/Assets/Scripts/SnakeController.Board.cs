@@ -23,7 +23,7 @@ namespace SlimeEscape
             if (_root != null) Destroy(_root.gameObject);
             _root = new GameObject("Board").transform;
             _segs.Clear(); _foodViews.Clear(); _foodExtra.Clear(); _links.Clear();
-            _zoneDots.Clear(); _boxViews.Clear(); _boxTops.Clear(); _ports.Clear();
+            _zoneDots.Clear(); _boxViews.Clear(); _boxTops.Clear(); _boxInner.Clear(); _ports.Clear();
             _iceShines.Clear(); _cracks.Clear();
 
             for (int y = 0; y < _L.H; y++)
@@ -78,6 +78,19 @@ namespace SlimeEscape
                         cr.l2.transform.localScale = new Vector3(0.040f, 0.34f, 1f);
                         cr.l2.transform.localRotation = Quaternion.Euler(0, 0, 30f);
                         cr.l2.color = CrackLine;
+                        //  🔴 (10-09 디자인) 아래쪽 두께 — 납작한 색판이 아니라 **한 장의 돌판**으로
+                        var under = NewSprite("CrackUnder", -2);
+                        under.sprite = PixelSprites.Solid();
+                        under.transform.position = (Vector3)CellPos(c) + new Vector3(0, -0.40f, -0.009f);
+                        under.transform.localScale = new Vector3(0.86f, 0.10f, 1f);
+                        var uc = CrackLine; uc.a = 0.55f; under.color = uc;
+                        //  잔금 — 큰 금에서 갈라져 나간 짧은 결
+                        var l3 = NewSprite("CrackLine", -2);
+                        l3.sprite = PixelSprites.Solid();
+                        l3.transform.position = (Vector3)CellPos(c) + new Vector3(-0.03f, -0.10f, -0.010f);
+                        l3.transform.localScale = new Vector3(0.030f, 0.18f, 1f);
+                        l3.transform.localRotation = Quaternion.Euler(0, 0, -38f);
+                        var l3c = CrackLine; l3c.a = 0.8f; l3.color = l3c;
                         _cracks.Add(cr);
                     }
 
@@ -167,6 +180,23 @@ namespace SlimeEscape
                                 ln.transform.localScale = new Vector3(k == 0 ? 0.44f : 0.30f, 0.035f, 1f);
                                 var lc = IceLine; lc.a = k == 0 ? 0.40f : 0.26f;
                                 ln.color = lc;
+                            }
+                            //  🔴 (10-09 사장님: "지금 상태에서 위에 눈이 살짝 있게") — 윗면에 눈이 얇게 쌓인다.
+                            //     칸마다 봉긋한 덩이 넷을 이어 붙여 한 줄로 읽히게 (덩이 크기는 칸마다 조금씩 다르다)
+                            var snowBase = NewSprite("IceSnow", -1);
+                            snowBase.sprite = PixelSprites.Solid();
+                            snowBase.transform.position = CellPos(c) + new Vector2(0f, 0.485f);
+                            snowBase.transform.localScale = new Vector3(1.0f, 0.05f, 1f);
+                            snowBase.color = SnowCol;
+                            for (int k = 0; k < 4; k++)
+                            {
+                                var sn = NewSprite("IceSnow", -1);
+                                sn.sprite = PixelSprites.Disc();
+                                float sx = Mathf.Lerp(-0.37f, 0.37f, k / 3f) + (Hash(c * 31 + k * 7) - 0.5f) * 0.06f;
+                                sn.transform.position = CellPos(c) + new Vector2(sx, 0.495f);
+                                sn.transform.localScale = new Vector3(Mathf.Lerp(0.26f, 0.34f, Hash(c * 17 + k * 3)),
+                                                                      Mathf.Lerp(0.08f, 0.13f, Hash(c * 23 + k * 11)), 1f);
+                                sn.color = SnowCol;
                             }
                             //  윗면을 훑고 지나가는 윤기 — Animate 가 좌우로 흘린다
                             var sh = NewSprite("IceShine", -2);
@@ -466,13 +496,14 @@ namespace SlimeEscape
                 // 🔴 주황 네모는 "블록"이다. 둥글게 하고 위에 반짝임을 얹으면 **먹는 것**이 된다.
                 var halo = NewSprite("FoodHalo", 0);
                 halo.transform.position = CellPos(c);
-                halo.transform.localScale = Vector3.one * 0.68f;
-                halo.sprite = PixelSprites.Disc();
-                halo.color = new Color(FoodCol.r, FoodCol.g, FoodCol.b, 0.16f);
+                //  🔴 (10-09) 꽉 찬 원 빛은 어두운 바닥 위에서 **갈색 고리 = 구멍**으로 읽혔다 → 가장자리로 옅어지는 빛
+                halo.transform.localScale = Vector3.one * 0.95f;
+                halo.sprite = PixelSprites.Halo();
+                halo.color = new Color(FoodCol.r, FoodCol.g, FoodCol.b, 0.30f);
 
                 var sr = NewSprite("Food", 1);
                 sr.transform.position = CellPos(c);
-                sr.transform.localScale = Vector3.one * 0.34f;
+                sr.transform.localScale = Vector3.one * 0.38f;
                 sr.sprite = PixelSprites.Disc();
                 sr.color = FoodCol;
                 _foodViews.Add(sr);
@@ -507,6 +538,7 @@ namespace SlimeEscape
                     _gateInner[c] = inner;
                 }
             BuildSwitchViews();
+            BuildSwapViews();
 
             // 🔴 별 — 먹어도 몸이 안 자란다. 그래서 조각(주황)과 **다른 색·다른 크기**로 둔다.
             //    헷갈리면 사람이 문 계산을 틀린다.
@@ -516,8 +548,9 @@ namespace SlimeEscape
                 // 🔴 뒤의 빛이 네모라 갈색 상자처럼 보였다 (08-31 화면). 둥글게 바꾼다.
                 _starGlow = NewSprite("StarGlow", -1);
                 _starGlow.transform.position = CellPos(_L.Star);
-                _starGlow.transform.localScale = new Vector3(1.05f, 1.05f, 1);
-                _starGlow.sprite = PixelSprites.Disc();
+                //  🔴 (10-09) 꽉 찬 원 빛이 어두운 갈색 동전처럼 보였다 → 옅어지는 빛
+                _starGlow.transform.localScale = new Vector3(1.5f, 1.5f, 1);
+                _starGlow.sprite = PixelSprites.Halo();
 
                 _starView = NewSprite("Star", 1);
                 _starView.transform.position = CellPos(_L.Star);
@@ -712,12 +745,18 @@ namespace SlimeEscape
             while (_boxViews.Count < _st.Bx.Count)
             {
                 var b = NewSprite("Box", 1);
-                b.sprite = PixelSprites.Round();
+                //  🔴 (10-09 디자인) 둥근 덩어리는 **항아리**로 읽혔다 → 모서리만 살짝 둥근 네모
+                b.sprite = PixelSprites.Soft();
                 b.transform.localScale = new Vector3(0.9f, 0.9f, 1f);
                 b.color = BoxCol;
                 _boxViews.Add(b);
                 //  윗면 — "여기 딛고 설 수 있다". 벽 윗면과 같은 신호다.
-                var e = NewSprite("BoxTop", 2);
+                //  안쪽에 한 단 들어간 판 — 상자 옆면
+                var inn = NewSprite("BoxIn", 2);
+                inn.sprite = PixelSprites.Soft();
+                inn.color = BoxIn;
+                _boxInner.Add(inn);
+                var e = NewSprite("BoxTop", 3);
                 e.transform.localScale = new Vector3(0.9f, 0.14f, 1f);
                 e.color = BoxTop;
                 _boxTops.Add(e);
@@ -727,6 +766,7 @@ namespace SlimeEscape
                 bool on = i < _st.Bx.Count;
                 _boxViews[i].enabled = on;
                 _boxTops[i].enabled = on;
+                if (i < _boxInner.Count) _boxInner[i].enabled = on;
                 if (!on) continue;
                 //  🔴 칸 자리가 아니라 **보간된 자리**를 쓴다 — 안 그러면 순간이동한다
                 Vector2 p = i < _boxDrawn.Count ? _boxDrawn[i] : CellPos(_st.Bx[i]);
@@ -736,6 +776,11 @@ namespace SlimeEscape
                 _boxViews[i].transform.localScale = new Vector3(bw, bh, 1f);
                 _boxTops[i].transform.position = (Vector3)p + new Vector3(0, bh * 0.45f - sq * 0.5f, -0.06f);
                 _boxTops[i].transform.localScale = new Vector3(bw, 0.14f, 1f);
+                if (i < _boxInner.Count)
+                {
+                    _boxInner[i].transform.position = (Vector3)p + new Vector3(0, -0.06f - sq * 0.5f, -0.055f);
+                    _boxInner[i].transform.localScale = new Vector3(bw * 0.66f, bh * 0.56f, 1f);
+                }
             }
 
             while (_segs.Count < _st.Length)
@@ -765,6 +810,13 @@ namespace SlimeEscape
             for (int i = 0; i < _foodViews.Count; i++)
             {
                 _foodViews[i].enabled = !SnakeEngine.IsEaten(_st, i);
+                //  🔴 (10-09) 조각이 **살짝 뜬다** — 먹을 것은 살아 있어 보여야 한다. 조각마다 박자를 어긋낸다
+                if (i < _L.Foods.Count)
+                {
+                    Vector2 fp = CellPos(_L.Foods[i]) + new Vector2(0f, 0.035f * Mathf.Sin(Time.time * 2.4f + i * 1.3f));
+                    _foodViews[i].transform.position = fp;
+                    if (2 * i + 1 < _foodExtra.Count) _foodExtra[2 * i + 1].transform.position = fp + new Vector2(-0.08f, 0.09f);
+                }
                 // 🔴 힌트 2 — 먹으면 안 되는 조각은 잿빛으로 죽인다.
                 //    이 게임에서 제일 안 보이는 실패가 "너무 먹은 것"이다.
                 bool skip = _hint >= 2 && i < _L.Foods.Count && _skipFood.Contains(_L.Foods[i]);
@@ -781,10 +833,10 @@ namespace SlimeEscape
                 if (!got)
                 {
                     float b = 0.5f + 0.5f * Mathf.Sin(Time.time * 2.2f);
-                    float s = 0.40f + 0.05f * b;
+                    float s = 0.48f + 0.05f * b;
                     _starView.transform.localScale = new Vector3(s, s, 1);
                     _starView.transform.rotation = Quaternion.Euler(0, 0, Time.time * 40f);
-                    var gc = StarLit; gc.a = 0.14f + 0.10f * b;
+                    var gc = StarLit; gc.a = 0.24f + 0.12f * b;
                     _starGlow.color = gc;
                 }
             }

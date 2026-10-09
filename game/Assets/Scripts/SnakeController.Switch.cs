@@ -24,6 +24,10 @@ namespace SlimeEscape
 
         class SwBlock { public SpriteRenderer edge, inner, bar1, bar2; public bool onSet; }
         readonly List<SwBlock> _swBlocks = new List<SwBlock>();
+        //  🔴 (10-09 사장님이 시안 A 「돔 버튼」을 고르심) — 받침 윗선 · 버튼 윤기
+        readonly List<SpriteRenderer> _swPlateTops = new List<SpriteRenderer>(), _swShines = new List<SpriteRenderer>();
+        static readonly Color SwPlate    = new Color32(0x4a, 0x55, 0x66, 0xff);
+        static readonly Color SwPlateTop = new Color32(0x8d, 0x99, 0xaa, 0xff);
         readonly List<(SpriteRenderer plate, SpriteRenderer button, SpriteRenderer b1, SpriteRenderer b2, int cell)> _swButtons
             = new List<(SpriteRenderer, SpriteRenderer, SpriteRenderer, SpriteRenderer, int)>();
         /// 0 = 꺼짐 모양, 1 = 켜짐 모양 — 부드럽게 따라간다
@@ -34,7 +38,7 @@ namespace SlimeEscape
 
         void BuildSwitchViews()
         {
-            _swBlocks.Clear(); _swButtons.Clear(); _linkSparks.Clear();
+            _swBlocks.Clear(); _swButtons.Clear(); _linkSparks.Clear(); _swPlateTops.Clear(); _swShines.Clear();
             _swShown = -1; _swFlipAt = -9f;
             _swLook = (_st != null && (_st.Dm & SnakeEngine.SW) != 0) ? 1f : 0f;
             if (!_L.HasSwitch) return;
@@ -42,12 +46,23 @@ namespace SlimeEscape
             foreach (int c in _L.SwOn) AddSwBlock(c, true);
             foreach (int c in _L.Switches)
             {
-                var plate = NewSprite("SwPlate", -1);
+                //  받침 — 칸 폭만큼 넓게. 버튼(돔)의 아랫단을 **덮어서** 돔이 받침에 박힌 것처럼 보인다
+                var plate = NewSprite("SwPlate", 3);
+                plate.sprite = PixelSprites.Soft();
                 plate.transform.position = CellPos(c) + new Vector2(0f, -0.40f);
-                plate.transform.localScale = new Vector3(0.86f, 0.14f, 1);
-                plate.color = GateEdge;
+                plate.transform.localScale = new Vector3(0.96f, 0.16f, 1);
+                plate.color = SwPlate;
+                var ptop = NewSprite("SwPlateTop", 4);
+                ptop.transform.position = CellPos(c) + new Vector2(0f, -0.345f);
+                ptop.transform.localScale = new Vector3(0.90f, 0.035f, 1);
+                ptop.color = SwPlateTop;
+                _swPlateTops.Add(ptop);
                 var button = NewSprite("SwButton", 0);
                 button.sprite = PixelSprites.Round();
+                var shine = NewSprite("SwShine", 2);
+                shine.sprite = PixelSprites.Disc();
+                shine.color = new Color(1f, 1f, 1f, 0.22f);
+                _swShines.Add(shine);
                 _swButtons.Add((plate, button, NewSprite("SwMark", 1), NewSprite("SwMark", 1), c));
             }
         }
@@ -104,17 +119,29 @@ namespace SlimeEscape
             }
 
             //  스위치 = **지금 벽인 쪽의 돌색 + 줄무늬**. 머리가 올라 있으면 눌려서 납작해진다
+            //  🔴 (10-09) 돔 버튼 — 받침 위에 반구. 뒤집히는 순간 받침이 버튼 색으로 한 번 번쩍인다
             bool onNow = on == 1;
-            foreach (var (plate, button, b1, b2, cell) in _swButtons)
+            float flash = Mathf.Clamp01(1f - (Time.time - _swFlipAt) / 0.4f);
+            for (int k = 0; k < _swButtons.Count; k++)
             {
+                var (plate, button, b1, b2, cell) = _swButtons[k];
                 bool pressed = _st.Head == cell;
-                float hgt = pressed ? 0.16f : 0.34f;
-                button.color = onNow ? SwBEdge : SwAEdge;
-                Vector2 bp = CellPos(cell) + new Vector2(0f, -0.33f + hgt * 0.5f);
+                float hgt = pressed ? 0.16f : 0.40f;
+                var bc = onNow ? SwBEdge : SwAEdge;
+                button.color = bc;
+                plate.color = Color.Lerp(SwPlate, bc, flash * 0.8f);
+                //  돔의 아랫단은 받침 뒤로 들어간다 — 그래서 높이에 0.10 을 더해 아래로 늘린다
+                Vector2 bp = CellPos(cell) + new Vector2(0f, -0.345f + hgt * 0.5f - 0.05f);
                 button.transform.position = bp;
-                button.transform.localScale = new Vector3(0.62f, hgt, 1);
+                button.transform.localScale = new Vector3(0.78f, hgt + 0.10f, 1);
                 var mc = SwBIn; if (!onNow) mc = SwAIn;
-                PlaceBars(b1, b2, bp, onNow, pressed ? 0.12f : 0.24f, mc, 0.5f);
+                PlaceBars(b1, b2, bp + new Vector2(0f, 0.04f), onNow, pressed ? 0.14f : 0.30f, mc, 0.5f);
+                if (k < _swShines.Count)
+                {
+                    _swShines[k].enabled = !pressed;
+                    _swShines[k].transform.position = bp + new Vector2(-0.20f, hgt * 0.32f);
+                    _swShines[k].transform.localScale = new Vector3(0.14f, 0.06f, 1);
+                }
             }
         }
     }

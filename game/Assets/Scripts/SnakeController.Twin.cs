@@ -14,9 +14,59 @@ namespace SlimeEscape
         readonly List<Vector2> _twinPos = new List<Vector2>();
         bool _twinSnap = true;
         static readonly Color TwinCol = new Color32(0x4a, 0x8f, 0x62, 0xff);   // 쉬는 슬라임 — 나보다 어둡다
+        //  🔴 쉬는 슬라임에도 **머리 마름모**를 단다 (10-08 화면). 없으면 어두운 초록 네모 = "밀 수 있는 블록"으로 읽혔다.
+        //     조종하는 쪽처럼 번쩍이지 않는다 — 꺼진 눈. 숨만 아주 느리게 쉰다
+        static readonly Color TwinKeyRing = new Color32(0xc8, 0xe6, 0xd2, 0xff);
+        static readonly Color TwinKeyCore = new Color32(0x1e, 0x3a, 0x29, 0xff);
+        SpriteRenderer _twinRing, _twinCore;
+
+        //  🔴 **교체 칸 '&'** — 09-23 에 규칙만 넣고 **그림이 없었다** (10-08 화면: 판에 아무것도 안 보였다).
+        //     색 규칙(초록=슬라임 · 주황=조각 · 형광 테=홈 · 보라=포탈)을 피해 **무채색 + 마름모 둘**:
+        //     머리의 마름모가 둘 = "머리가 바뀐다". 둘이 번갈아 밝아진다 = 교대
+        static readonly Color SwapPad = new Color32(0x6e, 0x7a, 0x8a, 0xff);
+        readonly List<(SpriteRenderer pad, SpriteRenderer a, SpriteRenderer b, int cell)> _swapViews
+            = new List<(SpriteRenderer, SpriteRenderer, SpriteRenderer, int)>();
+
+        void BuildSwapViews()
+        {
+            _swapViews.Clear();
+            _twinRing = _twinCore = null;
+            if (_L == null || _L.Swaps.Count == 0) return;
+            foreach (int c in _L.Swaps)
+            {
+                var pad = NewSprite("SwapPad", -1);
+                pad.sprite = PixelSprites.Round();
+                pad.transform.position = CellPos(c);
+                pad.transform.localScale = Vector3.one * 0.78f;
+                var a = NewSprite("SwapKeyA", 0);
+                var b = NewSprite("SwapKeyB", 0);
+                a.sprite = b.sprite = PixelSprites.Diamond();
+                a.transform.localScale = b.transform.localScale = new Vector3(0.20f, 0.28f, 1f);
+                a.transform.position = CellPos(c) + new Vector2(-0.14f, 0f);
+                b.transform.position = CellPos(c) + new Vector2(0.14f, 0f);
+                _swapViews.Add((pad, a, b, c));
+            }
+        }
+
+        void TickSwapViews()
+        {
+            if (_swapViews.Count == 0) return;
+            //  1.2초마다 밝은 쪽이 넘어간다 — 부드럽게
+            float t = 0.5f + 0.5f * Mathf.Sin(Time.time * Mathf.PI / 1.2f);
+            foreach (var (pad, a, b, cell) in _swapViews)
+            {
+                if (pad == null) continue;
+                bool on = _st != null && _st.Head == cell;
+                var pc = SwapPad; pc.a = on ? 0.75f : 0.45f;
+                pad.color = pc;
+                a.color = new Color(1f, 1f, 1f, Mathf.Lerp(0.30f, 0.90f, t));
+                b.color = new Color(1f, 1f, 1f, Mathf.Lerp(0.90f, 0.30f, t));
+            }
+        }
 
         void TickTwinView()
         {
+            TickSwapViews();
             var ob = (_L != null && _L.Twin && _st != null) ? _st.Ob : null;
             //  판을 새로 지으면 _root 와 함께 스프라이트가 사라진다 — 그때 다시 만든다
             for (int i = _twinSegs.Count - 1; i >= 0; i--)
@@ -42,6 +92,25 @@ namespace SlimeEscape
                 _twinSegs[i].transform.localScale = new Vector3(s, s, 1);
             }
             _twinSnap = false;
+
+            //  머리 마름모 — 조종하는 쪽(UI.cs 열쇠)과 같은 자리·같은 비율, 조금 작고 흐리게
+            if (n == 0) { if (_twinRing != null) _twinRing.enabled = _twinCore.enabled = false; return; }
+            if (_twinRing == null)
+            {
+                _twinRing = NewSprite("TwinKeyRing", 10);
+                _twinCore = NewSprite("TwinKeyCore", 11);
+                _twinRing.sprite = _twinCore.sprite = PixelSprites.Diamond();
+            }
+            _twinRing.enabled = _twinCore.enabled = true;
+            float breathe = 0.5f + 0.5f * Mathf.Sin(Time.time * 1.1f);
+            Vector2 at = _twinPos[0] + new Vector2(0f, 0.14f);
+            _twinRing.transform.position = at;
+            _twinRing.transform.localScale = new Vector3(0.36f, 0.50f, 1f);
+            var rc = TwinKeyRing; rc.a = 0.45f + 0.15f * breathe;
+            _twinRing.color = rc;
+            _twinCore.transform.position = at;
+            _twinCore.transform.localScale = new Vector3(0.36f * 0.52f, 0.50f * 0.52f, 1f);
+            _twinCore.color = TwinKeyCore;
         }
     }
 }

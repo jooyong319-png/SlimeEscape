@@ -145,6 +145,11 @@ namespace SlimeEscape.EditorTools
                     typeof(SnakeController).GetMethod("Load", Bf).Invoke(_c, new object[] { arg < 0 ? 1 : arg });
                     break;
                 case "ending":   Clear(); Set("_allDone", true); break;   // 마지막 판까지 깬 뒤
+                //  (10-09) 막힘 안내 — 판을 연 뒤 150초가 지난 것으로 치고 "다음 한 수"를 띄운다 (level:N 다음에 쓴다)
+                case "nudge":
+                    Set("_levelAt", Time.time - 200f); Set("_nudgeShow", Time.time);
+                    Set("_nudgeDir", SnakeEngine.Dir.Right); Set("_nudges", 1);
+                    break;
                 case "result":
                     Set("_result", true); Set("_resultStars", arg < 0 ? 2 : arg);
                     Set("_resultSteps", 20); Set("_resultAt", Time.time - 10f);
