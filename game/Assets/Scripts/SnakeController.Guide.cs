@@ -322,6 +322,7 @@ namespace SlimeEscape
                 {
                     _guideSlide = slide;
                     _guideCam.backgroundColor = StageBg;   // 타이틀에서 BgCol 로 바꿔 놨다
+                    _guide.DemoEdge = null;
                     _guide.SetupDemo(_guideCam, DemoMap[slide % DemoMap.Length],
                                      DemoKeys[slide % DemoKeys.Length], _gravity);
                 }

@@ -858,6 +858,7 @@ namespace SlimeEscape
                 if (_guideSlide != GuideTitle)
                 {
                     _guideSlide = GuideTitle;
+                    _guide.DemoEdge = CaveLift(CaveOf(1));
                     _guide.SetupDemo(_guideCam, TitleMap, TitleKeys, _gravity);
                 }
                 //  🔴 배경을 타이틀과 **같은 색**으로. 안내판 무대 색(StageBg) 이면

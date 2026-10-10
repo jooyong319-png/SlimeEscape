@@ -1420,6 +1420,10 @@ namespace SlimeEscape
         ///
         /// 벽 윗면 띠(-2)보다 **앞**에 둔다 — 벽만 녹고 띠가 남으면 띠만 떠 보인다.
         /// </summary>
+        /// 🔴 (10-10) 타이틀 시범 판은 **로비 바탕색**으로 녹인다. 굴 바탕색(거의 검정)으로 녹이면
+        ///    밝은 로비 위에 판 둘레가 검은 띠로 남았다. 안내판은 null — 원래대로 굴 바탕색.
+        public Color? DemoEdge;
+
         void EdgeFade(int x, int y, float turn)
         {
             var sr = NewSprite("EdgeFade", -2);
@@ -1428,7 +1432,7 @@ namespace SlimeEscape
             sr.transform.position = new Vector3(p.x, p.y, -0.002f);
             sr.transform.rotation = Quaternion.Euler(0, 0, turn);
             sr.transform.localScale = new Vector3(1.02f, 1.02f, 1);   // 이음매가 새지 않게
-            sr.color = BgCol;
+            sr.color = DemoEdge ?? BgCol;
         }
 
         void AddBridge(int a, int b, Vector3 scale, Vector2 offset)
