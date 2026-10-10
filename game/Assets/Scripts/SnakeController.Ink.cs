@@ -11,8 +11,9 @@ namespace SlimeEscape
     public partial class SnakeController
     {
         static readonly Color InkCol = new Color32(0x04, 0x05, 0x08, 0xff);
-        const float WallInk = 0.12f;    // 벽 테두리 두께 (칸 단위) — 시안의 5px / 40px
-        const float SlimeInk = 0.11f;   // 슬라임 테두리 — 시안에서 고른 「판과 같은 굵기」
+        const float WallInk = 0.07f;    // 벽 테두리 두께 (칸 단위). ⚠️ 0.12 는 사장님이 "좀 줄여봐" (10-10)
+        const float SlimeInk = 0.065f;  // 슬라임 테두리. ⚠️ 0.11 에서 줄였다 (10-10)
+        const float CapInk = 0.045f;    // 윗면 덮개 테두리
 
         readonly List<SpriteRenderer> _segInk = new List<SpriteRenderer>();
         readonly List<SpriteRenderer> _linkInk = new List<SpriteRenderer>();
@@ -36,6 +37,8 @@ namespace SlimeEscape
                     if (!edge) continue;
 
                     bool ring = x < 0 || y < 0 || x >= _L.W || y >= _L.H;
+                    //  ⚠️ 타이틀 시범 판은 둘레가 로비 바탕으로 녹는다 — 둘레에 테두리를 두르면 네모 틀이 다시 보인다 (10-10 화면)
+                    if (ring && DemoEdge != null) continue;
                     if (ring)
                     {
                         //  ⚠️ 바깥 겹은 **판 안쪽으로만** 두른다. 바깥으로 삐져나오면
@@ -84,15 +87,15 @@ namespace SlimeEscape
             var inkBase = NewSprite("CapInk", -2);
             inkBase.sprite = PixelSprites.Soft();
             inkBase.transform.position = new Vector3(p.x + cx, p.y + 0.41f, 0.002f);
-            inkBase.transform.localScale = new Vector3(w + 0.15f, 0.47f, 1f);
+            inkBase.transform.localScale = new Vector3(w + 2f * CapInk, 0.32f + 2f * CapInk, 1f);
             inkBase.color = InkCol;
             for (int j = 0; j < 4; j++)
             {
                 float bx = -0.375f + j * 0.25f;
-                float big = Mathf.Lerp(0.46f, 0.54f, Hash(k + j * 5));
                 var ib = NewSprite("CapInk", -2);
                 ib.sprite = PixelSprites.Disc();
-                ib.transform.position = new Vector3(p.x + bx, p.y + 0.23f, 0.003f);
+                float big = Mathf.Lerp(0.26f, 0.34f, Hash(k + j * 5)) + 2f * CapInk;
+                ib.transform.position = new Vector3(p.x + bx, p.y + 0.27f - CapInk * 0.5f, 0.003f);
                 ib.transform.localScale = new Vector3(big, big * 0.82f, 1f);
                 ib.color = InkCol;
                 var bm = NewSprite("WallTop", -2);
