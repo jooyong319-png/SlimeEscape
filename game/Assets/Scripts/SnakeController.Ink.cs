@@ -85,8 +85,12 @@ namespace SlimeEscape
         /// 🔴 윗면 덮개 — 얇은 띠 하나였던 것을 **두툼한 돌 덮개**로. 아랫단이 봉긋봉긋 늘어지고 검은 테를 두른다.
         ///    옆이 트였으면 가장자리 밖으로 살짝 넘친다 — 덮개가 "얹힌" 것으로 읽힌다.
         ///    z 로 앞뒤를 못박는다 (같은 차례 -2): 테 덩이 → 테 → 덩이 → 덮개 → 빛줄. EdgeFade(-0.002)는 그 앞.
-        void WallCap(int x, int y)
+        /// ice = 얼음 덮개 (10-10 시안 B: 푸른 회색 얼음 덮개 + 살짝 눈 — 눈은 Board.cs 가 위에 얹는다)
+        void WallCap(int x, int y, bool ice = false)
         {
+            Color topC = ice ? IceTop : RockTop;
+            Color bumpC = ice ? Color.Lerp(IceTop, IceCol, 0.45f) : Color.Lerp(RockTop, Rock, 0.35f);
+            Color hiC = ice ? Color.Lerp(IceTop, Color.white, 0.6f) : Color.Lerp(RockTop, Color.white, 0.28f);
             //  ⚠️ 판 끝(바깥 겹 쪽)으로는 안 넘친다 — 바깥 겹도 벽이라 계단으로 잘못 읽혀 덮개가 판 밖으로 튀어나왔다 (10-10 화면)
             bool openL = x - 1 >= 0 && (!WallAt(x - 1, y) || WallAt(x - 1, y - 1));
             bool openR = x + 1 < _L.W && (!WallAt(x + 1, y) || WallAt(x + 1, y - 1));
@@ -114,18 +118,18 @@ namespace SlimeEscape
                 bm.transform.position = new Vector3(p.x + bx, p.y + 0.27f, 0.001f);
                 float sm = Mathf.Lerp(0.26f, 0.34f, Hash(k + j * 5));
                 bm.transform.localScale = new Vector3(sm, sm * 0.82f, 1f);
-                bm.color = Color.Lerp(RockTop, Rock, 0.35f);   // 아랫단은 한 톤 어둡게 — 밝은 굴에서 레이스처럼 하얗게 뜨던 것 (10-10)
+                bm.color = bumpC;   // 아랫단은 한 톤 어둡게 — 밝은 굴에서 레이스처럼 하얗게 뜨던 것 (10-10)
             }
             var cap = NewSprite("WallTop", -2);
             cap.sprite = PixelSprites.Soft();
             cap.transform.position = new Vector3(p.x + cx, p.y + 0.41f, 0f);
             cap.transform.localScale = new Vector3(w, 0.32f, 1f);
-            cap.color = RockTop;
+            cap.color = topC;
             var hi = NewSprite("WallTopHi", -2);
             hi.sprite = PixelSprites.Solid();
             hi.transform.position = new Vector3(p.x + cx, p.y + 0.52f, -0.001f);
             hi.transform.localScale = new Vector3(w - (openL ? 0.08f : 0f) - (openR ? 0.08f : 0f), 0.06f, 1f);
-            hi.color = Color.Lerp(RockTop, Color.white, 0.28f);
+            hi.color = hiC;
         }
 
         /// 슬라임 테두리 — 마디·이음매·쌍둥이를 **그대로 베낀다** (모양·자리·눌림 전부).

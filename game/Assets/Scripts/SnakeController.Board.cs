@@ -169,15 +169,9 @@ namespace SlimeEscape
                         // 윗면 — "여기 딛고 설 수 있다". 두고 온 몸의 윗면과 같은 신호다.
                         //  🔴 (10-10) 돌 윗면은 두툼한 덮개로 (SnakeController.Ink.cs). 얼음은 눈 얹은 지금 모양 그대로
                         if (up && !isIce) WallCap(x, y);
-                        if (up && isIce)
-                        {
-                            var e = NewSprite("WallTop", -2);
-                            e.transform.position = CellPos(c) + new Vector2(0f, 0.42f);
-                            e.transform.localScale = new Vector3(1f, 0.16f, 1);
-                            //  🔴 얼음은 **윗면이 다르다.** 슬라임이 걷는 건 이 면이라,
-                            //     미끄럽다는 말은 여기서 해야 한다 — 밝게 얼려 놓는다.
-                            e.color = isIce ? IceTop : RockTop;
-                        }
+                        //  🔴 얼음은 **윗면이 다르다.** 슬라임이 걷는 건 이 면이라, 미끄럽다는 말은 여기서 해야 한다.
+                        //     (10-10 시안 B) 얇은 줄 → 돌 덮개와 같은 모양의 **푸른 회색 얼음 덮개**
+                        if (up && isIce) WallCap(x, y, true);
                         //  🔴 얼음 윗면의 **결** — 누운 쪽이 곧 미끄러지는 쪽이다.
                         //     ⚠️ 칸 속이 아니라 **윗면 바로 아래**에 깐다. 속에 그리면
                         //        "안을 지나간다"로 읽혀 처음에 물린 그 그림이 된다.
@@ -195,17 +189,14 @@ namespace SlimeEscape
                             }
                             //  🔴 (10-09 사장님: "지금 상태에서 위에 눈이 살짝 있게") — 윗면에 눈이 얇게 쌓인다.
                             //     칸마다 봉긋한 덩이 넷을 이어 붙여 한 줄로 읽히게 (덩이 크기는 칸마다 조금씩 다르다)
-                            var snowBase = NewSprite("IceSnow", -1);
-                            snowBase.sprite = PixelSprites.Solid();
-                            snowBase.transform.position = CellPos(c) + new Vector2(0f, 0.485f);
-                            snowBase.transform.localScale = new Vector3(1.0f, 0.05f, 1f);
-                            snowBase.color = SnowCol;
+                            //  (10-10 시안 B) 눈은 덮개 **위**에, 듬성듬성 — "살짝". 이어 붙이던 바닥 줄은 뺐다
                             for (int k = 0; k < 4; k++)
                             {
+                                if (Hash(c * 13 + k * 5) < 0.3f) continue;
                                 var sn = NewSprite("IceSnow", -1);
                                 sn.sprite = PixelSprites.Disc();
                                 float sx = Mathf.Lerp(-0.37f, 0.37f, k / 3f) + (Hash(c * 31 + k * 7) - 0.5f) * 0.06f;
-                                sn.transform.position = CellPos(c) + new Vector2(sx, 0.495f);
+                                sn.transform.position = CellPos(c) + new Vector2(sx, 0.585f);
                                 sn.transform.localScale = new Vector3(Mathf.Lerp(0.26f, 0.34f, Hash(c * 17 + k * 3)),
                                                                       Mathf.Lerp(0.08f, 0.13f, Hash(c * 23 + k * 11)), 1f);
                                 sn.color = SnowCol;
@@ -944,11 +935,11 @@ namespace SlimeEscape
                 float u = Mathf.Repeat(Time.time * 0.26f + (ic * 0.37f), 1f);
                 //  🔴 윗면(+0.42) 바로 아래를 훑는다. 칸 가운데를 지나면 "속"으로 읽힌다.
                 isr.transform.position = (Vector3)CellPos(ic)
-                    + new Vector3(Mathf.Lerp(-0.62f, 0.62f, u), 0.34f, -0.0095f);
+                    + new Vector3(Mathf.Lerp(-0.62f, 0.62f, u), 0.43f, -0.0095f);   // (10-10) 얼음 덮개 앞면을 훑는다
                 var sc3 = IceShine;
                 //  가장자리에선 안 보이고 가운데를 지날 때만 — 스치는 빛으로 읽힌다.
                 //  🔴 0.22 는 너무 진했다 (막대로 보였다). 있는 듯 없는 듯이 남긴다.
-                sc3.a = 0.085f * Mathf.Sin(u * Mathf.PI);
+                sc3.a = 0.16f * Mathf.Sin(u * Mathf.PI);   // 밝은 덮개 위라 조금 진하게
                 isr.color = sc3;
             }
 
