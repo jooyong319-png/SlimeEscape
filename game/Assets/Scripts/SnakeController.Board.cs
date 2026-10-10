@@ -540,6 +540,7 @@ namespace SlimeEscape
                 }
             BuildSwitchViews();
             BuildSwapViews();
+            if (!_demo) BuildBackdrop(); else _backBlobs.Clear();
 
             // 🔴 별 — 먹어도 몸이 안 자란다. 그래서 조각(주황)과 **다른 색·다른 크기**로 둔다.
             //    헷갈리면 사람이 문 계산을 틀린다.
@@ -1070,6 +1071,7 @@ namespace SlimeEscape
             TickSwitchViews();
             TickTwinView();
             TickEatFx();
+            TickBackdrop();
 
             TickSuck();
 
