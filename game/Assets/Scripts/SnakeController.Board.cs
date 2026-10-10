@@ -18,6 +18,15 @@ namespace SlimeEscape
         bool WallAt(int x, int y)
             => x < 0 || y < 0 || x >= _L.W || y >= _L.H || _L.IsWall(y * _L.W + x);
 
+        /// 사방 여덟 칸이 모두 벽인 속 칸 — 둥글 필요도, 이웃과 이을 필요도 없다
+        bool InnerRock(int x, int y)
+        {
+            for (int dy = -1; dy <= 1; dy++)
+                for (int dx = -1; dx <= 1; dx++)
+                    if (!WallAt(x + dx, y + dy)) return false;
+            return true;
+        }
+
         void BuildBoard()
         {
             if (_root != null) Destroy(_root.gameObject);
@@ -37,7 +46,7 @@ namespace SlimeEscape
                     //  🔴 벽은 **둥근 네모**다 (09-03 사장님). 슬라임도 홈도 둥근데
                     //     벽만 각지면 딴 세계처럼 보인다. 이웃 사이는 다리로 메워서
                     //     바깥선만 둥글고 속은 한 덩어리가 되게 한다.
-                    if (wall) sr.sprite = PixelSprites.Round();
+                    if (wall && !InnerRock(x, y)) sr.sprite = PixelSprites.Round();   // 속 칸은 네모 그대로 (10-10 루프: 이음 줄이기)
                     //  빈 칸은 높이에 따라 밝기가 다르다 — 위가 밝고 아래가 가라앉는다
                     //  🔴 **얼음은 벽과 같은 덩어리지만 색이 다르다** (rev.12-a).
                     //     밟는 바닥이라 벽 자리에 있다. 벽(차가운 회청)보다 밝고 푸르게 —
@@ -223,7 +232,7 @@ namespace SlimeEscape
                 {
                     if (x >= 0 && y >= 0 && x < _L.W && y < _L.H) continue;   // 판 안은 이미 그렸다
                     var sr = NewSprite("WallEdge", -3);
-                    sr.sprite = PixelSprites.Round();
+                    if (!InnerRock(x, y)) sr.sprite = PixelSprites.Round();
                     sr.transform.position = CellXY(x, y);
                     sr.color = Rock;
                     //  바깥쪽으로 흘려보낸다. 모서리 칸은 두 장이 겹쳐 더 짙어진다 — 제일 바깥이니까.
@@ -243,9 +252,13 @@ namespace SlimeEscape
                     if (!WallAt(x, y)) continue;
                     bool wR = x + 1 <= _L.W && WallAt(x + 1, y);
                     bool wD = y + 1 <= _L.H && WallAt(x, y + 1);
-                    if (wR) WallBridge(x, y, new Vector3(0.42f, 1f, 1), new Vector2(0.5f, 0f));
-                    if (wD) WallBridge(x, y, new Vector3(1f, 0.42f, 1), new Vector2(0f, -0.5f));
-                    if (wR && wD && WallAt(x + 1, y + 1))
+                    //  🔴 (10-10 루프) 양쪽이 다 **속 칸(네모)** 이면 메울 틈이 없다 — 이음을 안 깐다.
+                    //     큰 판에서 이음이 428 개로 그림 조각 중 가장 많았다. 둥근 칸이 하나라도 끼면 그대로 깐다.
+                    bool inC = InnerRock(x, y);
+                    if (wR && !(inC && InnerRock(x + 1, y))) WallBridge(x, y, new Vector3(0.42f, 1f, 1), new Vector2(0.5f, 0f));
+                    if (wD && !(inC && InnerRock(x, y + 1))) WallBridge(x, y, new Vector3(1f, 0.42f, 1), new Vector2(0f, -0.5f));
+                    if (wR && wD && WallAt(x + 1, y + 1)
+                        && !(inC && InnerRock(x + 1, y) && InnerRock(x, y + 1) && InnerRock(x + 1, y + 1)))
                         WallBridge(x, y, new Vector3(0.42f, 0.42f, 1), new Vector2(0.5f, -0.5f));
                 }
 
