@@ -251,6 +251,7 @@ namespace SlimeEscape
 
             // 🔴 목표 홈 — 바닥보다 어둡게 파인 것처럼. 몸이 덮으면 한 칸씩 빛이 찬다
             _holes.Clear();
+            _holeSeams.Clear();
             _holeGlow.Clear();
             _holeEdgeExtra.Clear();
             _motes.Clear();
@@ -336,6 +337,13 @@ namespace SlimeEscape
                 //    납작한 그림에는 이런 깊이 표현이 애초에 없다.
                 _holes[c] = inner;
                 _holeEdges[c] = edge;
+
+                //  🔴 (10-10 사장님: "홈은 칸마다 나눠줘 몇칸인지 간접적으로" → 시안 C 「안쪽 점선」)
+                //     ⚠️ 09-03 의 칸 나누는 선은 테두리까지 끊겨 상자 여럿으로 보였다 · 10-10 의 칸마다 옅은 네모는 "별론데".
+                //     칸 경계에 **아주 옅은 점선**만 긋고, 테두리에는 안 닿게 양 끝을 비운다.
+                //     오른쪽 · 아래 이웃만 보면 경계마다 한 번씩 긋는다.
+                if (nR) AddSeam(c, c + 1, dr, true);
+                if (nD) AddSeam(c, c + _L.W, dr, false);
 
                 // 🔴 굳은 몸의 윗면 — 평소엔 숨어 있다가 문이 열리면 나타난다.
                 //    벽의 윗면과 같은 신호라, 여기 설 수 있다는 게 바로 읽힌다.
@@ -1115,6 +1123,12 @@ namespace SlimeEscape
                 }
                 if (_holeEdges.TryGetValue(kv.Key, out var e))
                     e.color = RimColor(door, spent);
+            }
+            //  홈 속 점선 — 양쪽 칸이 다 몸으로 찼거나 문이 열렸으면 끈다 (남은 경계만 보인다)
+            foreach (var sm in _holeSeams)
+            {
+                bool off = (_st.Dm & (1 << sm.door)) != 0 || (body.Contains(sm.a) && body.Contains(sm.b));
+                foreach (var d in sm.dash) if (d != null) d.enabled = !off;
             }
             // 🔴 채워진 홈의 심 표시는 사라진다 — 몸이 빨려드는 동안 같이 흐려진다
             foreach (var cv in _coreViews)

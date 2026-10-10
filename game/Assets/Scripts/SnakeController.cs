@@ -461,6 +461,8 @@ namespace SlimeEscape
         readonly List<SpriteRenderer> _segs = new List<SpriteRenderer>();
         readonly List<SpriteRenderer> _foodViews = new List<SpriteRenderer>();
         readonly Dictionary<int, SpriteRenderer> _holes = new Dictionary<int, SpriteRenderer>();
+        //  홈 속 칸 경계 점선 (10-10) — 이웃한 두 칸 a · b 와 그 사이 점들
+        readonly List<(int a, int b, int door, SpriteRenderer[] dash)> _holeSeams = new List<(int, int, int, SpriteRenderer[])>();
         readonly Dictionary<int, SpriteRenderer> _holeEdges = new Dictionary<int, SpriteRenderer>();
         /// 놋쇠 틀 조각들. (문번호, 그림, 장식인가)
         readonly HashSet<int> _seated = new HashSet<int>();          // 지금 몸이 덮고 있는 홈 칸
@@ -1433,6 +1435,27 @@ namespace SlimeEscape
             sr.transform.rotation = Quaternion.Euler(0, 0, turn);
             sr.transform.localScale = new Vector3(1.02f, 1.02f, 1);   // 이음매가 새지 않게
             sr.color = DemoEdge ?? BgCol;
+        }
+
+        /// 홈 속 두 칸 사이의 점선 — 경계 길이의 가운데 58% 에만, 점 넷
+        void AddSeam(int a, int b, int door, bool vertical)
+        {
+            const int N = 4;
+            const float Span = 0.58f, Dot = 0.055f, Th = 0.028f;
+            Vector2 mid = (CellPos(a) + CellPos(b)) * 0.5f;
+            var dash = new SpriteRenderer[N];
+            var col = RailOf(door); col.a = 0.30f;
+            for (int i = 0; i < N; i++)
+            {
+                float t = Mathf.Lerp(-Span * 0.5f + Dot * 0.5f, Span * 0.5f - Dot * 0.5f, i / (float)(N - 1));
+                var d = NewSprite("HoleSeam", 0);
+                Vector2 p = mid + (vertical ? new Vector2(0f, t) : new Vector2(t, 0f));
+                d.transform.position = new Vector3(p.x, p.y, -0.003f);   // 속(0)과 같은 차례 — z 로 앞에
+                d.transform.localScale = vertical ? new Vector3(Th, Dot, 1f) : new Vector3(Dot, Th, 1f);
+                d.color = col;
+                dash[i] = d;
+            }
+            _holeSeams.Add((a, b, door, dash));
         }
 
         void AddBridge(int a, int b, Vector3 scale, Vector2 offset)
