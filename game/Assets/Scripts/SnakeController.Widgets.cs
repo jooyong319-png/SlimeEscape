@@ -45,6 +45,7 @@ namespace SlimeEscape
         void Row(float x, float y, float s, Color box, Color inner, string text, GUIStyle st,
                  bool gem = false, float textW = 620f)
         {
+            InkRing(new Rect(x, y, s, s), PixelSprites.Round().texture, 0.9f);
             Shape(new Rect(x, y, s, s), box, PixelSprites.Round().texture);
             if (inner.a > 0f)
             {
@@ -63,10 +64,12 @@ namespace SlimeEscape
         /// r 은 **몸통** 자리다. 방울은 r 아래로 늘어진다 (몸통 높이 × room 만큼).
         /// 색은 부르는 쪽 것 그대로 — 모양만 젤리로 바꾼다. <see cref="PixelSprites.Goo"/>
         /// </summary>
-        void Goo(Rect r, Color c, int drips = 0, int seed = 0, float round = 1f, float room = 0.5f, float fat = 0.13f)
+        void Goo(Rect r, Color c, int drips = 0, int seed = 0, float round = 1f, float room = 0.5f, float fat = 0.13f, float ink = 0.85f)
         {
             var tex = PixelSprites.Goo(r.width / Mathf.Max(1f, r.height), drips, seed, round, room, fat);
-            Shape(new Rect(r.x, r.y, r.width, r.height * (1f + PixelSprites.GooRoom(drips, room))), c, tex);
+            var gr = new Rect(r.x, r.y, r.width, r.height * (1f + PixelSprites.GooRoom(drips, room)));
+            InkRing(gr, tex, ink);   // (10-10) 판 · 슬라임과 같은 얇은 검은 테두리 — 단추 · 판 고르기 마디가 다 여기를 지난다
+            Shape(gr, c, tex);
         }
 
         /// 젖은 윤 — 왼쪽 위에 얇게 번진 빛. 테 대신 **이게 말랑하다**를 말한다.
@@ -102,7 +105,7 @@ namespace SlimeEscape
                              : new Color(1, 1, 1, 0.075f);
             fill.a *= fade;
             //  🔴 네모난 판이 아니라 **젤리 알**로 (09-13). 테는 여전히 없다 — 윤만 얹는다.
-            Goo(r, fill);
+            Goo(r, fill, ink: (on ? 0.85f : 0.40f) * fade);
             if (on) Sheen(r, Color.white, (hot ? 0.10f : 0.05f) * fade);
 
             if (!string.IsNullOrEmpty(label))
@@ -167,6 +170,96 @@ namespace SlimeEscape
             Shape(new Rect(r.xMax - d, r.y, d, d), c, PixelSprites.Disc().texture);
         }
 
+        // ---- (10-10 사장님: 다른쪽도 마찬가지로 테두리 다 넣어서 통일) UI 테두리 ----
+        //  UI 는 반투명한 젤리가 많아서 검은 판을 **뒤에 깔면 속이 까매진다.** 그래서 모양 둘레만 따낸
+        //  **고리 그림**을 만들어 얹는다 (한 번 만들면 계속 쓴다). 굵기는 화면 픽셀로 — 판 테두리와 비슷한 2~3px.
+        float UiInkPx => Mathf.Max(2f, 2.5f * _uiScale);
+        readonly System.Collections.Generic.Dictionary<(int, int), Texture2D> _rings
+            = new System.Collections.Generic.Dictionary<(int, int), Texture2D>();
+
+        /// 그림의 알파를 t 화소만큼 **둥글게 부풀린 것 − 원래 것** = 둘레 고리. 사방으로 t 만큼 넓어진다.
+        Texture2D RingTex(Texture2D src, int t)
+        {
+            var key = (src.GetInstanceID(), t);
+            if (_rings.TryGetValue(key, out var have) && have != null) return have;
+            Color32[] sp;
+            try { sp = src.GetPixels32(); } catch { return null; }
+            int w = src.width, h = src.height, W2 = w + 2 * t, H2 = h + 2 * t;
+            var a = new float[W2 * H2];
+            for (int y = 0; y < h; y++)
+                for (int x = 0; x < w; x++) a[(y + t) * W2 + x + t] = sp[y * w + x].a / 255f;
+            var offs = new System.Collections.Generic.List<Vector2Int>();
+            for (int dy = -t; dy <= t; dy++)
+                for (int dx = -t; dx <= t; dx++)
+                    if (dx * dx + dy * dy <= t * t + t) offs.Add(new Vector2Int(dx, dy));
+            var outp = new Color32[W2 * H2];
+            for (int y = 0; y < H2; y++)
+                for (int x = 0; x < W2; x++)
+                {
+                    float m = 0f;
+                    foreach (var o in offs)
+                    {
+                        int nx = x + o.x, ny = y + o.y;
+                        if (nx < 0 || ny < 0 || nx >= W2 || ny >= H2) continue;
+                        float v = a[ny * W2 + nx];
+                        if (v > m) { m = v; if (m >= 1f) break; }
+                    }
+                    float ring = Mathf.Clamp01(m - a[y * W2 + x]);
+                    outp[y * W2 + x] = new Color32(255, 255, 255, (byte)(ring * 255f));
+                }
+            var tex = new Texture2D(W2, H2, TextureFormat.RGBA32, false)
+                      { filterMode = FilterMode.Bilinear, wrapMode = TextureWrapMode.Clamp, hideFlags = HideFlags.HideAndDontSave };
+            tex.SetPixels32(outp);
+            tex.Apply();
+            _rings[key] = tex;
+            return tex;
+        }
+
+        /// 모양 둘레에 고리 테두리. 그림을 r 에 그릴 때와 같은 비율로 펼친다.
+        void InkRing(Rect r, Texture2D tex, float a)
+        {
+            if (tex == null || a <= 0.01f || r.width < 1f || r.height < 1f) return;
+            if (Event.current != null && Event.current.type != EventType.Repaint) return;
+            int t = Mathf.Clamp(Mathf.CeilToInt(UiInkPx * tex.width / r.width), 1, 16);
+            var ring = RingTex(tex, t);
+            if (ring == null) return;
+            float sx = r.width / tex.width, sy = r.height / tex.height;
+            var c = InkCol; c.a = a;
+            Shape(new Rect(r.x - t * sx, r.y - t * sy, r.width + 2f * t * sx, r.height + 2f * t * sy), c, ring);
+        }
+
+        /// 불투명한 판 뒤에 한 겹 크게 — 카드처럼 늘여 그리는 모양은 고리가 찌그러져서 이쪽을 쓴다
+        void InkBehind(Rect r, Texture2D tex, float a)
+        {
+            if (a <= 0.01f) return;
+            float p = UiInkPx;
+            var c = InkCol; c.a = a;
+            Shape(new Rect(r.x - p, r.y - p, r.width + 2f * p, r.height + 2f * p), c, tex);
+        }
+
+        /// 알약(가운데 네모 + 양 끝 반원) 테두리 — 위아래 선 + 양 끝 **반쪽** 고리
+        void PillInk(Rect r, float a)
+        {
+            if (a <= 0.01f) return;
+            if (Event.current != null && Event.current.type != EventType.Repaint) return;
+            float d = r.height, p = UiInkPx;
+            var disc = PixelSprites.Disc().texture;
+            if (r.width <= d + 0.5f) { InkRing(r, disc, a); return; }
+            var c = InkCol; c.a = a;
+            Shape(new Rect(r.x + d * 0.5f, r.y - p, r.width - d, p), c, Solid(Color.white));
+            Shape(new Rect(r.x + d * 0.5f, r.yMax, r.width - d, p), c, Solid(Color.white));
+            int t = Mathf.Clamp(Mathf.CeilToInt(p * disc.width / d), 1, 16);
+            var ring = RingTex(disc, t);
+            if (ring == null) return;
+            float e = t * d / disc.width, rs = d + 2f * e;
+            GUI.BeginGroup(new Rect(r.x - e, r.y - e, d * 0.5f + e, rs));
+            Shape(new Rect(0f, 0f, rs, rs), c, ring);
+            GUI.EndGroup();
+            GUI.BeginGroup(new Rect(r.xMax - d * 0.5f, r.y - e, d * 0.5f + e, rs));
+            Shape(new Rect(-d * 0.5f - e, 0f, rs, rs), c, ring);
+            GUI.EndGroup();
+        }
+
         float VolumeBar(Rect r, float v)
         {
             var e = Event.current;
@@ -183,12 +276,14 @@ namespace SlimeEscape
             float th = Mathf.Max(4f, r.height * 0.55f), ty = r.y + (r.height - th) * 0.5f;
             float knob = Mathf.Max(14f, r.height * 2.3f);
             float hx = r.x + Mathf.Clamp(r.width * v, knob * 0.5f, r.width - knob * 0.5f);
+            PillInk(new Rect(r.x, ty, r.width, th), 0.85f);
             Pill(new Rect(r.x, ty, r.width, th), new Color(1f, 1f, 1f, 0.10f));
             if (v > 0.001f) Pill(new Rect(r.x, ty, Mathf.Max(th, hx - r.x), th), new Color(1f, 1f, 1f, 0.70f));
             //  잡는 자리 — 어디를 끌면 되는지 보여준다. 둘레에 옅은 그림자를 깔아 막대 위에 떠 보이게
             float cy = r.y + r.height * 0.5f;
             var sh = BgCol; sh.a = 0.55f;
             Shape(new Rect(hx - knob * 0.62f, cy - knob * 0.62f, knob * 1.24f, knob * 1.24f), sh, PixelSprites.Halo().texture);
+            InkRing(new Rect(hx - knob * 0.5f, cy - knob * 0.5f, knob, knob), PixelSprites.Disc().texture, 1f);
             Shape(new Rect(hx - knob * 0.5f, cy - knob * 0.5f, knob, knob), Color.white, PixelSprites.Disc().texture);
             return v;
         }

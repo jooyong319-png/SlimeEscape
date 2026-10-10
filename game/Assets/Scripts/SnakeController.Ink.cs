@@ -87,8 +87,9 @@ namespace SlimeEscape
         ///    z 로 앞뒤를 못박는다 (같은 차례 -2): 테 덩이 → 테 → 덩이 → 덮개 → 빛줄. EdgeFade(-0.002)는 그 앞.
         void WallCap(int x, int y)
         {
-            bool openL = !WallAt(x - 1, y) || WallAt(x - 1, y - 1);
-            bool openR = !WallAt(x + 1, y) || WallAt(x + 1, y - 1);
+            //  ⚠️ 판 끝(바깥 겹 쪽)으로는 안 넘친다 — 바깥 겹도 벽이라 계단으로 잘못 읽혀 덮개가 판 밖으로 튀어나왔다 (10-10 화면)
+            bool openL = x - 1 >= 0 && (!WallAt(x - 1, y) || WallAt(x - 1, y - 1));
+            bool openR = x + 1 < _L.W && (!WallAt(x + 1, y) || WallAt(x + 1, y - 1));
             float l = openL ? 0.10f : 0f, r = openR ? 0.10f : 0f;
             float w = 1f + l + r, cx = (r - l) * 0.5f;
             Vector2 p = CellXY(x, y);
@@ -113,7 +114,7 @@ namespace SlimeEscape
                 bm.transform.position = new Vector3(p.x + bx, p.y + 0.27f, 0.001f);
                 float sm = Mathf.Lerp(0.26f, 0.34f, Hash(k + j * 5));
                 bm.transform.localScale = new Vector3(sm, sm * 0.82f, 1f);
-                bm.color = RockTop;
+                bm.color = Color.Lerp(RockTop, Rock, 0.35f);   // 아랫단은 한 톤 어둡게 — 밝은 굴에서 레이스처럼 하얗게 뜨던 것 (10-10)
             }
             var cap = NewSprite("WallTop", -2);
             cap.sprite = PixelSprites.Soft();

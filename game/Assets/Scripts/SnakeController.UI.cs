@@ -109,6 +109,7 @@ namespace SlimeEscape
                 float top = h * 0.5f - 150f * _uiScale, bot = sy + sz + 74f * _uiScale;
                 var card = BgCol; card.a = 0.86f * ca;
                 //  ⚠️ Goo 로 깔았더니 **커다란 타원 덩어리**가 됐다 (10-09 화면) — 모서리만 둥근 카드로
+                InkBehind(new Rect(w * 0.5f - cw * 0.5f, top, cw, bot - top), PixelSprites.Soft().texture, ca);
                 Shape(new Rect(w * 0.5f - cw * 0.5f, top, cw, bot - top), card, PixelSprites.Soft().texture);
             }
 
@@ -130,6 +131,7 @@ namespace SlimeEscape
                 var m = GUI.matrix;
                 GUIUtility.ScaleAroundPivot(new Vector2(pop, pop), r.center);
                 //  🔴 글꼴의 ★☆ 가 아니라 **구운 별 도형**을 그린다 (09-12 — 도트 글꼴이라 계단이 커졌다)
+                InkRing(r, (got ? PixelSprites.Star() : PixelSprites.StarRing()).texture, got ? 1f : 0.5f);
                 Shape(r, col, (got ? PixelSprites.Star() : PixelSprites.StarRing()).texture);
                 GUI.matrix = m;
             }
@@ -303,7 +305,7 @@ namespace SlimeEscape
                 //     열린 판만 아래로 방울이 맺힌다 — 잠긴 판은 굳어 있다.
                 //  ⚠️ 방울이 길면(0.55) **주걱·막대사탕**처럼 보였고 폰의 좁은 격자에서 옆 마디에 닿았다 (09-13 화면).
                 //     짧고 통통하게 — 막 맺히는 참이다.
-                Goo(r, open ? cave.rock : lockCol, open ? 1 : 0, i, 0.62f, 0.30f, 0.17f);
+                Goo(r, open ? cave.rock : lockCol, open ? 1 : 0, i, 0.62f, 0.30f, 0.17f, open ? 0.9f : 0.55f);
                 //  윗면 빛 — 전엔 벽 윗면처럼 띠를 깔았다. 같은 색(굴마다 그 굴의 돌)을 **젖은 윤**으로 얹는다
                 if (open) Sheen(r, cave.top, 0.85f);
 
@@ -342,6 +344,7 @@ namespace SlimeEscape
                                     pos[at].y - node * 0.78f - beat * 3f, mk, mk);
                 here.height = mk * 0.7f;
                 //  네모 딱지였다 — 슬라임 몸과 같은 **아래가 퍼진 덩어리**로 (09-13)
+                InkRing(here, PixelSprites.Drop(PixelSprites.DropLevels - 1).texture, GUI.color.a);
                 Shape(here, HeadCol, PixelSprites.Drop(PixelSprites.DropLevels - 1).texture);
                 GUI.color = Color.white;
             }
@@ -367,6 +370,7 @@ namespace SlimeEscape
                 if (Event.current.type == EventType.Repaint)
                 {
                     var pc = BgCol; pc.a = over ? 0.95f : 0.75f;
+                    PillInk(r, 0.9f);
                     Shape(new Rect(r.x + r.height * 0.5f, r.y, r.width - r.height, r.height), pc, Solid(Color.white));
                     Shape(new Rect(r.x, r.y, r.height, r.height), pc, PixelSprites.Disc().texture);
                     Shape(new Rect(r.xMax - r.height, r.y, r.height, r.height), pc, PixelSprites.Disc().texture);
@@ -571,6 +575,7 @@ namespace SlimeEscape
             { _volPanel = false; ev.Use(); return; }
 
             //  형광 테를 두르면 팝업이 **홈처럼** 보인다. 얇은 회색 선만 남긴다.
+            InkBehind(box, PixelSprites.Soft().texture, 1f);
             Shape(box, new Color(1, 1, 1, 0.14f), PixelSprites.Soft().texture);
             float m2 = Mathf.Max(1.5f, ph2 * 0.008f);
             Shape(new Rect(box.x + m2, box.y + m2, box.width - m2 * 2f, box.height - m2 * 2f),
@@ -1133,8 +1138,10 @@ namespace SlimeEscape
             var veil = BgCol; veil.a = 1f;
             Tex(new Rect(0, 0, w, h), veil);
             //  설명 네 줄 뒤에 옅은 카드 — 한 묶음으로 읽히게
-            Shape(new Rect(x - s * 0.9f, y - s * 0.75f, blockW + s * 1.8f, gap * 3f + s * 2.5f),
-                  new Color(1f, 1f, 1f, 0.045f), PixelSprites.Soft().texture);
+            var cardR = new Rect(x - s * 0.9f, y - s * 0.75f, blockW + s * 1.8f, gap * 3f + s * 2.5f);
+            InkBehind(cardR, PixelSprites.Soft().texture, 1f);
+            Shape(cardR, veil, PixelSprites.Soft().texture);   // 카드는 반투명이라 테두리 판이 비치지 않게 바탕을 한 겹 다시
+            Shape(cardR, new Color(1f, 1f, 1f, 0.045f), PixelSprites.Soft().texture);
 
             GUI.Label(new Rect(0, y - gap * 2.0f, w, s * 1.4f), "슬라임 탈출", _sBig);
 
@@ -1364,6 +1371,7 @@ namespace SlimeEscape
                 float px = w * 0.5f - pw * 0.5f, py = barY + 6f * _uiScale;
                 var pill = BgCol; pill.a = 1f;   // 불투명 — 반투명이면 양 끝 반원과 겹치는 자리가 진해진다
                 //  ⚠️ Round 를 길게 늘이면 끝이 **렌즈 모양**이 된다 (10-09 화면) — 가운데 네모 + 양 끝 반원
+                PillInk(new Rect(px, py, pw, ph), 1f);
                 Shape(new Rect(px + ph * 0.5f, py, pw - ph, ph), pill, Solid(Color.white));
                 Shape(new Rect(px, py, ph, ph), pill, PixelSprites.Disc().texture);
                 Shape(new Rect(px + pw - ph, py, ph, ph), pill, PixelSprites.Disc().texture);
@@ -1440,6 +1448,7 @@ namespace SlimeEscape
                             float tw2 = ns2.CalcSize(new GUIContent(say)).x + 36f * _uiScale, th2 = 30f * _uiScale;
                             var pc = BgCol; pc.a = 0.88f * fadeA;
                             var pr = new Rect(w * 0.5f - tw2 * 0.5f, barY + 42f * _uiScale, tw2, th2);
+                            PillInk(pr, fadeA);
                             Shape(new Rect(pr.x + th2 * 0.5f, pr.y, pr.width - th2, th2), pc, Solid(Color.white));
                             Shape(new Rect(pr.x, pr.y, th2, th2), pc, PixelSprites.Disc().texture);
                             Shape(new Rect(pr.xMax - th2, pr.y, th2, th2), pc, PixelSprites.Disc().texture);
@@ -1458,6 +1467,7 @@ namespace SlimeEscape
                             float d = cell * 0.78f;
                             var bub = BgCol; bub.a = 0.9f * fadeA;
                             var ring = StarLit; ring.a = fadeA;
+                            InkRing(new Rect(c.x - d * 0.56f, c.y - d * 0.56f, d * 1.12f, d * 1.12f), PixelSprites.Disc().texture, fadeA);
                             Shape(new Rect(c.x - d * 0.56f, c.y - d * 0.56f, d * 1.12f, d * 1.12f), ring, PixelSprites.Disc().texture);
                             Shape(new Rect(c.x - d * 0.5f, c.y - d * 0.5f, d, d), bub, PixelSprites.Disc().texture);
                             var ar = new GUIStyle(_sBig) { alignment = TextAnchor.MiddleCenter, fontSize = Px(Mathf.Clamp(d * 0.62f, 14f, 40f)) };
