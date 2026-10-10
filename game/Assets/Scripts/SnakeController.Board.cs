@@ -18,6 +18,9 @@ namespace SlimeEscape
         bool WallAt(int x, int y)
             => x < 0 || y < 0 || x >= _L.W || y >= _L.H || _L.IsWall(y * _L.W + x);
 
+        /// 로비(타이틀) 시범 판 — 둘레가 로비로 녹는다 (DemoEdge 가 있을 때)
+        bool LobbyDemo => _demo && DemoEdge != null;
+
         /// 사방 여덟 칸이 모두 벽인 속 칸 — 둥글 필요도, 이웃과 이을 필요도 없다
         bool InnerRock(int x, int y)
         {
@@ -55,6 +58,9 @@ namespace SlimeEscape
                     sr.color = isIce ? IceCol
                              : wall ? Rock
                              : Color.Lerp(FloorLit, FloorDim, _L.H < 2 ? 0f : (float)y / (_L.H - 1));
+                    //  🔴 (10-11 루프) 로비 시범 판은 공기를 **로비 바탕색**으로 — 어두운 상자 대신
+                    //     친구들과 같은 "떠 있는 돌 선반" 위에 주인공이 선다
+                    if (!wall && LobbyDemo) sr.color = DemoEdge.Value;
 
                     //  🔴 금 간 바닥 — 벽처럼 딛고 서지만 지나가면 무너진다.
                     //     벽 덩어리에 안 붙이고 **낱장**으로 그린다. "이건 따로 떨어진 판이다".
@@ -222,6 +228,7 @@ namespace SlimeEscape
                 for (int x = -1; x <= _L.W; x++)
                 {
                     if (x >= 0 && y >= 0 && x < _L.W && y < _L.H) continue;   // 판 안은 이미 그렸다
+                    if (LobbyDemo) continue;                                    // 로비 시범은 바깥 겹 없이 선반만
                     var sr = NewSprite("WallEdge", -3);
                     if (!InnerRock(x, y)) sr.sprite = PixelSprites.Round();
                     sr.transform.position = CellXY(x, y);
@@ -241,8 +248,10 @@ namespace SlimeEscape
                 for (int x = -1; x <= _L.W; x++)
                 {
                     if (!WallAt(x, y)) continue;
-                    bool wR = x + 1 <= _L.W && WallAt(x + 1, y);
-                    bool wD = y + 1 <= _L.H && WallAt(x, y + 1);
+                    bool inB = x >= 0 && y >= 0 && x < _L.W && y < _L.H;
+                    if (LobbyDemo && !inB) continue;
+                    bool wR = x + 1 <= _L.W && WallAt(x + 1, y) && !(LobbyDemo && x + 1 >= _L.W);
+                    bool wD = y + 1 <= _L.H && WallAt(x, y + 1) && !(LobbyDemo && y + 1 >= _L.H);
                     //  🔴 (10-10 루프) 양쪽이 다 **속 칸(네모)** 이면 메울 틈이 없다 — 이음을 안 깐다.
                     //     큰 판에서 이음이 428 개로 그림 조각 중 가장 많았다. 둥근 칸이 하나라도 끼면 그대로 깐다.
                     bool inC = InnerRock(x, y);

@@ -68,8 +68,9 @@ namespace SlimeEscape
                     o.transform.localScale = new Vector3(1f + 2f * WallInk, 1f + 2f * WallInk, 1f);
                     o.color = InkCol;
                     //  이웃 벽과는 곧게 잇는다 — 둥근 모서리끼리 만나는 자리에 홈이 안 남게
-                    if (WallAt(x + 1, y)) InkBridge(x, y, new Vector2(0.5f, 0f), new Vector3(1f, 1f + 2f * WallInk, 1f));
-                    if (WallAt(x, y + 1)) InkBridge(x, y, new Vector2(0f, -0.5f), new Vector3(1f + 2f * WallInk, 1f, 1f));
+                    //  로비 시범은 바깥 겹이 없다 — 판 밖으로 잇지 않는다 (10-11)
+                    if (WallAt(x + 1, y) && !(LobbyDemo && x + 1 >= _L.W)) InkBridge(x, y, new Vector2(0.5f, 0f), new Vector3(1f, 1f + 2f * WallInk, 1f));
+                    if (WallAt(x, y + 1) && !(LobbyDemo && y + 1 >= _L.H)) InkBridge(x, y, new Vector2(0f, -0.5f), new Vector3(1f + 2f * WallInk, 1f, 1f));
                 }
         }
 
