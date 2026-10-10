@@ -635,6 +635,7 @@ namespace SlimeEscape
                 { cur = toward[cur]; path.Add(CellPos(cur)); }
 
                 var sr = NewSprite("Drain", 6);
+                sr.sprite = PixelSprites.Round();   // ⚠️ 그림이 없어 네모 덩어리로 미끄러졌다 (10-10)
                 sr.transform.position = path[0];
                 sr.color = BodyCol;
                 // 먼 칸부터 출발 — 바깥이 먼저 딸려간다
@@ -647,6 +648,7 @@ namespace SlimeEscape
 
             //  🔴 거품과 **같은 차례(7)** 였다 — 같은 차례는 번갈아 이긴다. 위로 뺀다.
             _gulp = NewSprite("Gulp", 12);
+            _gulp.sprite = PixelSprites.Halo();   // ⚠️ 그림을 안 넣어 기본 **흰 네모**가 번쩍였다 (10-10 로비 화면)
             _gulp.transform.position = CellPos(_drainCore);
             _gulp.enabled = false;
 
