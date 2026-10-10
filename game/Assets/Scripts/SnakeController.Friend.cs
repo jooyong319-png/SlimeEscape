@@ -18,7 +18,11 @@ namespace SlimeEscape
         static readonly Color GlassCol = new Color(0.80f, 0.86f, 0.92f, 0.24f);
         static readonly Color GlassRim = new Color(0.90f, 0.94f, 0.98f, 0.75f);
 
-        SpriteRenderer _frBody, _frEyeL, _frEyeR, _frLeaf, _crInk, _crFill, _crRim, _crShine, _crGlow;
+        SpriteRenderer _frBody, _frEyeL, _frEyeR, _frLeaf, _frLeaf2, _frStem, _crInk, _crFill, _crRim, _crShine, _crGlow;
+        //  (10-10 루프) 머리 장식 — 로비 친구와 같은 다섯 가지 (Lobby.cs Feats). 판마다 하나
+        string _frFeat = "leaf";
+        static readonly Color HornCol = new Color(0.85f, 0.87f, 0.89f, 1f);
+        static readonly Color BowCol = new Color(0.91f, 0.88f, 0.83f, 1f);
         readonly List<(SpriteRenderer sr, Vector2 v, float spin)> _shards = new List<(SpriteRenderer, Vector2, float)>();
         Vector2 _frHome;
         Color _frTint;
@@ -91,7 +95,12 @@ namespace SlimeEscape
             _frBody.color = _frTint;
             _frEyeL = NewSprite("FriendEye", 2); _frEyeL.sprite = PixelSprites.Disc(); _frEyeL.color = InkCol;
             _frEyeR = NewSprite("FriendEye", 2); _frEyeR.sprite = PixelSprites.Disc(); _frEyeR.color = InkCol;
-            _frLeaf = NewSprite("FriendLeaf", 2); _frLeaf.sprite = PixelSprites.Disc(); _frLeaf.color = LeafCol;
+            _frFeat = Feats[Mathf.Abs(_index * 7 + 3) % Feats.Length];
+            bool pointy = _frFeat == "horn" || _frFeat == "bow";
+            var featCol = _frFeat == "horn" ? HornCol : _frFeat == "bow" ? BowCol : LeafCol;
+            _frLeaf = NewSprite("FriendLeaf", 2); _frLeaf.sprite = pointy ? PixelSprites.Diamond() : PixelSprites.Disc(); _frLeaf.color = featCol;
+            _frLeaf2 = NewSprite("FriendLeaf", 2); _frLeaf2.sprite = pointy ? PixelSprites.Diamond() : PixelSprites.Disc(); _frLeaf2.color = featCol;
+            _frStem = NewSprite("FriendStem", 2); _frStem.color = LeafCol;
 
             //  수정 — 친구 **앞**에 반투명 유리. 검은 테는 유리 바깥으로 조금 크게
             const float S = 1.0f;   // ⚠️ 0.74 는 칸의 절반이라 안 보였다 (10-10 화면)
@@ -257,7 +266,10 @@ namespace SlimeEscape
         /// 친구 한 마리 놓기 — at 은 몸 가운데, sq 는 눌림(+ 이면 납작), look 은 -1~1 보는 쪽
         void PlaceFriend(Vector2 at, float sq, float look, bool on)
         {
-            _frBody.enabled = _frEyeL.enabled = _frEyeR.enabled = _frLeaf.enabled = on;
+            _frBody.enabled = _frEyeL.enabled = _frEyeR.enabled = on;
+            _frLeaf.enabled = on && _frFeat != "none";
+            _frLeaf2.enabled = on && (_frFeat == "sprout" || _frFeat == "bow");
+            _frStem.enabled = on && _frFeat == "sprout";
             if (!on) return;
             const float R = 0.52f;
             float w = R * (1f + sq), h = R * 0.92f * (1f - sq);
@@ -269,9 +281,34 @@ namespace SlimeEscape
             _frEyeL.transform.position = new Vector3(at.x - w * 0.20f + ex, ey, -0.001f);
             _frEyeR.transform.position = new Vector3(at.x + w * 0.20f + ex, ey, -0.001f);
             _frEyeL.transform.localScale = _frEyeR.transform.localScale = new Vector3(er, er, 1f);
-            _frLeaf.transform.position = new Vector3(at.x + w * 0.18f, top + 0.03f, -0.001f);
-            _frLeaf.transform.localScale = new Vector3(0.26f, 0.12f, 1f);
-            _frLeaf.transform.rotation = Quaternion.Euler(0, 0, 32f);
+            switch (_frFeat)
+            {
+                case "leaf":
+                    _frLeaf.transform.position = new Vector3(at.x + w * 0.18f, top + 0.03f, -0.001f);
+                    _frLeaf.transform.localScale = new Vector3(0.26f, 0.12f, 1f);
+                    _frLeaf.transform.rotation = Quaternion.Euler(0, 0, 32f);
+                    break;
+                case "sprout":
+                    _frStem.transform.position = new Vector3(at.x, top + 0.06f, -0.001f);
+                    _frStem.transform.localScale = new Vector3(0.035f, 0.14f, 1f);
+                    _frLeaf.transform.position = new Vector3(at.x - 0.075f, top + 0.13f, -0.001f);
+                    _frLeaf2.transform.position = new Vector3(at.x + 0.075f, top + 0.13f, -0.001f);
+                    _frLeaf.transform.localScale = _frLeaf2.transform.localScale = new Vector3(0.15f, 0.07f, 1f);
+                    _frLeaf.transform.rotation = Quaternion.Euler(0, 0, 22f);
+                    _frLeaf2.transform.rotation = Quaternion.Euler(0, 0, -22f);
+                    break;
+                case "horn":
+                    _frLeaf.transform.position = new Vector3(at.x, top + 0.06f, -0.001f);
+                    _frLeaf.transform.localScale = new Vector3(0.10f, 0.20f, 1f);
+                    _frLeaf.transform.rotation = Quaternion.identity;
+                    break;
+                case "bow":
+                    _frLeaf.transform.position = new Vector3(at.x - 0.08f, top + 0.02f, -0.001f);
+                    _frLeaf2.transform.position = new Vector3(at.x + 0.08f, top + 0.02f, -0.001f);
+                    _frLeaf.transform.localScale = _frLeaf2.transform.localScale = new Vector3(0.15f, 0.11f, 1f);
+                    _frLeaf.transform.rotation = _frLeaf2.transform.rotation = Quaternion.identity;
+                    break;
+            }
         }
 
         void SpawnShards()
@@ -327,12 +364,7 @@ namespace SlimeEscape
                 float e = r.width * 0.12f;
                 Shape(new Rect(body.center.x - body.width * 0.2f - e * 0.5f, body.y + body.height * 0.40f, e, e), ink, PixelSprites.Disc().texture);
                 Shape(new Rect(body.center.x + body.width * 0.2f - e * 0.5f, body.y + body.height * 0.40f, e, e), ink, PixelSprites.Disc().texture);
-                var lc = LeafCol; lc.a = a;
-                var m = GUI.matrix;
-                var lr = new Rect(body.center.x, body.y - r.height * 0.10f, r.width * 0.36f, r.height * 0.16f);
-                GUIUtility.RotateAroundPivot(-32f, lr.center);
-                Shape(lr, lc, PixelSprites.Disc().texture);
-                GUI.matrix = m;
+                PalFeature(body.center.x, body.y, body.width * 0.5f, _frFeat, a);   // 판 속 친구와 같은 장식
             }
             else
             {
