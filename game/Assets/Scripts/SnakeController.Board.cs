@@ -556,22 +556,9 @@ namespace SlimeEscape
             // 🔴 별 — 먹어도 몸이 안 자란다. 그래서 조각(주황)과 **다른 색·다른 크기**로 둔다.
             //    헷갈리면 사람이 문 계산을 틀린다.
             _starView = _starGlow = null;
-            if (_L.Star >= 0)
-            {
-                // 🔴 뒤의 빛이 네모라 갈색 상자처럼 보였다 (08-31 화면). 둥글게 바꾼다.
-                _starGlow = NewSprite("StarGlow", -1);
-                _starGlow.transform.position = CellPos(_L.Star);
-                //  🔴 (10-09) 꽉 찬 원 빛이 어두운 갈색 동전처럼 보였다 → 옅어지는 빛
-                _starGlow.transform.localScale = new Vector3(1.5f, 1.5f, 1);
-                _starGlow.sprite = PixelSprites.Halo();
-
-                _starView = NewSprite("Star", 1);
-                _starView.transform.position = CellPos(_L.Star);
-                //  🔴 그림을 안 넣어 기본 **네모**가 나오고 있었다 (09-16 사장님: "필드에 있는 별 모양이 그냥 정사각형임").
-                //     결과 화면과 **같은 별**을 쓴다 — 같은 것을 두 모양으로 그리면 안 된다.
-                _starView.sprite = PixelSprites.Star();
-                _starView.color = StarLit;
-            }
+            //  🔴 (10-10) 별 자리에 **수정에 갇힌 친구**를 둔다 — 규칙은 별 그대로 (SnakeController.Friend.cs)
+            _frBody = null;
+            if (_L.Star >= 0) BuildFriend(CellPos(_L.Star));
 
         }
 
@@ -837,6 +824,7 @@ namespace SlimeEscape
             }
 
             // 목표 홈에 몸이 들어간 칸은 밝아진다 — "몇 칸 남았는지"가 눈에 보이게
+            TickFriend();   // (10-10) 별 대신 갇힌 친구
             // 🔴 별 — 안 주웠으면 천천히 돈다. 주우면 사라진다.
             if (_starView != null)
             {

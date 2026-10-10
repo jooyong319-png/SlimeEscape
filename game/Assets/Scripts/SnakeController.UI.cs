@@ -141,8 +141,15 @@ namespace SlimeEscape
             {
                 string line = _resultSteps + "걸음";
                 if (Def.cut > 0) line += "   커트 " + Def.cut;
-                if (!_resultStar) line += "   ·  별을 놓쳤다";
-                GUI.Label(new Rect(0, sy + sz + 14f * _uiScale, w, 24f * _uiScale), line, _sMid);
+                //  (10-10) 「별을 놓쳤다」 → 친구 아이콘 (구했으면 얼굴 · 못 구했으면 수정). 글자는 늘리지 않는다
+                var lr = new Rect(0, sy + sz + 14f * _uiScale, w, 24f * _uiScale);
+                if (_L != null && _L.Star >= 0)
+                {
+                    float lw = _sMid.CalcSize(new GUIContent(line)).x, ic = 22f * _uiScale, gapI = 12f * _uiScale;
+                    lr.x = -(ic + gapI) * 0.5f;
+                    FriendIcon(new Rect(w * 0.5f + lw * 0.5f + lr.x + gapI, lr.y + (lr.height - ic) * 0.5f, ic, ic), _resultStar);
+                }
+                GUI.Label(lr, line, _sMid);
 
                 if (_resultBest)
                     GUI.Label(new Rect(0, sy + sz + 40f * _uiScale, w, 22f * _uiScale),
@@ -1360,12 +1367,13 @@ namespace SlimeEscape
                 string stepTxt = null;
                 if (_L.Star >= 0 || def.cut > 0)
                 {
-                    stepTxt = (_st.Sc != 0 ? "★ " : "☆ ") + _steps + "걸음";
+                    stepTxt = _steps + "걸음";   // (10-10) 앞의 ★/☆ 는 친구 아이콘으로 — 아래에서 그린다
                     if (def.cut > 0) stepTxt += "  ·  커트 " + def.cut;
                 }
                 float w0 = useDots ? need * (dot + dg) - dg : st.CalcSize(new GUIContent(fillTxt)).x;
                 float w1 = doorTxt != null ? st.CalcSize(new GUIContent(doorTxt)).x : 0f;
-                float w2 = stepTxt != null ? st.CalcSize(new GUIContent(stepTxt)).x : 0f;
+                float fic = _L.Star >= 0 ? ph * 0.62f : 0f;                  // 친구 아이콘 자리
+                float w2 = stepTxt != null ? st.CalcSize(new GUIContent(stepTxt)).x + (fic > 0f ? fic + 4f * _uiScale : 0f) : 0f;
                 float sep = gapX * 2f + 1f;
                 float pw = pad * 2f + w0 + (doorTxt != null ? sep + w1 : 0f) + (stepTxt != null ? sep + w2 : 0f);
                 float px = w * 0.5f - pw * 0.5f, py = barY + 6f * _uiScale;
@@ -1402,6 +1410,11 @@ namespace SlimeEscape
                 if (stepTxt != null)
                 {
                     x += gapX; Bar(new Rect(x, cy - ph * 0.28f, 1f, ph * 0.56f), sepCol); x += 1f + gapX;
+                    if (fic > 0f)
+                    {
+                        FriendIcon(new Rect(x, cy - fic * 0.55f, fic, fic), _st.Sc != 0);
+                        x += fic + 4f * _uiScale;
+                    }
                     GUI.Label(new Rect(x, py, w2 + 4f, ph), stepTxt, st);
                 }
             }

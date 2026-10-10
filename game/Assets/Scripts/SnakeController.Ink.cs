@@ -23,7 +23,7 @@ namespace SlimeEscape
         //     그리는 곳이 여러 파일에 흩어져 있어서 **이름표**로 고른다. 매 프레임 바깥 모양을 베끼니
         //     떠다니는 조각 · 미는 상자 · 눌리는 스위치 · 꺼지는 블록이 그대로 따라온다.
         static readonly HashSet<string> InkNames = new HashSet<string> {
-            "Crack", "Box", "Food", "Star", "Portal", "SwPlate", "SwButton", "SwBlock", "Gate", "Sign", "Pad", "SwapPad", "Zone" };
+            "Crack", "Box", "Food", "Star", "Portal", "SwPlate", "SwButton", "SwBlock", "Gate", "Sign", "Pad", "SwapPad", "Zone", "Friend", "FriendLeaf" };
         const float ObjInk = 0.06f;
         readonly List<(SpriteRenderer src, SpriteRenderer ink)> _objInk = new List<(SpriteRenderer, SpriteRenderer)>();
         Transform _inkRoot;
