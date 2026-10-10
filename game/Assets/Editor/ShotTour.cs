@@ -146,6 +146,10 @@ namespace SlimeEscape.EditorTools
                     break;
                 case "ending":   Clear(); Set("_allDone", true); break;   // 마지막 판까지 깬 뒤
                 //  (10-09) 막힘 안내 — 판을 연 뒤 150초가 지난 것으로 치고 "다음 한 수"를 띄운다 (level:N 다음에 쓴다)
+                //  (10-10) 슬라임 둘 — 키보드 교체 한 번 (교체 순간 연출을 찍으려고)
+                case "swap":
+                    typeof(SnakeController).GetMethod("Step", Bf).Invoke(_c, new object[] { SnakeEngine.Dir.Swap });
+                    break;
                 case "nudge":
                     Set("_levelAt", Time.time - 200f); Set("_nudgeShow", Time.time);
                     Set("_nudgeDir", SnakeEngine.Dir.Right); Set("_nudges", 1);

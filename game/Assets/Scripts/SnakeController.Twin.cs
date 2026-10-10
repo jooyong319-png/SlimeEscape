@@ -20,6 +20,15 @@ namespace SlimeEscape
         static readonly Color TwinKeyCore = new Color32(0x1e, 0x3a, 0x29, 0xff);
         SpriteRenderer _twinRing, _twinCore;
 
+        //  🔴 (10-10) **조종이 넘어가는 순간** — 전에는 딱 바뀌기만 해서 어느 쪽으로 넘어갔는지 놓쳤다.
+        //     ① 넘겨준 슬라임에서 넘겨받는 슬라임으로 작은 불빛이 날아가고 ② 넘겨받은 쪽에 빛 고리가 퍼지고
+        //     ③ 쉬게 된 쪽은 살짝 움츠러들었다 돌아온다. 전부 0.5초 안에 끝난다 — 다음 걸음을 막지 않는다.
+        int _lastHead = -1, _lastRest = -1;
+        float _swapFxAt = -9f;
+        Vector2 _swapFrom, _swapTo;
+        SpriteRenderer _swapRing, _swapSpark;
+        const float SwapFxSec = 0.75f;   // 0.5 는 눈에 다 안 들어왔다 (10-10)
+
         //  🔴 **교체 칸 '&'** — 09-23 에 규칙만 넣고 **그림이 없었다** (10-08 화면: 판에 아무것도 안 보였다).
         //     색 규칙(초록=슬라임 · 주황=조각 · 형광 테=홈 · 보라=포탈)을 피해 **무채색 + 마름모 둘**:
         //     머리의 마름모가 둘 = "머리가 바뀐다". 둘이 번갈아 밝아진다 = 교대
@@ -64,10 +73,54 @@ namespace SlimeEscape
             }
         }
 
+        void TickSwapFx()
+        {
+            float t = (Time.time - _swapFxAt) / SwapFxSec;
+            bool on = t >= 0f && t < 1f;
+            if (_swapRing == null && on)
+            {
+                //  ⚠️ 차례 8(슬라임 위)에 두었더니 꽉 찬 빛이 몸을 살짝 밝힐 뿐 **보이지 않았다** (10-10 화면).
+                //     몸 **뒤**(2)에 깔아 둘레로 번져 나오게 한다
+                _swapRing = NewSprite("SwapRing", 2);
+                _swapRing.sprite = PixelSprites.Halo();
+                _swapSpark = NewSprite("SwapSpark", 9);
+                _swapSpark.sprite = PixelSprites.Disc();
+            }
+            if (_swapRing == null) return;
+            _swapRing.enabled = _swapSpark.enabled = on;
+            if (!on) return;
+            //  ① 불빛 — 앞 절반 동안 날아간다 (끝에서 살짝 느려진다)
+            float f = Mathf.Clamp01(t / 0.5f); f = 1f - (1f - f) * (1f - f);
+            _swapSpark.enabled = t < 0.5f;
+            _swapSpark.transform.position = Vector2.Lerp(_swapFrom, _swapTo, f) + new Vector2(0f, 0.35f * Mathf.Sin(f * Mathf.PI));
+            _swapSpark.transform.localScale = Vector3.one * 0.22f;
+            var sc = Color.Lerp(BodyCol, Color.white, 0.5f); _swapSpark.color = sc;
+            //  ② 빛 고리 — 불빛이 닿는 순간부터 퍼진다
+            float g = Mathf.Clamp01((t - 0.35f) / 0.65f);
+            _swapRing.enabled = t >= 0.35f;
+            _swapRing.transform.position = _swapTo;
+            _swapRing.transform.localScale = Vector3.one * Mathf.Lerp(1.4f, 2.8f, g);
+            //  ⚠️ 0.65 는 밝은 바닥 위에서 거의 안 보였다 (10-10 화면) — 더 밝고 진하게
+            var rc = Color.Lerp(BodyCol, Color.white, 0.35f); rc.a = 0.95f * (1f - g) * (1f - g * 0.3f); _swapRing.color = rc;
+        }
+
         void TickTwinView()
         {
             TickSwapViews();
             var ob = (_L != null && _L.Twin && _st != null) ? _st.Ob : null;
+            //  교체를 알아챈다 — 머리가 방금 전 쉬던 자리에, 쉬는 머리가 방금 전 머리 자리에 있으면 넘어간 것이다
+            if (ob != null && ob.Count > 0)
+            {
+                int rest = ob[0];
+                if (_lastHead >= 0 && _lastHead != _lastRest && _st.Head == _lastRest && rest == _lastHead)
+                {
+                    _swapFxAt = Time.time;
+                    _swapFrom = CellPos(rest); _swapTo = CellPos(_st.Head);
+                }
+                _lastHead = _st.Head; _lastRest = rest;
+            }
+            else { _lastHead = _lastRest = -1; }
+            TickSwapFx();
             //  판을 새로 지으면 _root 와 함께 스프라이트가 사라진다 — 그때 다시 만든다
             for (int i = _twinSegs.Count - 1; i >= 0; i--)
                 if (_twinSegs[i] == null) { _twinSegs.Clear(); _twinPos.Clear(); _twinSnap = true; break; }
@@ -89,6 +142,9 @@ namespace SlimeEscape
                 _twinPos[i] = _twinSnap ? want : Vector2.MoveTowards(_twinPos[i], want, Time.deltaTime * 9f);
                 _twinSegs[i].transform.position = _twinPos[i];
                 float s = i == 0 ? 0.92f : 0.86f;
+                //  ③ 쉬게 된 쪽이 살짝 움츠러든다
+                float st = (Time.time - _swapFxAt) / 0.3f;
+                if (st >= 0f && st < 1f) s *= 1f - 0.16f * Mathf.Sin(st * Mathf.PI);
                 _twinSegs[i].transform.localScale = new Vector3(s, s, 1);
             }
             _twinSnap = false;
