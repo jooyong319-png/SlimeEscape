@@ -34,17 +34,34 @@ namespace SlimeEscape
         int _palCount = -1;
         float _palLast = -1f;
 
+        //  🔴 (10-10 루프) 구한 판 번호 — 로비 친구의 색 · 장식을 **판 속에서 구한 그 친구와 같게** 정한다
+        //     (Friend.cs: 색 = 판 번호 % 색 수 · 장식 = Feats[(판 번호 × 7 + 3) % 8])
+        readonly List<int> _rescuedIdx = new List<int>();
+
+        float _rescuedAt = -9f;
+        int _rescuedN;
+
         int RescuedCount()
         {
-            if (LobbyFriendsDebug >= 0) return LobbyFriendsDebug;
+            //  ⚠️ 로비를 그릴 때마다 부른다 — 판 전부를 매 프레임 훑지 않게 1초에 한 번만 센다
+            if (Time.unscaledTime - _rescuedAt < 1f && _rescuedAt >= 0f) return _rescuedN;
+            _rescuedAt = Time.unscaledTime;
+            _rescuedN = CountRescued();
+            return _rescuedN;
+        }
+
+        int CountRescued()
+        {
+            _rescuedIdx.Clear();
+            if (LobbyFriendsDebug >= 0) { for (int i = 0; i < LobbyFriendsDebug; i++) _rescuedIdx.Add(i * 5 + 1); return LobbyFriendsDebug; }
             if (_set == null || _set.levels == null) return 0;
-            int n = 0;
-            foreach (var lv in _set.levels)
+            for (int i = 0; i < _set.levels.Length; i++)
             {
+                var lv = _set.levels[i];
                 if (lv == null || lv.grid == null || !_recs.TryGetValue(lv.id, out int rec) || rec >= StarBit) continue;
-                foreach (var row in lv.grid) if (row != null && row.IndexOf('o') >= 0) { n++; break; }
+                foreach (var row in lv.grid) if (row != null && row.IndexOf('o') >= 0) { _rescuedIdx.Add(i); break; }
             }
-            return n;
+            return _rescuedIdx.Count;
         }
 
         void LobbySetup(int n)
@@ -72,9 +89,11 @@ namespace SlimeEscape
                         p = k, x = Mathf.Lerp(L.x + 0.015f, L.y - 0.015f, u), y = L.z,
                         R = Mathf.Lerp(0.8f, 1.15f, Hash(i * 31 + 5)), t = Hash(i * 53) * 2f, dur = 1f + Hash(i * 59) * 2f,
                         face = Hash(i * 61) < 0.5f ? -1f : 1f, seed = i, blink = Hash(i * 67) * 4f,
-                        feat = Feats[i % Feats.Length], tint = FriendTints[i % FriendTints.Length] });
+                        feat = Feats[Mathf.Abs(LvOf(i) * 7 + 3) % Feats.Length], tint = FriendTints[Mathf.Abs(LvOf(i)) % FriendTints.Length] });
                 }
         }
+
+        int LvOf(int i) => i < _rescuedIdx.Count ? _rescuedIdx[i] : i;
 
         /// 같은 선반에서 x 가까이에 친구가 몇이나 있나 — 걸어갈 곳은 덜 붐비는 쪽으로
         int Crowd(int p, float x, Pal self)
