@@ -121,6 +121,9 @@ namespace SlimeEscape
         //  ⚠️ **좁고 센 흰 광이 아니다.** 그건 이미 한 번 물렸다 — 표면 위에 반짝이는 점을 얹었더니
         //     캐릭터에 없는 것이라 안 닮았다 ("이 빛반사가 아니고", 09-17).
         //     여기서는 밝은 쪽과 그늘 쪽 **두 색 사이를 넓고 천천히** 오간다. 흰색은 안 쓴다.
+        //  테두리 — SnakeController.InkCol 과 같은 색. 굵기는 획 반지름의 비율 (화면에서 판 테두리와 비슷한 2px 쯤)
+        static readonly Color Ink = new Color32(0x04, 0x05, 0x08, 0xff);
+        const float InkW = 0.5f;
         static readonly Color Lite  = new Color32(0x9a, 0xde, 0xae, 0xff);   // 빛 받는 쪽
         static readonly Color Shade = new Color32(0x57, 0xa2, 0x6d, 0xff);   // 그늘
         //  빛은 **왼쪽 위**에서 온다. 게임 안에서 조각의 반짝임도 왼쪽 위에 얹혀 있다
@@ -341,7 +344,11 @@ namespace SlimeEscape
                     int i = y * W + x;
                     float d = dist[i];
                     float a = Mathf.Clamp01(0.5f - d);
-                    if (a <= 0.001f) { px[i] = new Color(0f, 0f, 0f, 0f); mpx[i] = px[i]; continue; }
+                    //  🔴 (10-10 사장님: "로고도 그거에 맞게") 판 · 슬라임과 같은 **얇은 검은 테두리**를 몸 밖에 두른다.
+                    //     여백(padX = Stroke × 1.6)이 획 반지름보다 0.6r 넓어서 0.5r 테두리가 안 잘린다.
+                    float ao = Mathf.Clamp01(0.5f - (d - InkW * r));
+                    if (ao <= 0.001f) { px[i] = new Color(0f, 0f, 0f, 0f); mpx[i] = px[i]; continue; }
+                    if (a <= 0.001f) { var ink = Ink; ink.a = ao; px[i] = ink; mpx[i] = new Color(0f, 0f, 0f, 0f); continue; }
 
                     //  🔴 거품은 굽지 않는다 — 움직여야 하므로 그리는 쪽이 띄운다.
                     //     (09-16 에 구워 봤더니 티끌처럼 흩뿌려져 부글거림이 아니라 **얼룩**으로 보였다)
@@ -367,7 +374,8 @@ namespace SlimeEscape
                         c = Color.Lerp(Body, Color.Lerp(Shade, Lite, lit), Mathf.Clamp01(mag / r));
                     }
 
-                    c.a = a;
+                    c = Color.Lerp(Ink, c, a);
+                    c.a = ao;
                     px[i] = c;
                     mpx[i] = new Color(1f, 1f, 1f, a);
                 }

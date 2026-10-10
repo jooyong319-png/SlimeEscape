@@ -19,6 +19,16 @@ namespace SlimeEscape
         readonly List<SpriteRenderer> _linkInk = new List<SpriteRenderer>();
         readonly List<SpriteRenderer> _twinInk = new List<SpriteRenderer>();
 
+        //  🔴 (10-10 사장님: "얇은거 ㄱㄱ") 장애물 · 물건도 같은 얇은 테두리. 홈은 빼다 — 비어 있는 자리로 읽혀야 한다.
+        //     그리는 곳이 여러 파일에 흩어져 있어서 **이름표**로 고른다. 매 프레임 바깥 모양을 베끼니
+        //     떠다니는 조각 · 미는 상자 · 눌리는 스위치 · 꺼지는 블록이 그대로 따라온다.
+        static readonly HashSet<string> InkNames = new HashSet<string> {
+            "Crack", "Box", "Food", "Star", "Portal", "SwPlate", "SwButton", "SwBlock", "Gate", "Sign", "Pad", "SwapPad" };
+        const float ObjInk = 0.06f;
+        readonly List<(SpriteRenderer src, SpriteRenderer ink)> _objInk = new List<(SpriteRenderer, SpriteRenderer)>();
+        Transform _inkRoot;
+        int _inkSeen = -1;
+
         /// 벽 덩어리 바깥에 검은 테두리. 빈 칸(-5)보다 앞, 벽(-3)보다 뒤(-4)라 **벽 밖으로 삐져나온 만큼만** 보인다.
         /// 판 안쪽 빈 칸에 닿는 벽만 두른다 — 속 칸까지 두르면 스프라이트만 늘어난다.
         void BuildWallInk()
@@ -124,6 +134,44 @@ namespace SlimeEscape
             CopyInk(_segs, _segInk, "SegInk");
             CopyInk(_links, _linkInk, "LinkInk");
             CopyInk(_twinSegs, _twinInk, "TwinInk");
+            TickObjInk();
+        }
+
+        void TickObjInk()
+        {
+            if (_root == null) return;
+            if (_inkRoot != _root) { _objInk.Clear(); _inkRoot = _root; _inkSeen = -1; }
+            //  새 물건이 생겼을 때만 훑는다 (상자는 처음 그릴 때 만들어진다)
+            if (_root.childCount != _inkSeen)
+            {
+                var have = new HashSet<SpriteRenderer>();
+                foreach (var pr in _objInk) have.Add(pr.src);
+                int n = _root.childCount;
+                for (int i = 0; i < n; i++)
+                {
+                    var t = _root.GetChild(i);
+                    if (!InkNames.Contains(t.name)) continue;
+                    var sr = t.GetComponent<SpriteRenderer>();
+                    if (sr == null || have.Contains(sr)) continue;
+                    _objInk.Add((sr, NewSprite(t.name + "Ink", sr.sortingOrder - 1)));   // 바로 한 차례 뒤
+                }
+                _inkSeen = _root.childCount;
+            }
+            for (int k = _objInk.Count - 1; k >= 0; k--)
+            {
+                var (s, ink) = _objInk[k];
+                if (s == null || ink == null) { if (ink != null) Destroy(ink.gameObject); _objInk.RemoveAt(k); continue; }
+                bool on = s.enabled && s.gameObject.activeInHierarchy && s.color.a > 0.01f;
+                ink.enabled = on;
+                if (!on) continue;
+                ink.sprite = s.sprite;
+                var t = s.transform;
+                ink.transform.position = t.position + new Vector3(0f, 0f, 0.001f);
+                ink.transform.rotation = t.rotation;
+                var sc = t.localScale;
+                ink.transform.localScale = new Vector3(Mathf.Abs(sc.x) + 2f * ObjInk, Mathf.Abs(sc.y) + 2f * ObjInk, 1f);
+                var c = InkCol; c.a = s.color.a; ink.color = c;
+            }
         }
 
         void CopyInk(List<SpriteRenderer> src, List<SpriteRenderer> dst, string name)
