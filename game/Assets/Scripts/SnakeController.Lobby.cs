@@ -189,6 +189,21 @@ namespace SlimeEscape
                 float R = baseR * a.R;
                 PalDraw(a.x * w, a.y * h - a.hop * R, R, a.tint, a.feat, sq, look, blink, fade);
             }
+
+            //  🔴 (10-11 루프) 친구 수 — 왼쪽 위 알약에 **얼굴 아이콘 + 숫자**만 (시안의 「친구 N」, 글자는 안 늘린다)
+            if (n > 0)
+            {
+                var ns = new GUIStyle(_sMid) { alignment = TextAnchor.MiddleLeft, fontSize = Px(Mathf.Clamp(h * 0.032f, 14f, 22f)) };
+                ns.normal.textColor = new Color(1f, 1f, 1f, 0.88f * fade);
+                string num = n.ToString();
+                float ph = Mathf.Clamp(h * 0.055f, 30f, 44f), pad = Mathf.Clamp(h * 0.026f, 14f, 30f);
+                float ic = ph * 0.72f, tw = ns.CalcSize(new GUIContent(num)).x;
+                var pr = new Rect(pad, pad, ph * 0.35f + ic + 8f * _uiScale + tw + ph * 0.45f, ph);
+                PillInk(pr, fade);
+                Pill(pr, new Color(BgCol.r, BgCol.g, BgCol.b, 0.92f * fade));
+                PalDraw(pr.x + ph * 0.35f + ic * 0.5f, pr.y + ph * 0.5f + ic * 0.42f, ic * 0.5f, FriendTints[0], "leaf", 0f, 1f, false, fade);
+                GUI.Label(new Rect(pr.x + ph * 0.35f + ic + 8f * _uiScale, pr.y, tw + 8f, ph), num, ns);
+            }
         }
 
         /// 바위 선반 — 몸 · 윗면 덮개 · 봉긋한 아랫단, 판과 같은 검은 테
