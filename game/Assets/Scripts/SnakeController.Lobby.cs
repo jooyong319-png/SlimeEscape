@@ -20,7 +20,7 @@ namespace SlimeEscape
             new Vector4(0.46f, 0.60f, 0.73f, 3),
             new Vector4(0.62f, 0.73f, 0.61f, 6),
             new Vector4(0.40f, 0.76f, 0.90f, 10),   // 바닥이 오른쪽으로 넓어진다
-            new Vector4(0.78f, 0.97f, 0.94f, 14),
+            new Vector4(0.04f, 0.19f, 0.31f, 14),   // ⚠️ 메뉴 아래 오른쪽(0.78~0.97, 0.94)에 뒀더니 설정의 「돌아가기」를 가렸다 (10-11 폰 화면) → 왼쪽 위로
             new Vector4(0.44f, 0.56f, 0.55f, 18),
             new Vector4(0.25f, 0.38f, 0.50f, 24),
             new Vector4(0.05f, 0.20f, 0.50f, 32),
