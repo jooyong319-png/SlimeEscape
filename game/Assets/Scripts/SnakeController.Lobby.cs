@@ -93,6 +93,45 @@ namespace SlimeEscape
                 }
         }
 
+        bool[] _hasFriend;
+
+        /// 이 판에 친구(옛 별 'o')가 있나 — 판 목록에서 한 번만 센다
+        bool HasFriend(int li)
+        {
+            if (_set == null || _set.levels == null) return false;
+            if (_hasFriend == null || _hasFriend.Length != _set.levels.Length)
+            {
+                _hasFriend = new bool[_set.levels.Length];
+                for (int i = 0; i < _hasFriend.Length; i++)
+                {
+                    var g = _set.levels[i] != null ? _set.levels[i].grid : null;
+                    if (g != null) foreach (var row in g) if (row != null && row.IndexOf('o') >= 0) { _hasFriend[i] = true; break; }
+                }
+            }
+            return li >= 0 && li < _hasFriend.Length && _hasFriend[li];
+        }
+
+        /// 판 고르기 마디 위 친구 표시 — 구했으면 그 판 친구 얼굴(색 · 장식은 판 속과 같은 식), 아니면 작은 수정
+        void NodeFriend(Rect r, bool got, int li)
+        {
+            if (got)
+            {
+                var tint = FriendTints[Mathf.Abs(li) % FriendTints.Length];
+                string feat = Feats[Mathf.Abs(li * 7 + 3) % Feats.Length];
+                PalDraw(r.center.x, r.yMax, r.width * 0.5f, tint, feat, 0f, 0f, false, 1f);
+            }
+            else
+            {
+                EnsureHex();
+                var ink = InkCol;
+                var hr = new Rect(r.x + r.width * 0.1f, r.y, r.width * 0.8f, r.height);
+                Shape(hr, ink, _hexInk.texture);
+                var gc = GlassCol; gc.a = Mathf.Min(1f, GlassCol.a * 2f);
+                Shape(hr, gc, _hexSolid.texture);
+                Shape(hr, GlassRim, _hexRing.texture);
+            }
+        }
+
         int LvOf(int i) => i < _rescuedIdx.Count ? _rescuedIdx[i] : i;
 
         /// 같은 선반에서 x 가까이에 친구가 몇이나 있나 — 걸어갈 곳은 덜 붐비는 쪽으로

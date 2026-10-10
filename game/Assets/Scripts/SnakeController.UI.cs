@@ -328,6 +328,10 @@ namespace SlimeEscape
                     for (int k = 0; k < 3; k++) ss += k < s ? "★" : "☆";
                     starS.normal.textColor = s > 0 ? StarLit : new Color(1, 1, 1, 0.24f);
                     GUI.Label(new Rect(r.x, r.yMax - node * 0.42f, r.width, node * 0.34f), ss, starS);
+                    //  (10-11 루프) 친구가 있는 판 — 오른쪽 위에 수정(아직 갇힘) · 그 친구 얼굴(구함)
+                    if (HasFriend(li))
+                        NodeFriend(new Rect(r.xMax - node * 0.30f, r.y - node * 0.14f, node * 0.40f, node * 0.40f),
+                                   _recs.TryGetValue(d.id, out int frec) && frec < StarBit, li);
                 }
 
                 if (r.Contains(Event.current.mousePosition)) hover = li;
