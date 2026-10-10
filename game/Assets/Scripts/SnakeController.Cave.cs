@@ -99,12 +99,14 @@ namespace SlimeEscape
                 else if (ch < _menuCh)   c = new Color(1f, 1f, 1f, 0.34f);   // 지나온 아래쪽
                 else                     c = new Color(1f, 1f, 1f, 0.10f);   // 아직 못 간 위쪽
 
+                InkRing(r, PixelSprites.Round().texture, 0.9f);   // (10-10) 판 고르기 다른 것들과 같은 테두리
                 Shape(r, c, PixelSprites.Round().texture);
             }
 
             //  출구 표시 — 맨 위 칸 위에 작은 점. 어디로 가고 있는지 보여준다
             var goal = new Color(1f, 1f, 1f, _menuCh >= depth ? 0.85f : 0.22f);
             float ds = gw * 1.5f;
+            InkRing(new Rect(x + gw * 0.5f - ds * 0.5f, y0 - ds - gap * 1.5f, ds, ds), PixelSprites.Disc().texture, 0.9f);
             Shape(new Rect(x + gw * 0.5f - ds * 0.5f, y0 - ds - gap * 1.5f, ds, ds),
                   goal, PixelSprites.Disc().texture);
         }

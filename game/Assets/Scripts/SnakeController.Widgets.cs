@@ -105,7 +105,7 @@ namespace SlimeEscape
                              : new Color(1, 1, 1, 0.075f);
             fill.a *= fade;
             //  🔴 네모난 판이 아니라 **젤리 알**로 (09-13). 테는 여전히 없다 — 윤만 얹는다.
-            Goo(r, fill, ink: (on ? 0.85f : 0.40f) * fade);
+            Goo(r, fill, ink: (on ? 0.85f : 0.40f) * Mathf.Lerp(1f, fade, 0.3f));   // 판 위에 옅게 얹혀도 테두리는 남긴다 (10-10)
             if (on) Sheen(r, Color.white, (hot ? 0.10f : 0.05f) * fade);
 
             if (!string.IsNullOrEmpty(label))
@@ -224,8 +224,38 @@ namespace SlimeEscape
             var ring = RingTex(tex, t);
             if (ring == null) return;
             float sx = r.width / tex.width, sy = r.height / tex.height;
+            //  🔴 어두운 바탕에서는 검은 테가 **묻혀서 안 들어간 것처럼** 보였다 (10-10 사장님: "아직 적용 안된 부분이 좀 있는 것 같아").
+            //     검은 테 바깥에 1px 짜리 아주 옅은 밝은 선을 한 겹 — 어두운 데서도 테가 선으로 읽히고, 밝은 데서는 거의 안 보인다.
+            int t2 = t + Mathf.Max(1, Mathf.CeilToInt(tex.width / r.width));
+            var ring2 = RingTex(tex, t2);
+            if (ring2 != null)
+                Shape(new Rect(r.x - t2 * sx, r.y - t2 * sy, r.width + 2f * t2 * sx, r.height + 2f * t2 * sy), UiRim(a), ring2);
             var c = InkCol; c.a = a;
             Shape(new Rect(r.x - t * sx, r.y - t * sy, r.width + 2f * t * sx, r.height + 2f * t * sy), c, ring);
+        }
+
+        /// 검은 테 바깥의 옅은 밝은 선 색
+        static Color UiRim(float a) => new Color(1f, 1f, 1f, 0.11f * a);
+
+        /// 네모 둘레 띠 (안쪽 r 은 비운다) — 카메라가 비추는 창처럼 속을 덮으면 안 되는 것에 쓴다
+        void RectBand(Rect r, float t, Color c)
+        {
+            var s = Solid(Color.white);
+            Shape(new Rect(r.x - t, r.y - t, r.width + 2f * t, t), c, s);
+            Shape(new Rect(r.x - t, r.yMax, r.width + 2f * t, t), c, s);
+            Shape(new Rect(r.x - t, r.y, t, r.height), c, s);
+            Shape(new Rect(r.xMax, r.y, t, r.height), c, s);
+        }
+
+        /// 네모 창 둘레 테두리 (밝은 겉선 + 검은 테)
+        void FrameInk(Rect r, float a)
+        {
+            if (a <= 0.01f) return;
+            if (Event.current != null && Event.current.type != EventType.Repaint) return;
+            float p = UiInkPx;
+            RectBand(r, p + 1f, UiRim(a));
+            var c = InkCol; c.a = a;
+            RectBand(r, p, c);
         }
 
         /// 불투명한 판 뒤에 한 겹 크게 — 카드처럼 늘여 그리는 모양은 고리가 찌그러져서 이쪽을 쓴다
@@ -233,6 +263,7 @@ namespace SlimeEscape
         {
             if (a <= 0.01f) return;
             float p = UiInkPx;
+            Shape(new Rect(r.x - p - 1f, r.y - p - 1f, r.width + 2f * p + 2f, r.height + 2f * p + 2f), UiRim(a), tex);
             var c = InkCol; c.a = a;
             Shape(new Rect(r.x - p, r.y - p, r.width + 2f * p, r.height + 2f * p), c, tex);
         }
@@ -245,7 +276,15 @@ namespace SlimeEscape
             float d = r.height, p = UiInkPx;
             var disc = PixelSprites.Disc().texture;
             if (r.width <= d + 0.5f) { InkRing(r, disc, a); return; }
-            var c = InkCol; c.a = a;
+            PillBand(r, p + 1f, UiRim(a));
+            var ic = InkCol; ic.a = a;
+            PillBand(r, p, ic);
+        }
+
+        void PillBand(Rect r, float p, Color c)
+        {
+            float d = r.height;
+            var disc = PixelSprites.Disc().texture;
             Shape(new Rect(r.x + d * 0.5f, r.y - p, r.width - d, p), c, Solid(Color.white));
             Shape(new Rect(r.x + d * 0.5f, r.yMax, r.width - d, p), c, Solid(Color.white));
             int t = Mathf.Clamp(Mathf.CeilToInt(p * disc.width / d), 1, 16);

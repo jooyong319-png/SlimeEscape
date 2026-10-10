@@ -313,6 +313,7 @@ namespace SlimeEscape
             GUI.DrawTexture(new Rect(box.x, stage.yMax, box.width, box.yMax - stage.yMax), Solid(PanelBg));
             GUI.DrawTexture(new Rect(box.x, stage.y, stage.x - box.x, stage.height), Solid(PanelBg));
             GUI.DrawTexture(new Rect(stage.xMax, stage.y, box.xMax - stage.xMax, stage.height), Solid(PanelBg));
+            FrameInk(stage, 0.9f);   // (10-10) 시범 창도 다른 것들과 같은 테두리 — 속은 카메라가 비추므로 둘레만
 
             //  🔴 **시범을 무대 자리에 비춘다.** 카메라 자리는 0~1 로 주고 y 는 아래가 0 이라
             //     화면 좌표(y 가 위가 0)를 뒤집어야 한다.
@@ -378,6 +379,7 @@ namespace SlimeEscape
             for (int k = 0; k < Slides; k++)
             {
                 var dr = new Rect(dx + k * gap, row, dot, dot);
+                InkRing(dr, PixelSprites.Disc().texture, 0.9f);
                 Dot(dr, k == slide ? StarLit : new Color(1, 1, 1, 0.18f));
                 // 점을 눌러 그 장으로 바로
                 if (GUI.Button(new Rect(dr.x - 4, dr.y - 8, dr.width + 8, dr.height + 16),
