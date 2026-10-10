@@ -26,6 +26,20 @@ namespace SlimeEscape
             new Vector4(0.05f, 0.20f, 0.50f, 32),
             new Vector4(0.80f, 0.95f, 0.33f, 40),
         };
+        //  🔴 (10-11 루프) **세로 폰(390×844)** 은 로고 · 메뉴 · 시범 판 자리가 달라 가로용 선반이 메뉴 글자를 덮었다.
+        //     세로용 자리 — 로고와 메뉴 사이 위쪽 띠 · 메뉴 왼쪽 · 맨 아래 띠. 첫 줄과 넷째 줄이 바닥(넓어지는 것)
+        static readonly Vector4[] LedgesTall = {
+            new Vector4(0.30f, 0.65f, 0.95f, 0),
+            new Vector4(0.08f, 0.38f, 0.37f, 3),
+            new Vector4(0.58f, 0.90f, 0.29f, 6),
+            new Vector4(0.05f, 0.95f, 0.95f, 10),
+            new Vector4(0.10f, 0.40f, 0.29f, 14),   // ⚠️ 0.23 은 설정 화면의 「설정」 제목을 덮었다
+            new Vector4(0.05f, 0.30f, 0.52f, 18),
+            new Vector4(0.42f, 0.62f, 0.38f, 24),
+            new Vector4(0.05f, 0.35f, 0.64f, 32),
+            new Vector4(0.66f, 0.95f, 0.40f, 40),
+        };
+        bool _palTall;
         static readonly string[] Feats = { "leaf", "sprout", "horn", "bow", "none", "leaf", "sprout", "horn" };
 
         class Pal { public int p; public float x, y, R, t, dur, tx, face = 1f, hop, jx0, jy0, jx1, jy1, blink; public int jp, seed; public string st = "idle", feat; public Color tint; }
@@ -68,7 +82,7 @@ namespace SlimeEscape
         {
             _palCount = n;
             _ledgesOn.Clear();
-            foreach (var L in Ledges) if (L.w <= n) _ledgesOn.Add(L);
+            foreach (var L in (_palTall ? LedgesTall : Ledges)) if (L.w <= n) _ledgesOn.Add(L);
             //  넓은 바닥이 열리면 좁은 첫 선반은 안 그린다 (같은 높이에 겹친다)
             if (n >= 10) _ledgesOn.RemoveAt(0);
             _pals.Clear();
@@ -207,14 +221,16 @@ namespace SlimeEscape
         void LobbyFriends(float w, float h, float fade)
         {
             int n = RescuedCount();
-            if (n != _palCount) LobbySetup(n);
+            bool tall = Tall(w, h);
+            if (n != _palCount || tall != _palTall) { _palTall = tall; LobbySetup(n); }
             if (Event.current != null && Event.current.type != EventType.Repaint) return;
             float now = Time.unscaledTime;
             float dt = _palLast < 0f ? 0f : Mathf.Min(0.05f, now - _palLast);
             _palLast = now;
-            float th = Mathf.Max(12f, h * 0.032f);
+            float sh = Mathf.Min(w, h);   // ⚠️ 높이로 재면 세로 폰에서 친구 · 선반이 폭에 비해 너무 컸다
+            float th = Mathf.Max(10f, sh * 0.032f);
             foreach (var L in _ledgesOn) LobbyLedge(new Rect(L.x * w, L.z * h, (L.y - L.x) * w, th), fade);
-            float baseR = Mathf.Clamp(h * 0.024f, 9f, 26f);
+            float baseR = Mathf.Clamp(sh * 0.024f, 8f, 26f);
             _pals.Sort((a, b) => a.y.CompareTo(b.y));
             foreach (var a in _pals)
             {
