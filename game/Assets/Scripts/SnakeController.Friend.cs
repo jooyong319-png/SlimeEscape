@@ -77,6 +77,7 @@ namespace SlimeEscape
             _frHome = at;
             _frGot = false; _frAt = -9f;
             _shards.Clear();
+            _frTrail.Clear(); _frLastTail = -1; _frFollowing = false;
             _frTint = FriendTints[Mathf.Abs(_index) % FriendTints.Length];
 
             _crGlow = NewSprite("CrystalGlow", -1);
@@ -124,10 +125,12 @@ namespace SlimeEscape
             if (got && !_frGot)
             {
                 _frAt = Time.time; SpawnShards();
-                //  ⚠️ 머리 쪽으로 뛰면 슬라임에 가려 안 보였다 (10-10 화면) — 반대쪽으로
-                _frAway = (_st.Body.Count > 1 && CellPos(_st.Body[1]).x > _frHome.x + 0.01f) ? -1f : 1f;   // 머리 바로 뒤 마디가 온 쪽의 반대
+                //  ⚠️ 머리 쪽으로 뛰면 슬라임에 가려 안 보였다 (10-10 화면) — 머리 바로 뒤 마디가 온 쪽의 반대로
+                _frAway = (_st.Body.Count > 1 && CellPos(_st.Body[1]).x > _frHome.x + 0.01f) ? -1f : 1f;
+                _frLand = LandSpot();
+                _frTrail.Clear(); _frLastTail = -1; _frFollowing = false;
             }
-            if (!got && _frGot) ClearShards();   // 되돌리면 다시 갇힌다 — 터지는 건 "구했다"는 말이다
+            if (!got && _frGot) { ClearShards(); _frTrail.Clear(); _frLastTail = -1; _frFollowing = false; }   // 되돌리면 다시 갇힌다
             _frGot = got;
 
             bool caged = !got;
@@ -148,45 +151,107 @@ namespace SlimeEscape
                 return;
             }
 
+            _crGlow.enabled = false;
             float u = now - _frAt;
             TickShards();
             if (u < 0.9f)
             {
                 //  ⚠️ 옆으로만 뛰면 수정 칸에 들어온 슬라임 머리에 가려 안 보였다 (10-10 화면).
                 //     먼저 **한 칸 높이 튀어 올라** 머리 반대쪽 옆 칸에 내려앉고, 한 번 더 작게 통통.
-                float x, y, land = 0f;
+                Vector2 from = _frHome + new Vector2(0f, -0.18f);
+                Vector2 p; float land = 0f;
                 if (u < 0.6f)
                 {
                     float t = u / 0.6f;
-                    x = _frAway * t * 0.95f;
-                    y = 1.05f * 4f * t * (1f - t);
+                    p = Vector2.Lerp(from, _frLand, t) + new Vector2(0f, 1.05f * 4f * t * (1f - t));
                 }
                 else
                 {
                     float t = (u - 0.6f) / 0.3f;
-                    x = _frAway * 0.95f;
-                    y = 0.28f * 4f * t * (1f - t);
+                    p = _frLand + new Vector2(0f, 0.28f * 4f * t * (1f - t));
                     if (t < 0.18f || t > 0.85f) land = 0.16f;
                 }
-                PlaceFriend(_frHome + new Vector2(x, -0.18f + y), land, _frAway, true);
-                _crGlow.enabled = false;
+                PlaceFriend(p, land, _frAway, true);
+                _frNow = p;
+                return;
             }
-            else if (u < 2.1f)
+
+            //  🔴 (10-10 사장님: "구하면 그 판 친구는 따라다니게 가능?") — 꼬리 **바로 뒤 칸**을 통통 따라온다.
+            //     꼬리가 방금 떠난 칸만 밟으니 벽에 박힐 일이 없다. 그 칸이 공중이면 아래 디딜 데까지 내려선다.
+            //     되돌리면 꼬리가 떠난 칸으로 돌아오니 기록을 하나 지운다 — 친구도 한 칸 물러난다.
+            if (!_frFollowing) { _frFollowing = true; _frGoal = _frLand; _frFrom = _frLand; _frNow = _frLand; _frMoveAt = -9f; }
+            int tail = _st.Body[_st.Body.Count - 1];
+            if (_frLastTail < 0) _frLastTail = tail;
+            if (tail != _frLastTail)
             {
-                //  빛이 되어 위로 — 로비로 간다
-                PlaceFriend(Vector2.zero, 0f, 0f, false);
-                float v = (u - 0.9f) / 1.2f;
-                _crGlow.enabled = true;
-                _crGlow.transform.position = _frHome + new Vector2(_frAway * (0.95f + v * 0.4f), -0.1f + v * v * 3.2f);
-                _crGlow.transform.localScale = Vector3.one * Mathf.Lerp(0.9f, 0.5f, v);
-                var gc = _frTint; gc.a = 0.85f * (1f - v);
-                _crGlow.color = gc;
+                if (_frTrail.Count > 0 && _frTrail[_frTrail.Count - 1] == tail) _frTrail.RemoveAt(_frTrail.Count - 1);
+                else _frTrail.Add(_frLastTail);
+                _frLastTail = tail;
             }
-            else
+            Vector2 want = _frTrail.Count > 0 ? Grounded(_frTrail[_frTrail.Count - 1]) : _frLand;
+            //  ⚠️ 슬라임이 떨어지면 떠난 칸이 위 선반에 남아, 친구가 다음 걸음까지 선반 끝에서 기다렸다 (10-10 화면).
+            //     꼬리에서 한 칸 반 넘게 멀어지면 **꼬리 바로 뒤 칸**으로 같이 뛰어내린다.
+            if (_frTrail.Count > 0 && (want - CellPos(tail)).magnitude > 1.6f && BehindTail(out var near)) want = near;
+            if ((want - _frGoal).sqrMagnitude > 1e-4f) { _frFrom = _frNow; _frGoal = want; _frMoveAt = now; }
+            float k = Mathf.Clamp01((now - _frMoveAt) / FollowHop);
+            float dist = (_frGoal - _frFrom).magnitude;
+            Vector2 pos = Vector2.Lerp(_frFrom, _frGoal, k * k * (3f - 2f * k))
+                        + new Vector2(0f, Mathf.Min(1f, dist) * 0.38f * 4f * k * (1f - k));
+            float sqz = k >= 1f ? 0.035f * Mathf.Sin(now * 3f) : (k > 0.85f ? 0.14f : 0f);
+            float lk = _st.Body.Count > 0 ? Mathf.Clamp(CellPos(_st.Head).x - pos.x, -1f, 1f) : 0f;
+            PlaceFriend(pos, sqz, lk, true);
+            _frNow = pos;
+        }
+
+        const float FollowHop = 0.28f;
+        readonly List<int> _frTrail = new List<int>();
+        int _frLastTail = -1;
+        bool _frFollowing;
+        Vector2 _frLand, _frGoal, _frFrom, _frNow;
+        float _frMoveAt = -9f;
+
+        /// 칸 c 에서 아래로 디딜 데(벽 · 몸)까지 내려선 자리 — 몸 가운데 높이로 준다
+        Vector2 Grounded(int c)
+        {
+            int x = _L.X(c), y = _L.Y(c);
+            if (_gravity)
             {
-                PlaceFriend(Vector2.zero, 0f, 0f, false);
-                _crGlow.enabled = false;
+                var body = new HashSet<int>(_st.Body);
+                for (int k = 0; k < 12 && y + 1 < _L.H && !WallAt(x, y + 1) && !body.Contains((y + 1) * _L.W + x); k++) y++;
             }
+            return CellXY(x, y) + new Vector2(0f, -0.18f);
+        }
+
+        /// 꼬리 바로 뒤 칸 (몸이 뻗은 반대쪽) — 막혔으면 false
+        bool BehindTail(out Vector2 at)
+        {
+            at = Vector2.zero;
+            int n = _st.Body.Count;
+            if (n < 2) return false;
+            int tail = _st.Body[n - 1];
+            int tx = _L.X(tail), ty = _L.Y(tail);
+            int bx = tx + (tx - _L.X(_st.Body[n - 2])), by = ty + (ty - _L.Y(_st.Body[n - 2]));
+            if (bx < 0 || by < 0 || bx >= _L.W || by >= _L.H || WallAt(bx, by)) return false;
+            if (_st.Body.Contains(by * _L.W + bx)) return false;
+            at = Grounded(by * _L.W + bx);
+            return true;
+        }
+
+        /// 구했을 때 내려앉을 자리 — 슬라임 등을 넘어 **꼬리 뒤 칸**. 막혔으면 꼬리 위.
+        /// ⚠️ 머리 반대쪽 옆 칸에 앉혔더니 슬라임이 가는 길이라 다음 걸음에 몸에 덮였다 (10-10 화면).
+        Vector2 LandSpot()
+        {
+            int n = _st.Body.Count;
+            int tail = _st.Body[n - 1];
+            int tx = _L.X(tail), ty = _L.Y(tail);
+            int bx = tx, by = ty;
+            if (n > 1) { bx = tx + (tx - _L.X(_st.Body[n - 2])); by = ty + (ty - _L.Y(_st.Body[n - 2])); }
+            else bx = tx - (int)Mathf.Sign(CellPos(tail).x - _frHome.x + 0.001f);
+            Vector2 at = (bx == tx && by == ty) || WallAt(bx, by) || by < 0 || by >= _L.H || bx < 0 || bx >= _L.W
+                ? CellXY(tx, ty - 1) + new Vector2(0f, -0.18f)
+                : Grounded(by * _L.W + bx);
+            _frAway = at.x >= _frHome.x ? 1f : -1f;
+            return at;
         }
 
         /// 친구 한 마리 놓기 — at 은 몸 가운데, sq 는 눌림(+ 이면 납작), look 은 -1~1 보는 쪽
