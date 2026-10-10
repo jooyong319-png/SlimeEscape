@@ -155,6 +155,11 @@ namespace SlimeEscape.EditorTools
                     typeof(SnakeController).GetMethod("Step", Bf).Invoke(_c, new object[] { dd });
                     break;
                 }
+                //  (10-11) 정답 재생 — 판을 실제로 끝까지 깨는 장면을 찍으려고 (F3 과 같다). @초 로 몇 초 뒤를 찍을지
+                case "wait": break;   // 아무것도 안 하고 @초 뒤에 한 장 더 (재생 · 연출 도중을 이어 찍을 때)
+                case "replay":
+                    typeof(SnakeController).GetMethod("StartReplay", Bf).Invoke(_c, null);
+                    break;
                 case "swap":
                     typeof(SnakeController).GetMethod("Step", Bf).Invoke(_c, new object[] { SnakeEngine.Dir.Swap });
                     break;

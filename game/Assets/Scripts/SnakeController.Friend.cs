@@ -208,6 +208,14 @@ namespace SlimeEscape
                         + new Vector2(0f, Mathf.Min(1f, dist) * 0.38f * 4f * k * (1f - k));
             float sqz = k >= 1f ? 0.035f * Mathf.Sin(now * 3f) : (k > 0.85f ? 0.14f : 0f);
             float lk = _st.Body.Count > 0 ? Mathf.Clamp(CellPos(_st.Head).x - pos.x, -1f, 1f) : 0f;
+            //  🔴 (10-11 루프) 판을 깨면 그 자리에서 **통통 뛰며 기뻐한다** — 홈(머리) 쪽을 보며
+            //     (로비로 날아가는 연출은 사장님과 정할 몫이라 아직 안 넣었다)
+            if (_won && k >= 1f)
+            {
+                float jb = Mathf.Repeat(now * 2.2f, 1f);
+                pos += new Vector2(0f, 0.32f * 4f * jb * (1f - jb));
+                sqz = jb < 0.12f || jb > 0.9f ? 0.16f : -0.05f;
+            }
             PlaceFriend(pos, sqz, lk, true);
             _frNow = pos;
         }
