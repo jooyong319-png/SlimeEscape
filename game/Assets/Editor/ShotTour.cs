@@ -147,6 +147,14 @@ namespace SlimeEscape.EditorTools
                 case "ending":   Clear(); Set("_allDone", true); break;   // 마지막 판까지 깬 뒤
                 //  (10-09) 막힘 안내 — 판을 연 뒤 150초가 지난 것으로 치고 "다음 한 수"를 띄운다 (level:N 다음에 쓴다)
                 //  (10-10) 슬라임 둘 — 키보드 교체 한 번 (교체 순간 연출을 찍으려고)
+                //  (10-10) 한 칸 움직이기 — 먹기 · 밀기 같은 순간 연출을 찍으려고
+                case "left": case "right": case "up": case "down":
+                {
+                    var dd = p[0] == "left" ? SnakeEngine.Dir.Left : p[0] == "right" ? SnakeEngine.Dir.Right
+                           : p[0] == "up" ? SnakeEngine.Dir.Up : SnakeEngine.Dir.Down;
+                    typeof(SnakeController).GetMethod("Step", Bf).Invoke(_c, new object[] { dd });
+                    break;
+                }
                 case "swap":
                     typeof(SnakeController).GetMethod("Step", Bf).Invoke(_c, new object[] { SnakeEngine.Dir.Swap });
                     break;

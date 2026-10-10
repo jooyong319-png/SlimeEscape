@@ -24,6 +24,7 @@ namespace SlimeEscape
             _root = new GameObject("Board").transform;
             _segs.Clear(); _foodViews.Clear(); _foodExtra.Clear(); _links.Clear();
             _zoneDots.Clear(); _boxViews.Clear(); _boxTops.Clear(); _boxInner.Clear(); _ports.Clear();
+            ResetEatFx();
             _iceShines.Clear(); _cracks.Clear();
 
             for (int y = 0; y < _L.H; y++)
@@ -1068,6 +1069,7 @@ namespace SlimeEscape
             TickLinkSparks();
             TickSwitchViews();
             TickTwinView();
+            TickEatFx();
 
             TickSuck();
 
