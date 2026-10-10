@@ -55,16 +55,33 @@ namespace SlimeEscape
             //  넓은 바닥이 열리면 좁은 첫 선반은 안 그린다 (같은 높이에 겹친다)
             if (n >= 10) _ledgesOn.RemoveAt(0);
             _pals.Clear();
-            for (int i = 0; i < Mathf.Min(n, 60); i++)
-            {
-                int p = (int)(Hash(i * 29 + 3) * _ledgesOn.Count) % _ledgesOn.Count;
-                var L = _ledgesOn[p];
-                _pals.Add(new Pal {
-                    p = p, x = Mathf.Lerp(L.x + 0.02f, L.y - 0.02f, Hash(i * 7 + 1)), y = L.z,
-                    R = Mathf.Lerp(0.8f, 1.15f, Hash(i * 31 + 5)), t = Hash(i * 53) * 2f, dur = 1f + Hash(i * 59) * 2f,
-                    face = Hash(i * 61) < 0.5f ? -1f : 1f, seed = i, blink = Hash(i * 67) * 4f,
-                    feat = Feats[i % Feats.Length], tint = FriendTints[i % FriendTints.Length] });
-            }
+            //  ⚠️ 선반을 무작위로 골랐더니 한 선반에 몰려 겹쳐 섰다 (10-10 45마리 화면).
+            //     선반 **넓이만큼** 나눠 앉히고, 선반 안에서도 고르게 띄운다.
+            int m = Mathf.Min(n, 60);
+            float total = 0f; foreach (var L in _ledgesOn) total += L.y - L.x;
+            var per = new int[_ledgesOn.Count]; int given = 0;
+            for (int k = 0; k < per.Length; k++) { per[k] = Mathf.FloorToInt(m * (_ledgesOn[k].y - _ledgesOn[k].x) / total); given += per[k]; }
+            for (int k = 0; given < m; k = (k + 1) % per.Length) { per[k]++; given++; }
+            int i = 0;
+            for (int k = 0; k < per.Length; k++)
+                for (int j = 0; j < per[k]; j++, i++)
+                {
+                    var L = _ledgesOn[k];
+                    float u = (j + 0.5f) / per[k] + (Hash(i * 7 + 1) - 0.5f) * 0.4f / per[k];
+                    _pals.Add(new Pal {
+                        p = k, x = Mathf.Lerp(L.x + 0.015f, L.y - 0.015f, u), y = L.z,
+                        R = Mathf.Lerp(0.8f, 1.15f, Hash(i * 31 + 5)), t = Hash(i * 53) * 2f, dur = 1f + Hash(i * 59) * 2f,
+                        face = Hash(i * 61) < 0.5f ? -1f : 1f, seed = i, blink = Hash(i * 67) * 4f,
+                        feat = Feats[i % Feats.Length], tint = FriendTints[i % FriendTints.Length] });
+                }
+        }
+
+        /// 같은 선반에서 x 가까이에 친구가 몇이나 있나 — 걸어갈 곳은 덜 붐비는 쪽으로
+        int Crowd(int p, float x, Pal self)
+        {
+            int c = 0;
+            foreach (var o in _pals) if (o != self && o.p == p && Mathf.Abs(o.x - x) < 0.03f) c++;
+            return c;
         }
 
         void PalPick(Pal a)
@@ -75,7 +92,15 @@ namespace SlimeEscape
             else if (r < 0.84f)
             {
                 a.st = "walk";
-                a.tx = Mathf.Clamp(a.x + (Random.value - 0.5f) * 0.22f, L.x + 0.015f, L.y - 0.015f);
+                //  후보 셋 중 덜 붐비는 곳
+                float best = a.x; int bc = int.MaxValue;
+                for (int k = 0; k < 3; k++)
+                {
+                    float cx = Mathf.Clamp(a.x + (Random.value - 0.5f) * 0.22f, L.x + 0.015f, L.y - 0.015f);
+                    int cc = Crowd(a.p, cx, a);
+                    if (cc < bc) { bc = cc; best = cx; }
+                }
+                a.tx = best;
                 a.face = a.tx > a.x ? 1f : -1f;
             }
             else
