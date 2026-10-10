@@ -32,7 +32,7 @@ namespace SlimeEscape
                 {
                     int c = y * _L.W + x;
                     bool wall = _L.IsWall(c);
-                    var sr = NewSprite(wall ? "Wall" : "Floor", -3);
+                    var sr = NewSprite(wall ? "Wall" : "Floor", wall ? -3 : -5);   // 빈 칸은 -5: 그 사이(-4)에 벽 테두리 (10-10)
                     sr.transform.position = CellPos(c);
                     //  🔴 벽은 **둥근 네모**다 (09-03 사장님). 슬라임도 홈도 둥근데
                     //     벽만 각지면 딴 세계처럼 보인다. 이웃 사이는 다리로 메워서
@@ -158,7 +158,9 @@ namespace SlimeEscape
                         bool up = y > 0 && !_L.IsWall(c - _L.W);
 
                         // 윗면 — "여기 딛고 설 수 있다". 두고 온 몸의 윗면과 같은 신호다.
-                        if (up)
+                        //  🔴 (10-10) 돌 윗면은 두툼한 덮개로 (SnakeController.Ink.cs). 얼음은 눈 얹은 지금 모양 그대로
+                        if (up && !isIce) WallCap(x, y);
+                        if (up && isIce)
                         {
                             var e = NewSprite("WallTop", -2);
                             e.transform.position = CellPos(c) + new Vector2(0f, 0.42f);
@@ -540,6 +542,7 @@ namespace SlimeEscape
                 }
             BuildSwitchViews();
             BuildSwapViews();
+            BuildWallInk();
             if (!_demo) BuildBackdrop(); else _backBlobs.Clear();
 
             // 🔴 별 — 먹어도 몸이 안 자란다. 그래서 조각(주황)과 **다른 색·다른 크기**로 둔다.
