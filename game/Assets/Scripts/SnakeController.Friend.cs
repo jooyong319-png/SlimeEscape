@@ -208,19 +208,43 @@ namespace SlimeEscape
                         + new Vector2(0f, Mathf.Min(1f, dist) * 0.38f * 4f * k * (1f - k));
             float sqz = k >= 1f ? 0.035f * Mathf.Sin(now * 3f) : (k > 0.85f ? 0.14f : 0f);
             float lk = _st.Body.Count > 0 ? Mathf.Clamp(CellPos(_st.Head).x - pos.x, -1f, 1f) : 0f;
-            //  🔴 (10-11 루프) 판을 깨면 그 자리에서 **통통 뛰며 기뻐한다** — 홈(머리) 쪽을 보며
-            //     (로비로 날아가는 연출은 사장님과 정할 몫이라 아직 안 넣었다)
-            if (_won && k >= 1f)
+            //  🔴 (10-12 사장님 "쭉 해봐" · 시안 A) 판을 깨면 한 번 크게 뛰고 **빛이 되어 위로 날아간다** — 로비로 간다
+            //     https://claude.ai/artifact/PiLorFpKRpWo1woRXpz9Pt
+            if (_won)
             {
-                float jb = Mathf.Repeat(now * 2.2f, 1f);
-                pos += new Vector2(0f, 0.32f * 4f * jb * (1f - jb));
-                sqz = jb < 0.12f || jb > 0.9f ? 0.16f : -0.05f;
+                if (_frWonFrom.x == float.MaxValue) _frWonFrom = _frNow;
+                float wu = now - _wonAt;
+                if (wu < 0.35f)
+                {
+                    float j = wu / 0.35f;
+                    PlaceFriend(_frWonFrom + new Vector2(0f, 1.3f * 4f * j * (1f - j)), j < 0.15f ? 0.18f : -0.06f, lk, true);
+                    _crGlow.enabled = false;
+                }
+                else if (wu < 1.2f)
+                {
+                    float v = (wu - 0.35f) / 0.85f;
+                    PlaceFriend(Vector2.zero, 0f, 0f, false);
+                    _crGlow.enabled = true;
+                    _crGlow.transform.position = _frWonFrom + new Vector2(v * 1.6f, 0.3f + v * v * 6f);
+                    //  ⚠️ 1.1 → 0.6 은 점 하나로만 보였다 (10-12 화면) — 크고 밝게
+                    _crGlow.transform.localScale = Vector3.one * Mathf.Lerp(2.4f, 1.3f, v);
+                    var gc = Color.Lerp(_frTint, Color.white, 0.35f); gc.a = 1f - v * v;
+                    _crGlow.color = gc;
+                }
+                else { PlaceFriend(Vector2.zero, 0f, 0f, false); _crGlow.enabled = false; }
+                return;
             }
+            _frWonFrom = new Vector2(float.MaxValue, 0f);
             PlaceFriend(pos, sqz, lk, true);
             _frNow = pos;
         }
 
         const float FollowHop = 0.28f;
+
+        /// ⚠️ 결과 카드가 0.5 초 만에 떠서 친구가 날아가는 게 **카드에 가려 안 보였다** (10-12 화면).
+        ///    친구를 데리고 깬 판만 카드를 조금 늦게 띄운다 — 날아가는 걸 보고 나서 카드
+        float FriendExitDelay() => (_frBody != null && _st != null && _st.Sc != 0) ? 0.8f : 0f;
+        Vector2 _frWonFrom = new Vector2(float.MaxValue, 0f);   // 판을 깬 순간 친구 자리 (날아갈 출발점)
         readonly List<int> _frTrail = new List<int>();
         int _frLastTail = -1;
         bool _frFollowing;

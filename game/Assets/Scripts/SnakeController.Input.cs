@@ -163,7 +163,7 @@ namespace SlimeEscape
             //    (출구까지 걸어가게 했더니 지루하기만 했다 — 08-30 사장님)
             // 🔴 다 빨려든 다음에 결과 화면. 연출이 잘리면 "해냈다"가 안 남는다.
             // 🔴 연출이 멈춰도 판은 **반드시** 넘어간다. 연출 하나 때문에 못 깨면 안 된다.
-            if (_won && Time.time > _wonAt + WinDelay
+            if (_won && Time.time > _wonAt + WinDelay + FriendExitDelay()
                 && (_blobs.Count == 0 || Time.time > _wonAt + WinDelay + 2f))
             { ClearAndAdvance(); return; }
 

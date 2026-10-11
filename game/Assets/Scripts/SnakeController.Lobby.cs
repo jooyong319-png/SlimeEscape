@@ -136,13 +136,25 @@ namespace SlimeEscape
             }
             else
             {
+                //  🔴 (10-12 사장님 "쭉 해봐" · 시안 B) 작은 회색 수정이 별 옆에서 묻혔다 →
+                //     조금 크게 · **밝은 테** · 몇 초에 한 번 별빛처럼 반짝 (판마다 박자를 어긋낸다)
+                //     https://claude.ai/artifact/XfsaMZpnfVR7yWFS6rDVjZ
                 EnsureHex();
-                var ink = InkCol;
-                var hr = new Rect(r.x + r.width * 0.1f, r.y, r.width * 0.8f, r.height);
-                Shape(hr, ink, _hexInk.texture);
-                var gc = GlassCol; gc.a = Mathf.Min(1f, GlassCol.a * 2f);
-                Shape(hr, gc, _hexSolid.texture);
-                Shape(hr, GlassRim, _hexRing.texture);
+                var c0 = r.center;
+                float s = r.height * 1.2f;
+                var hr = new Rect(c0.x - s * 0.4f, c0.y - s * 0.5f, s * 0.8f, s);
+                Shape(new Rect(hr.x - 1.5f, hr.y - 1.5f, hr.width + 3f, hr.height + 3f), InkCol, _hexSolid.texture);
+                Shape(hr, new Color(0.80f, 0.86f, 0.92f, 0.42f), _hexSolid.texture);
+                Shape(hr, new Color(0.96f, 0.98f, 1f, 1f), _hexRing.texture);
+                float ph = Mathf.Repeat(Time.unscaledTime * 0.45f + li * 0.37f, 1f);
+                if (ph < 0.12f)
+                {
+                    float a = 1f - ph / 0.12f, len = s * (0.35f + 0.25f * (1f - a)), th = Mathf.Max(1.2f, s * 0.07f);
+                    var sc = new Color(1f, 1f, 1f, a);
+                    var sp = new Vector2(hr.xMax - s * 0.12f, hr.y + s * 0.18f);
+                    Shape(new Rect(sp.x - len * 0.5f, sp.y - th * 0.5f, len, th), sc, Solid(Color.white));
+                    Shape(new Rect(sp.x - th * 0.5f, sp.y - len * 0.5f, th, len), sc, Solid(Color.white));
+                }
             }
         }
 

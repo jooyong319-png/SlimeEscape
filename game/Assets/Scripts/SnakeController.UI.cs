@@ -147,7 +147,15 @@ namespace SlimeEscape
                 {
                     float lw = _sMid.CalcSize(new GUIContent(line)).x, ic = 22f * _uiScale, gapI = 12f * _uiScale;
                     lr.x = -(ic + gapI) * 0.5f;
-                    FriendIcon(new Rect(w * 0.5f + lw * 0.5f + lr.x + gapI, lr.y + (lr.height - ic) * 0.5f, ic, ic), _resultStar);
+                    var fir = new Rect(w * 0.5f + lw * 0.5f + lr.x + gapI, lr.y + (lr.height - ic) * 0.5f, ic, ic);
+                    //  (10-12 시안 A) 친구가 날아간 뒤 결과 카드의 친구 얼굴이 한 번 반짝 — "로비에 도착"
+                    if (_resultStar)
+                    {
+                        float fl = 1f - Mathf.Abs(el - (StarLead + 2 * StarBeat + 0.35f)) / 0.35f;
+                        if (fl > 0f) Shape(new Rect(fir.x - ic * 0.6f, fir.y - ic * 0.6f, ic * 2.2f, ic * 2.2f),
+                                           new Color(0.70f, 0.98f, 0.82f, 0.8f * fl), PixelSprites.Halo().texture);
+                    }
+                    FriendIcon(fir, _resultStar);
                 }
                 GUI.Label(lr, line, _sMid);
 
